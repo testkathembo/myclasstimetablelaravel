@@ -1,8 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import Sidebar from '@/Components/sidebar';
-import Navbar from '@/Components/navbar';
+import Sidebar from '@/components/ui/sidebar';
+import Navbar from '@/components/ui/navbar';
 
 export default function Dashboard({ auth }: PageProps) {
     return (
