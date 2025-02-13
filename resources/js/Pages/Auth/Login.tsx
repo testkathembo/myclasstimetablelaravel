@@ -9,7 +9,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 
 export default function Login({ status, canResetPassword }: { status?: string, canResetPassword: boolean }) {
     const { data, setData, post, processing, errors, reset } = useForm({
-        email: '',
+        code: '',  
         password: '',
         remember: false,
     });
@@ -22,8 +22,7 @@ export default function Login({ status, canResetPassword }: { status?: string, c
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-
-        post(route('login'));
+        post(route('login'));  // Send login request to Laravel backend
     };
 
     return (
@@ -32,22 +31,33 @@ export default function Login({ status, canResetPassword }: { status?: string, c
 
             {status && <div className="mb-4 font-medium text-sm text-green-600">{status}</div>}
 
+            {/* Logo Container with Circular Shape */}
+            <div className="mb-6 text-center flex justify-center">
+                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-lg">
+                    <img 
+                        src="/images/strathmore.png" 
+                        alt="Strathmore Logo" 
+                        className="h-24 w-24 rounded-full object-cover" 
+                    />
+                </div>
+            </div>
+
             <form onSubmit={submit}>
                 <div>
-                    <InputLabel htmlFor="email" value="Email" />
+                    <InputLabel htmlFor="code" value="User Code" /> {/* Updated label */}
 
                     <TextInput
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={data.email}
+                        id="code"
+                        type="text"  
+                        name="code"
+                        value={data.code}
                         className="mt-1 block w-full"
                         autoComplete="username"
                         isFocused={true}
-                        onChange={(e) => setData('email', e.target.value)}
+                        onChange={(e) => setData('code', e.target.value)}
                     />
 
-                    <InputError message={errors.email} className="mt-2" />
+                    <InputError message={errors.code} className="mt-2" />
                 </div>
 
                 <div className="mt-4">

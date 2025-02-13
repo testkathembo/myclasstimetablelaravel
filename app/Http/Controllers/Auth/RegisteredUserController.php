@@ -31,22 +31,35 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Validate the incoming registration request
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
+            'code' => 'required|string|max:20|unique:users',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'faculty' => 'required|string|max:255',
+            'email' => 'required|string|lowercase|email|max:255|unique:users',
+            'phone' => 'required|string|max:20|unique:users',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        // Create the new user with all the required fields
         $user = User::create([
-            'name' => $request->name,
+            'code' => $request->code,
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'faculty' => $request->faculty,
             'email' => $request->email,
+            'phone' => $request->phone,
             'password' => Hash::make($request->password),
         ]);
 
+        // Trigger the registered event
         event(new Registered($user));
 
+        // Log the user in automatically after registration
         Auth::login($user);
 
+        // Redirect to the dashboard (or any other intended route)
         return redirect(RouteServiceProvider::HOME);
     }
 }
