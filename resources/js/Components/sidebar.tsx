@@ -1,6 +1,6 @@
 import { Link } from "@inertiajs/react";
 import { Home, Settings, User } from "lucide-react"; // Icons
-import { Button } from "@/components/ui/button";
+import { Button } from "@/Components/button";
 
 const Sidebar = () => {
   return (
