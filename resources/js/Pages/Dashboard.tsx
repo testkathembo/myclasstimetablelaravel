@@ -4,7 +4,7 @@ import { PageProps } from '@/types';
 import Sidebar from '@/components/ui/sidebar';
 import Navbar from '@/components/ui/navbar';
 
-export default function Dashboard({ auth }: PageProps) {
+export default function Dashboard({ auth }: PageProps & { auth: { user: { code: string } } }) {
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Dashboard" />
@@ -13,7 +13,7 @@ export default function Dashboard({ auth }: PageProps) {
             <div className="h-screen flex flex-col">
                 
                 {/* Top Navbar */}
-                <Navbar />
+                <Navbar user={auth.user} />
 
                 {/* Main Layout with Sidebar & Content */}
                 <div className="flex flex-1">

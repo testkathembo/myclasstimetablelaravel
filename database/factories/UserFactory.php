@@ -1,16 +1,19 @@
 <?php
-
 namespace Database\Factories;
 
+use App\Models\User;
+use App\Models\Role;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
- */
 class UserFactory extends Factory
 {
+    /**
+     * The name of the factory's corresponding model.
+     */
+    protected $model = User::class;
+
     /**
      * The current password being used by the factory.
      */
@@ -18,27 +21,50 @@ class UserFactory extends Factory
 
     /**
      * Define the model's default state.
-     *
-     * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'code' => fake()->unique()->randomNumber(6), // Unique Student/Lecturer Code
+            'first_name' => fake()->firstName(),
+            'last_name' => fake()->lastName(),
+            'faculty' => fake()->randomElement(['Science', 'Arts', 'Business']),
             'email' => fake()->unique()->safeEmail(),
+            'phone' => fake()->phoneNumber(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'role_id' => Role::inRandomOrder()->first()->id ?? 1, // Assign random role (Admin, Lecturer, Student)
         ];
     }
 
     /**
-     * Indicate that the model's email address should be unverified.
+     * Indicate that the model should have an Admin role.
      */
-    public function unverified(): static
+    public function admin(): static
     {
         return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+            'role_id' => Role::where('name', 'Admin')->first()->id,
+        ]);
+    }
+
+    /**
+     * Indicate that the model should have a Lecturer role.
+     */
+    public function lecturer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role_id' => Role::where('name', 'Lecturer')->first()->id,
+        ]);
+    }
+
+    /**
+     * Indicate that the model should have a Student role.
+     */
+    public function student(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role_id' => Role::where('name', 'Student')->first()->id,
         ]);
     }
 }
