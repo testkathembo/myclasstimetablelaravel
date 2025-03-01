@@ -1,4 +1,4 @@
-import { Link } from "@inertiajs/react";
+import { Link, useForm } from "@inertiajs/react";
 import { LogOut, User } from "lucide-react";
 
 interface NavbarProps {
@@ -8,6 +8,12 @@ interface NavbarProps {
 }
 
 const Navbar = ({ user }: NavbarProps) => {
+  const { post } = useForm();
+
+  const handleLogout = () => {
+    post(route("logout")); // Calls Laravel's logout route
+  };
+
   return (
     <nav className="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center">
       <div className="flex items-center space-x-2">
@@ -25,10 +31,14 @@ const Navbar = ({ user }: NavbarProps) => {
           <span>Profile</span>
         </Link>
 
-        <Link href="/logout" method="post" as="button" className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white flex items-center space-x-2">
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white flex items-center space-x-2"
+        >
           <LogOut className="h-5 w-5" />
           <span>Logout</span>
-        </Link>
+        </button>
       </div>
     </nav>
   );
