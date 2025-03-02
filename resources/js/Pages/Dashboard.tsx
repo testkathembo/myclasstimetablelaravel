@@ -12,15 +12,11 @@ export default function Dashboard({ auth }: PageProps & { auth: { user: { code: 
             {/* Full Layout: Navbar at the Top + Sidebar on the Left */}
             <div className="h-screen flex flex-col">
                 
-                {/* Top Navbar */}
-                <Navbar user={auth.user} />
-
+               
                 {/* Main Layout with Sidebar & Content */}
                 <div className="flex flex-1">
                     
-                    {/* Sidebar */}
-                    <Sidebar />
-
+                    
                     {/* Main Content Area */}
                     <div className="flex-1 p-6 bg-gray-100">
                         <h2 className="font-semibold text-xl text-gray-800 leading-tight">Dashboard</h2>

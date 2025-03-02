@@ -31,7 +31,7 @@ class AuthenticatedSessionController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'code' => ['required', 'string', 'exists:users,code'], // ✅ Ensure 'code' exists in users table
+            'code' => ['required', 'string', 'exists:users,code'], // Ensure 'code' exists in users table
             'password' => ['required', 'string'],
         ]);
     

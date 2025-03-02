@@ -23,54 +23,21 @@ const Sidebar = () => {
             </Link>
           </li>
 
-          {/* Users Dropdown */}
-          <li className="flex items-start">
-            <button
-              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-              className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md"
-            >
-              <Users className="h-5 w-5 mr-2" />
-              <span>Users</span>
-              <ChevronDown className={`h-5 w-5 ml-auto transition-transform ${userDropdownOpen ? "rotate-180" : ""}`} />
-            </button>
-          </li>
-            
-          {/* Dropdown Content */}
-          {userDropdownOpen && (
-            <ul className="ml-4 mt-1 space-y-1">
-              <li className="flex items-start">
-                <Link href="/users/admin" className="w-full">
-                  <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
-                    <Briefcase className="h-5 w-5 mr-2" />
-                    <span>Admin</span>
-                  </Button>
-                </Link>
-              </li>
-              <li className="flex items-start">
-                <Link href="/users/lecturer" className="w-full">
-                  <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
-                    <Users className="h-5 w-5 mr-2" />
-                    <span>Lecturer</span>
-                  </Button>
-                </Link>
-              </li>
-              <li className="flex items-start">
-                <Link href="/users/student" className="w-full">
-                  <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
-                    <GraduationCap className="h-5 w-5 mr-2" />
-                    <span>Student</span>
-                  </Button>
-                </Link>
-              </li>
-            </ul>
-          )}
-
           {/* Other Menu Items */}
           <li className="flex items-start">
-            <Link href="/facilities" className="w-full">
+            <Link href="" className="w-full">
               <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
                 <Users className="h-5 w-5 mr-2" />
-                <span>Facilities</span>
+                <span>Users</span>
+              </Button>
+            </Link>
+          </li>
+          {/* Other Menu Items */}
+          <li className="flex items-start">
+            <Link href="/faculties" className="w-full">
+              <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
+                <Users className="h-5 w-5 mr-2" />
+                <span>Facculties</span>
               </Button>
             </Link>
           </li>
