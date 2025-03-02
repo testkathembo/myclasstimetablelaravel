@@ -7,6 +7,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UnitController;
 
 // Laravel Breeze Logout Route
 Route::post('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -40,6 +41,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    
+    // Routes for Units
+    Route::resource('units', UnitController::class)->except(['create', 'edit', 'show']);
 });
 
 require __DIR__.'/auth.php';
