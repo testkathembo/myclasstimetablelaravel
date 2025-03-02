@@ -22,6 +22,7 @@ class AdminSeeder extends Seeder
             'faculty' => 'SCES',
             'email' => 'kathembo.dieudonne@strathmore.edu',
             'phone' => '0706571995',
+            'role' => 'admin',
             'password' => Hash::make('password'), // Change 'password' to a secure password
         ]);
     }
