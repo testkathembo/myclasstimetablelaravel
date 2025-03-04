@@ -8,6 +8,8 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UnitController;
+use App\Http\Controllers\ClassroomController;
+use App\Http\Controllers\SemesterController;
 
 // Laravel Breeze Logout Route
 Route::post('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -43,7 +45,24 @@ Route::middleware('auth')->group(function () {
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     
     // Routes for Units
-    Route::resource('units', UnitController::class)->except(['create', 'edit', 'show']);
+    Route::get('/units', [UnitController::class, 'index'])->name('units.index');
+    Route::post('/units', [UnitController::class, 'store'])->name('units.store');
+    Route::patch('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
+    Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
+    
+    
+    // Routes for ClassRooms
+    Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
+    Route::post('/classrooms', [ClassroomController::class, 'store'])->name('classrooms.store');
+    Route::patch('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
+    Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
+
+    // Routes for Semesters
+    Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
+    Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
+    Route::patch('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
+    Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
+  
 });
 
 require __DIR__.'/auth.php';
