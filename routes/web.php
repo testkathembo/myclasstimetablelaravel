@@ -10,6 +10,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\SemesterController;
+use App\Http\Controllers\EnrollmentController;
 
 // Laravel Breeze Logout Route
 Route::post('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -63,6 +64,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
     Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
   
+    // Routes for EnrollmentGroups
+    Route::get('/enrollment-groups', [EnrollmentController::class, 'index'])->name('enrollment-groups.index');
+    Route::post('/enrollment-groups', [EnrollmentController::class, 'store'])->name('enrollment-groups.store');
+    Route::patch('/enrollment-groups/{enrollmentGroup}', [EnrollmentController::class, 'update'])->name('enrollment-groups.update');
+    Route::delete('/enrollment-groups/{enrollmentGroup}', [EnrollmentController::class, 'destroy'])->name('enrollment-groups.destroy');
+   
 });
 
 require __DIR__.'/auth.php';

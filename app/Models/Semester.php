@@ -11,7 +11,8 @@ class Semester extends Model
 
     protected $fillable = [
         'name',
-        'start_date',
-        'end_date',
+       
     ];
+
+    public $timestamps = true;
 }

@@ -104,13 +104,14 @@ const Index = () => {
                         ))}
                     </tbody>
                 </table>
+                
 
                 {/* Modal for Create/Edit/Delete */}
                 {isModalOpen && (
                     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
                         <div className="bg-white p-6 rounded shadow-md w-96">
                             <h2 className="text-xl font-bold mb-4">
-                                {modalType === 'create' ? 'Add Classroom' : modalType === 'edit' ? 'Edit Classroom' : 'Confirm Delete'}
+                                {modalType === 'create' ? 'Add Classroom' : modalType === 'edit' ? 'Edi Classroom' : 'Confirm Delete'}
                             </h2>
                             <form onSubmit={handleSubmit}>
                                 {modalType !== 'delete' ? (
@@ -123,26 +124,22 @@ const Index = () => {
                                             className="w-full border rounded p-2 mt-1"
                                             required
                                         />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Capacity</label>
+                                        <label className="block text-sm font-medium text-gray-700">Capacity</label>
                                         <input
                                             type="number"
                                             value={currentClassroom.capacity}
-                                            onChange={(e) => setCurrentClassroom({ ...currentClassroom, capacity: parseInt(e.target.value) })}
+                                            onChange={(e) => setCurrentClassroom({ ...currentClassroom, capacity: e.target.value })}
                                             className="w-full border rounded p-2 mt-1"
                                             required
                                         />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Location</label>
-                                        <select
+                                        <label className="block text-sm font-medium text-gray-700">Location</label>
+                                        <input
+                                            type="text"
                                             value={currentClassroom.location}
                                             onChange={(e) => setCurrentClassroom({ ...currentClassroom, location: e.target.value })}
                                             className="w-full border rounded p-2 mt-1"
                                             required
-                                        >
-                                            <option value="">Select a location</option>
-                                            {locations.map((loc) => (
-                                                <option key={loc} value={loc}>{loc}</option>
-                                            ))}
-                                        </select>
+                                        />
                                     </>
                                 ) : (
                                     <p>Are you sure you want to delete <strong>{currentClassroom.name}</strong>?</p>

@@ -65,10 +65,18 @@ const Sidebar = () => {
             </Link>
           </li>
           <li className="flex items-start">
-            <Link href="/enrollment" className="w-full">
+            <Link href="/enrollment-groups" className="w-full">
               <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
                 <Users className="h-5 w-5 mr-2" />
                 <span>Enrollment Group</span>
+              </Button>
+            </Link>
+          </li>
+          <li className="flex items-start">
+            <Link href="/enrollment-students" className="w-full">
+              <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
+                <Users className="h-5 w-5 mr-2" />
+                <span>Enrollment Student</span>
               </Button>
             </Link>
           </li>

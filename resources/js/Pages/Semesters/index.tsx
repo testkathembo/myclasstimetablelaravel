@@ -17,9 +17,7 @@ const SemesterTable = ({ semesters, handleEdit, handleDelete }: { semesters: Sem
                 <thead className="bg-gray-100">
                     <tr className="border-b">
                         <th className="px-4 py-2 border">ID</th>
-                        <th className="px-4 py-2 border">Name</th>
-                        <th className="px-4 py-2 border">Start Date</th>
-                        <th className="px-4 py-2 border">End Date</th>
+                        <th className="px-4 py-2 border">Name</th>                       
                         <th className="px-4 py-2 border">Actions</th>
                     </tr>
                 </thead>
@@ -28,9 +26,7 @@ const SemesterTable = ({ semesters, handleEdit, handleDelete }: { semesters: Sem
                         semesters.map((semester) => (
                             <tr key={semester.id} className="border-b hover:bg-gray-50">
                                 <td className="px-4 py-2 border text-center">{semester.id}</td>
-                                <td className="px-4 py-2 border">{semester.name}</td>
-                                <td className="px-4 py-2 border">{semester.start_date}</td>
-                                <td className="px-4 py-2 border">{semester.end_date}</td>
+                                <td className="px-4 py-2 border">{semester.name}</td>                               
                                 <td className="px-4 py-2 border flex space-x-2">
                                     <button 
                                         onClick={() => handleEdit(semester)} 
@@ -94,7 +90,7 @@ const Semesters = () => {
 
     return (
         <AuthenticatedLayout user={auth.user}>
-            <div className="p-6 max-w-6xl mx-auto">
+            <div className="p-3 max-w-2xl mx-auto">
                 <h1 className="text-2xl font-semibold mb-4">Manage Semesters</h1>
 
                 {/* Create Button */}
@@ -126,23 +122,7 @@ const Semesters = () => {
                                             onChange={(e) => setCurrentSemester({ ...currentSemester, name: e.target.value })}
                                             className="w-full border rounded p-2 mt-1"
                                             required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Start Date</label>
-                                        <input
-                                            type="date"
-                                            value={currentSemester.start_date}
-                                            onChange={(e) => setCurrentSemester({ ...currentSemester, start_date: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">End Date</label>
-                                        <input
-                                            type="date"
-                                            value={currentSemester.end_date}
-                                            onChange={(e) => setCurrentSemester({ ...currentSemester, end_date: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
+                                        />                                        
                                     </>
                                 ) : (
                                     <p>Are you sure you want to delete <strong>{currentSemester.name}</strong>?</p>

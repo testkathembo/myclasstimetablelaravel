@@ -11,10 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('enrollment_groups', function (Blueprint $table) {
+        Schema::create('semesters', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // e.g. "Computer Science - Year 1"
-            $table->foreignId('semester_id')->constrained(); // Link to Semester
+            $table->string('name'); // e.g. "Spring 2024", "Fall 2024"
             $table->timestamps();
         });
     }
@@ -24,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('enrollmentgroups');
+        Schema::dropIfExists('semesters');
     }
 };
