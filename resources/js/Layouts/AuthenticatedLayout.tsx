@@ -2,6 +2,8 @@ import React from 'react';
 import Sidebar from '@/components/ui/sidebar';
 import Navbar from '@/components/ui/navbar';
 
+
+
 interface AuthenticatedLayoutProps {
     user: { code: string }; // Define the user type appropriately
     children: React.ReactNode;

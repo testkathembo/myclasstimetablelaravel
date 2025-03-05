@@ -55,7 +55,7 @@ const Users = () => {
     
     return (
         <AuthenticatedLayout user={auth.user}>
-            <div className="p-6 max-w-6xl mx-auto">
+            <div className="p-6 max-w-8xl mx-auto">
                 <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
 
                 {/* Create Button */}
@@ -189,13 +189,13 @@ const Users = () => {
                                             <option value="Student">Student</option>
                                         </select>
                                         <label className="block text-sm font-medium text-gray-700 mt-4">Password</label>
-<input
-    type="password"
-    value={currentUser.password || ""}
-    onChange={(e) => setCurrentUser({ ...currentUser, password: e.target.value })}
-    className="w-full border rounded p-2 mt-1"
-    required
-/>
+                                <input
+                                    type="password"
+                                    value={currentUser.password || ""}
+                                    onChange={(e) => setCurrentUser({ ...currentUser, password: e.target.value })}
+                                    className="w-full border rounded p-2 mt-1"
+                                    required
+                            />
 
                                     </>
                                     
