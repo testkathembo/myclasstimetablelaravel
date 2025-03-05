@@ -10,5 +10,10 @@ class Unit extends Model
     use HasFactory;
 
     protected $fillable = ['code', 'name'];
+
+    public function semesters()
+    {
+        return $this->belongsToMany(Semester::class);
+    }
 }
 

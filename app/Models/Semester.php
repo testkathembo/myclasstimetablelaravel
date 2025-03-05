@@ -11,8 +11,12 @@ class Semester extends Model
 
     protected $fillable = [
         'name',
-       
     ];
 
     public $timestamps = true;
+
+    public function units()
+    {
+        return $this->belongsToMany(Unit::class);
+    }
 }

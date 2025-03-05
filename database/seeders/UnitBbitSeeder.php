@@ -20,7 +20,7 @@ class UnitBbitSeeder extends Seeder
         for ($i = 2; $i < 55; $i++) {
             Unit::create([
                 'code' => $faker->unique()->numerify('BBIT###'), 
-                'name' => $faker->word,           
+                '' => $faker->word,           
             ]);
         }
     }
