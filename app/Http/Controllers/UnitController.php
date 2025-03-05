@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Unit;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class UnitController extends Controller
 {
     public function index()
     {
         $units = Unit::all();
-        return inertia('Units/index', ['units' => $units]);
+        return Inertia::render('Units/index', ['units' => $units]);
     }
 
     public function create()
@@ -20,12 +21,12 @@ class UnitController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'code' => 'required|unique:units',
-            'name' => 'required',
+        $validatedData = $request->validate([
+            'code' => 'required|string|max:255|unique:units',
+            'name' => 'required|string|max:255',
         ]);
 
-        Unit::create($request->all());
+        Unit::create($validatedData);
 
         return redirect()->route('units.index')->with('success', 'Unit created successfully.');
     }
@@ -43,8 +44,8 @@ class UnitController extends Controller
     public function update(Request $request, Unit $unit)
     {
         $request->validate([
-            'code' => 'required|unique:units,code,' . $unit->id,
-            'name' => 'required',
+            'code' => 'required|string|max:255|unique:units,code,' . $unit->id,
+            'name' => 'required|string|max:255',
         ]);
 
         $unit->update($request->all());

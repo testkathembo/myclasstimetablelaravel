@@ -9,50 +9,6 @@ interface Unit {
     name: string;
 }
 
-const UnitTable = ({ units, handleEdit, handleDelete }: { units: Unit[], handleEdit: (unit: Unit) => void, handleDelete: (unit: Unit) => void }) => {
-    return (
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-            <table className="min-w-full border-collapse border border-gray-200">
-                <thead className="bg-gray-100">
-                    <tr className="border-b">
-                        <th className="px-4 py-2 border">ID</th>
-                        <th className="px-4 py-2 border">Code</th>
-                        <th className="px-4 py-2 border">Name</th>
-                        <th className="px-4 py-2 border">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {units.length > 0 ? (
-                        units.map((unit) => (
-                            <tr key={unit.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-2 border text-center">{unit.id}</td>
-                                <td className="px-4 py-2 border">{unit.code}</td>
-                                <td className="px-4 py-2 border">{unit.name}</td>
-                                <td className="px-4 py-2 border flex space-x-2">
-                                    <button 
-                                        onClick={() => handleEdit(unit)} 
-                                        className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">
-                                        Edit
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDelete(unit)} 
-                                        className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition">
-                                        Delete
-                                    </button>
-                                </td>
-                            </tr>
-                        ))
-                    ) : (
-                        <tr>
-                            <td colSpan={4} className="px-4 py-3 text-center text-gray-500">No units found.</td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
 const Units = () => {
     const { units, auth } = usePage().props as { units: Unit[]; auth: { user: any } };
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,20 +35,23 @@ const Units = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const unitData = { ...currentUnit };
+        
         if (modalType === 'create') {
-            Inertia.post('/units', currentUnit);
+            delete unitData.id;
+            Inertia.post('/units', unitData);
         } else if (modalType === 'edit') {
-            Inertia.patch(`/units/${currentUnit.id}`, currentUnit);
+            Inertia.patch(`/units/${currentUnit.id}`, unitData);
         } else if (modalType === 'delete') {
             Inertia.delete(`/units/${currentUnit.id}`);
         }
         setIsModalOpen(false);
     };
-
+    
     return (
         <AuthenticatedLayout user={auth.user}>
-            <div className="p-6 max-w-6xl mx-auto">
-                <h1 className="text-2xl font-semibold mb-4">Manage Units</h1>
+            <div className="p-6 max-w-8xl mx-auto">
+                <h1 className="text-2xl font-semibold mb-4">Manage Units in BBIT</h1>
 
                 {/* Create Button */}
                 <div className="mb-4">
@@ -104,7 +63,45 @@ const Units = () => {
                 </div>
 
                 {/* Unit Table */}
-                <UnitTable units={units} handleEdit={handleEdit} handleDelete={handleDelete} />
+                <div className="bg-white shadow-md rounded-lg overflow-hidden">
+                    <table className="min-w-full border-collapse border border-gray-200">
+                        <thead className="bg-gray-100">
+                            <tr className="border-b">
+                                <th className="px-4 py-2 border">ID</th>
+                                <th className="px-4 py-2 border">Code</th>
+                                <th className="px-4 py-2 border">Name</th>
+                                <th className="px-4 py-2 border">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {units.length > 0 ? (
+                                units.map((unit) => (
+                                    <tr key={unit.id} className="border-b hover:bg-gray-50">
+                                        <td className="px-4 py-2 border text-center">{unit.id}</td>
+                                        <td className="px-4 py-2 border">{unit.code}</td>
+                                        <td className="px-4 py-2 border">{unit.name}</td>
+                                        <td className="px-4 py-2 border flex space-x-2">
+                                            <button 
+                                                onClick={() => handleEdit(unit)} 
+                                                className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">
+                                                Edit
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(unit)} 
+                                                className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition">
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={4} className="px-4 py-3 text-center text-gray-500">No units found.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
                 {/* Modal for Create/Edit/Delete */}
                 {isModalOpen && (
