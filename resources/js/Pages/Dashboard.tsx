@@ -1,10 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import Sidebar from '@/components/ui/sidebar';
 import Navbar from '@/components/ui/navbar';
 
 export default function Dashboard({ auth }: PageProps & { auth: { user: { code: string } } }) {
+    
+
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Dashboard" />
@@ -18,9 +20,7 @@ export default function Dashboard({ auth }: PageProps & { auth: { user: { code: 
                     
                     
                     {/* Main Content Area */}
-                    <div className="flex-1 p-6 bg-gray-100">
-                        
-                    </div>
+                    
 
                 </div>
             </div>

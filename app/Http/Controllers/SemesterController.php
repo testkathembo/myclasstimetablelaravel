@@ -3,45 +3,37 @@
 namespace App\Http\Controllers;
 
 use App\Models\Semester;
+use App\Models\Unit;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
-class SemesterController extends Controller
-{
-    public function index()
-    {
-        $semesters = Semester::all();
+class SemesterController extends Controller {
+    public function index(): Response {
+        $semesters = Semester::with('units')->get();
         return Inertia::render('Semesters/index', ['semesters' => $semesters]);
     }
 
-    public function store(Request $request)
-    {
+    public function assignUnits(Request $request, Semester $semester) {
+        // Validate input
         $request->validate([
-            'name' => 'required|string|max:255',
-           
+            'units' => 'array|required',
+            'units.*' => 'exists:units,id'
         ]);
 
-        Semester::create($request->all());
+        // Assign units to the semester
+        $semester->units()->sync($request->input('units'));
 
-        return redirect()->route('semesters.index');
+        return redirect()->back()->with('success', 'Units assigned successfully.');
     }
 
-    public function update(Request $request, Semester $semester)
+    // Fetch all semesters with assigned units
+    public function viewAssignedUnits(): Response
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-      
+        $semesters = Semester::with('units')->get();
+
+        return Inertia::render('Semesters/ViewAssignedUnits', [
+            'semesters' => $semesters
         ]);
-
-        $semester->update($request->all());
-
-        return redirect()->route('semesters.index');
-    }
-
-    public function destroy(Semester $semester)
-    {
-        $semester->delete();
-
-        return redirect()->route('semesters.index');
     }
 }

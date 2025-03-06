@@ -5,15 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Unit extends Model
-{
+class Unit extends Model {
     use HasFactory;
 
-    protected $fillable = ['code', 'name'];
+    protected $fillable = ['name', 'code'];
 
-    public function semesters()
-    {
-        return $this->belongsToMany(Semester::class);
+    public function semesters() {
+        return $this->belongsToMany(Semester::class, 'semester_units');
     }
 }
-

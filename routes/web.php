@@ -63,7 +63,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
     Route::patch('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
     Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
-  
+
+    // Routes for Semesters
+    Route::post('/semesters/{semester}/units', [SemesterController::class, 'assignUnits'])->name('semesters.assign-units');
+    Route::get('/semesters/view-assigned-units', [SemesterController::class, 'viewAssignedUnits'])->name('semesters.view-assigned-units');
+    // Route for managing units in semesters
+    Route::get('/semesters/manage-units', function () {
+        return Inertia::render('Semesters/ManageUnits', [
+            'semesters' => \App\Models\Semester::with('units')->get(),
+            'units' => \App\Models\Unit::all(),
+        ]);
+    })->name('semesters.manage-units');
+    
     // Routes for EnrollmentGroups
     Route::get('/enrollment-groups', [EnrollmentController::class, 'index'])->name('enrollment-groups.index');
     Route::post('/enrollment-groups', [EnrollmentController::class, 'store'])->name('enrollment-groups.store');
