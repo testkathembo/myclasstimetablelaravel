@@ -65,6 +65,14 @@ const Sidebar = () => {
             </Link>
           </li>
           <li className="flex items-start">
+    <Link href="/semesters/manage-units" className="w-full">
+        <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
+            <GraduationCap className="h-5 w-5 mr-2" />
+            <span>Assign Units to Semesters</span>
+        </Button>
+    </Link>
+</li>
+          <li className="flex items-start">
             <Link href="/semesters/view-assigned-units" className="w-full">
               <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
                 <GraduationCap className="h-5 w-5 mr-2" />
@@ -105,17 +113,7 @@ const Sidebar = () => {
                 <span>Timetable</span>
               </Button>
             </Link>
-          </li>
-          <li className="flex items-start">
-    <Link href="/semesters/manage-units" className="w-full">
-        <Button variant="ghost" className="w-full flex items-center justify-start text-white hover:bg-blue-700 px-2 py-2 rounded-md">
-            <GraduationCap className="h-5 w-5 mr-2" />
-            <span>Manage Semester Units</span>
-        </Button>
-    </Link>
-</li>
-
-          
+          </li>         
           {/* Settings */}
           <li className="flex items-start">
             <Link href="/settings" className="w-full">
