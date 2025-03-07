@@ -11,6 +11,8 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\PermissionController;
 
 // Laravel Breeze Logout Route
 Route::post('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -81,6 +83,18 @@ Route::middleware('auth')->group(function () {
     Route::patch('/enrollment-groups/{enrollmentGroup}', [EnrollmentController::class, 'update'])->name('enrollment-groups.update');
     Route::delete('/enrollment-groups/{enrollmentGroup}', [EnrollmentController::class, 'destroy'])->name('enrollment-groups.destroy');
    
+    // Roles and Permissions
+    Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+    Route::patch('/roles/{role}/permissions', [RoleController::class, 'updatePermissions'])->name('roles.update-permissions');
+    Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+    Route::post('/users/{user}/roles', [RoleController::class, 'assignRole'])->name('users.assign-role');
+
+    // Permissions
+    Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+    Route::post('/permissions', [PermissionController::class, 'store'])->name('permissions.store');
+    Route::delete('/permissions/{permission}', [PermissionController::class, 'destroy'])->name('permissions.destroy');  
+    
 });
 
 require __DIR__.'/auth.php';
