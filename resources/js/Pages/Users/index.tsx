@@ -15,10 +15,20 @@ interface User {
 }
 
 const Users = () => {
-    const { users, auth } = usePage().props as { users: User[]; auth: { user: any } };
+    const { users, auth, roles } = usePage().props as { 
+        users: User[]; 
+        roles: string[]; // Roles should be fetched from the backend
+        auth: { user: any }; 
+    };
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState('');
-    const [currentUser, setCurrentUser] = useState<User>({ id: 0, code: '', first_name: '', last_name: '', faculty: '', email: '', phone: '', role: '' });
+    const [currentUser, setCurrentUser] = useState<User>({ 
+        id: 0, code: '', first_name: '', last_name: '', faculty: '', 
+        email: '', phone: '', role: '' 
+    });
+
+    const hasPermission = (permission: string) => auth?.user?.permissions?.includes(permission);
 
     const handleCreate = () => {
         setModalType('create');
@@ -52,20 +62,22 @@ const Users = () => {
         }
         setIsModalOpen(false);
     };
-    
+
     return (
         <AuthenticatedLayout user={auth.user}>
-            <div className="p-6 max-w-6xl mx-auto">
+            <div className="p-6 max-w-8xl mx-auto">
                 <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
 
-                {/* Create Button */}
-                <div className="mb-4">
-                    <button 
-                        onClick={handleCreate} 
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
-                        + Add User
-                    </button>
-                </div>
+                {/* Create Button (Only If User Has Permission) */}
+                {hasPermission('create users') && (
+                    <div className="mb-4">
+                        <button 
+                            onClick={handleCreate} 
+                            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                            + Add User
+                        </button>
+                    </div>
+                )}
 
                 {/* User Table */}
                 <div className="bg-white shadow-md rounded-lg overflow-hidden">
@@ -96,16 +108,20 @@ const Users = () => {
                                         <td className="px-4 py-2 border">{user.phone}</td>
                                         <td className="px-4 py-2 border">{user.role}</td>
                                         <td className="px-4 py-2 border flex space-x-2">
-                                            <button 
-                                                onClick={() => handleEdit(user)} 
-                                                className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">
-                                                Edit
-                                            </button>
-                                            <button 
-                                                onClick={() => handleDelete(user)} 
-                                                className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition">
-                                                Delete
-                                            </button>
+                                            {hasPermission('edit users') && (
+                                                <button 
+                                                    onClick={() => handleEdit(user)} 
+                                                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">
+                                                    Edit
+                                                </button>
+                                            )}
+                                            {hasPermission('delete users') && (
+                                                <button 
+                                                    onClick={() => handleDelete(user)} 
+                                                    className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition">
+                                                    Delete
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -128,55 +144,7 @@ const Users = () => {
                             <form onSubmit={handleSubmit}>
                                 {modalType !== 'delete' ? (
                                     <>
-                                        <label className="block text-sm font-medium text-gray-700">Code</label>
-                                        <input
-                                            type="text"
-                                            value={currentUser.code}
-                                            onChange={(e) => setCurrentUser({ ...currentUser, code: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">First Name</label>
-                                        <input
-                                            type="text"
-                                            value={currentUser.first_name}
-                                            onChange={(e) => setCurrentUser({ ...currentUser, first_name: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Last Name</label>
-                                        <input
-                                            type="text"
-                                            value={currentUser.last_name}
-                                            onChange={(e) => setCurrentUser({ ...currentUser, last_name: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Faculty</label>
-                                        <input
-                                            type="text"
-                                            value={currentUser.faculty}
-                                            onChange={(e) => setCurrentUser({ ...currentUser, faculty: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Email</label>
-                                        <input
-                                            type="email"
-                                            value={currentUser.email}
-                                            onChange={(e) => setCurrentUser({ ...currentUser, email: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Phone</label>
-                                        <input
-                                            type="text"
-                                            value={currentUser.phone}
-                                            onChange={(e) => setCurrentUser({ ...currentUser, phone: e.target.value })}
-                                            className="w-full border rounded p-2 mt-1"
-                                            required
-                                        />
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Role</label>
+                                        <label className="block text-sm font-medium text-gray-700">Role</label>
                                         <select
                                             value={currentUser.role}
                                             onChange={(e) => setCurrentUser({ ...currentUser, role: e.target.value })}
@@ -184,21 +152,11 @@ const Users = () => {
                                             required
                                         >
                                             <option value="">Select Role</option>
-                                            <option value="Admin">Admin</option>
-                                            <option value="Lecturer">Lecturer</option>
-                                            <option value="Student">Student</option>
+                                            {roles.map((role) => (
+                                                <option key={role} value={role}>{role}</option>
+                                            ))}
                                         </select>
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">Password</label>
-<input
-    type="password"
-    value={currentUser.password || ""}
-    onChange={(e) => setCurrentUser({ ...currentUser, password: e.target.value })}
-    className="w-full border rounded p-2 mt-1"
-    required
-/>
-
                                     </>
-                                    
                                 ) : (
                                     <p>Are you sure you want to delete <strong>{currentUser.first_name} {currentUser.last_name}</strong>?</p>
                                 )}

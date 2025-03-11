@@ -24,52 +24,61 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::middleware(['auth'])->group(function () {
+// Super Admin Dashboard
+Route::middleware(['role:SuperAdmin'])->group(function () {
+    Route::get('/admin/dashboard', function () {
+        return Inertia::render('Admin/Dashboard');
+    })->name('admin.dashboard');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    
-    // Routes for Faculty
-    Route::get('/faculties', [FacultyController::class, 'index'])->name('faculties.index');
-    Route::post('/faculties', [FacultyController::class, 'store'])->name('faculties.store');
-    Route::patch('/faculties/{faculty}', [FacultyController::class, 'update'])->name('faculties.update');
-    Route::delete('/faculties/{faculty}', [FacultyController::class, 'destroy'])->name('faculties.destroy');
-    
-    // Routes for Users
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
-    
-    // Routes for Units
-    Route::get('/units', [UnitController::class, 'index'])->name('units.index');
-    Route::post('/units', [UnitController::class, 'store'])->name('units.store');
-    Route::patch('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
-    Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
-    
-    
-    // Routes for ClassRooms
-    Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
-    Route::post('/classrooms', [ClassroomController::class, 'store'])->name('classrooms.store');
-    Route::patch('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
-    Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
+    Route::resource('users', UserController::class)->middleware('permission:manage users');
+});
 
-    // Routes for Semesters
-    Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
-    Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
-    Route::patch('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
-    Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
-  
-    // Routes for EnrollmentGroups
-    Route::get('/enrollment-groups', [EnrollmentController::class, 'index'])->name('enrollment-groups.index');
-    Route::post('/enrollment-groups', [EnrollmentController::class, 'store'])->name('enrollment-groups.store');
-    Route::patch('/enrollment-groups/{enrollmentGroup}', [EnrollmentController::class, 'update'])->name('enrollment-groups.update');
-    Route::delete('/enrollment-groups/{enrollmentGroup}', [EnrollmentController::class, 'destroy'])->name('enrollment-groups.destroy');
+// SchoolAdmin Routes
+Route::middleware(['role:SchoolAdmin'])->group(function () {
+    Route::get('/schooladmin/dashboard', function () {
+        return Inertia::render('SchoolAdmin/Dashboard');
+    })->name('schooladmin.dashboard');
+
+    Route::resource('faculties', FacultyController::class)->middleware('permission:manage faculties');
+    Route::resource('units', UnitController::class)->middleware('permission:manage units');
+    Route::resource('classrooms', ClassroomController::class)->middleware('permission:manage classrooms');
+    Route::resource('semesters', SemesterController::class)->middleware('permission:manage semesters');
+    Route::resource('enrollment-groups', EnrollmentController::class)->middleware('permission:manage enrollment groups');
+});
+
+
+Route::middleware(['role:ExamOffice'])->group(function () {
+    Route::get('/examoffice/dashboard', function () {
+        return Inertia::render('ExamOffice/Dashboard');
+    })->name('examoffice.dashboard');
+
+    Route::resource('timetable', TimetableController::class)->middleware('permission:manage timetable');
+});
+
+Route::middleware(['role:Lecturer'])->group(function () {
+    Route::get('/lecturer/dashboard', function () {
+        return Inertia::render('Lecturer/Dashboard');
+    })->name('lecturer.dashboard');
+
+    Route::resource('timetable', TimetableController::class)->middleware('permission:view timetable');
+});
+
+Route::middleware(['role:Student'])->group(function () {
+    Route::get('/student/dashboard', function () {
+        return Inertia::render('Student/Dashboard');
+    })->name('student.dashboard');
+
+    Route::resource('timetable', TimetableController::class)->middleware('permission:view timetable');
+});
+
+Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');   
+
+
    
 });
+
+
 
 require __DIR__.'/auth.php';
