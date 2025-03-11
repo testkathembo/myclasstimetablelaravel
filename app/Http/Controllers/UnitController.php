@@ -4,9 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Unit;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 
 class UnitController extends Controller
 {
@@ -21,29 +18,17 @@ class UnitController extends Controller
         return view('units.create');
     }
 
-    use Spatie\Permission\Models\Role;
+    public function store(Request $request)
+    {
+        $request->validate([
+            'code' => 'required|unique:units',
+            'name' => 'required',
+        ]);
 
-public function store(Request $request)
-{
-    $request->validate([
-        'first_name' => 'required|string',
-        'last_name' => 'required|string',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required|string|min:6',
-        'role' => 'required|string|exists:roles,name',
-    ]);
+        Unit::create($request->all());
 
-    $user = User::create([
-        'first_name' => $request->first_name,
-        'last_name' => $request->last_name,
-        'email' => $request->email,
-        'password' => bcrypt($request->password),
-    ]);
-
-    $user->assignRole($request->role); // ✅ Assign role
-    return redirect()->route('users.index')->with('success', 'User created successfully!');
-}
-
+        return redirect()->route('units.index')->with('success', 'Unit created successfully.');
+    }
 
     public function show(Unit $unit)
     {

@@ -1,31 +1,5 @@
 import { Link, Head } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import React from 'react';
-import { usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-
-const Home = () => {
-    const { auth } = usePage().props as { auth: { user: any } };
-
-    // Add debugging statements
-    console.log('Auth:', auth);
-
-    if (!auth || !auth.user) {
-        console.error('Auth or user is null');
-        return <div>Error: User is not authenticated</div>;
-    }
-
-    return (
-        <AuthenticatedLayout user={auth.user}>
-            <div className="p-6 max-w-8xl mx-auto">
-                <h1 className="text-2xl font-semibold mb-4">Welcome, {auth.user.name}</h1>
-                {/* Add more content here */}
-            </div>
-        </AuthenticatedLayout>
-    );
-};
-
-export default Home;
 
 export default function Welcome({ auth, laravelVersion, phpVersion }: PageProps<{ laravelVersion: string, phpVersion: string }>) {
     return (
