@@ -21,13 +21,6 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 
 // ✅ Secure Dashboard
 Route::get('/dashboard', function () {
-    $user = Auth::user();
-
-    // ✅ Ensure user is authenticated before checking roles
-    if (!$user) {
-        return redirect('/login');
-    }
-
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
@@ -56,13 +49,13 @@ Route::middleware(['auth'])->group(function () {
             return Inertia::render('Admin/Dashboard');
         })->name('admin.dashboard');
 
-        Route::resource('users', UserController::class);
+       Route::resource('users', UserController::class); // Ensure this route exists
         Route::resource('faculties', FacultyController::class);
         Route::resource('units', UnitController::class);
         Route::resource('classrooms', ClassroomController::class);
-        Route::resource('roles', RoleController::class);
-        Route::resource('permissions', PermissionController::class);
     });
+
+    Route::resource('users', UserController::class); // Ensure this route exists
 });
 
 // ✅ Authentication Routes

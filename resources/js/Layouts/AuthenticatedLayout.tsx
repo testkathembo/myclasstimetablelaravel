@@ -1,21 +1,29 @@
 import React from 'react';
 import Sidebar from '@/components/ui/sidebar';
 import Navbar from '@/components/ui/navbar';
+import { usePage } from '@inertiajs/react';
 
 interface AuthenticatedLayoutProps {
-    user: { code: string }; // Define the user type appropriately
     children: React.ReactNode;
 }
 
-const AuthenticatedLayout: React.FC<AuthenticatedLayoutProps> = ({ user, children }) => {
+const AuthenticatedLayout: React.FC<AuthenticatedLayoutProps> = ({ children }) => {
+    const { auth } = usePage().props as { auth: { user: any } };
+
     return (
-        <div className="flex">
+        <div className="flex h-screen bg-gray-100">
+            {/* Sidebar */}
             <Sidebar />
-            <div className="flex-1">
-                <Navbar user={user} />
-                <div className="p-4">
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col">
+                {/* Navbar */}
+                <Navbar user={auth.user} />
+
+                {/* Page Content */}
+                <main className="flex-1 p-6 overflow-y-auto">
                     {children}
-                </div>
+                </main>
             </div>
         </div>
     );

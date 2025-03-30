@@ -5,89 +5,59 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of users.
-     */
     public function index()
     {
-        $users = User::all();
-        return Inertia::render('Users/index', ['users' => $users]);
+        $users = User::all(); // Fetch all users
+        return Inertia::render('Users/index', ['users' => $users]); // Pass users to the frontend
     }
 
-    /**
-     * Store a newly created user in the database.
-     */
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
-            'code' => 'required|string|max:255|unique:users',
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
+        $request->validate([
+            'name' => 'required|string|max:255',
             'faculty' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'phone' => 'required|string|max:255|unique:users',
-            'role' => 'required|string|exists:roles,name',
-            'password' => 'required|string|min:8',
+            'email' => 'required|string|email|unique:users,email',
+            'phone' => 'required|string|min:6',
+            'code' => 'required|string|min:4',
+            'password' => 'required|string|min:6',
         ]);
 
-        // Hash the password before storing
-        $validatedData['password'] = Hash::make($validatedData['password']);
+        User::create([
+            'name' => $request->name,
+            'faculty' => $request->faculty,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'code' => $request->code,
+            'password' => Hash::make($request->password),
+        ]);
 
-        // Create user
-        $user = User::create($validatedData);
-
-        // Assign role using Spatie's role system
-        $user->assignRole($validatedData['role']);
-
-        return redirect()->route('users.index')->with('success', 'User created successfully!');
+        return redirect()->back()->with('success', 'User created successfully!');
     }
 
-    /**
-     * Update an existing user.
-     */
     public function update(Request $request, User $user)
     {
-        $validatedData = $request->validate([
-            'code' => 'required|string|max:255|unique:users,code,' . $user->id,
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
+        $request->validate([
+            'name' => 'required|string|max:255',
             'faculty' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'phone' => 'required|string|max:255|unique:users,phone,' . $user->id,
-            'role' => 'required|string|exists:roles,name',
-            'password' => 'nullable|string|min:8',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'phone' => 'required|string|min:6',
+            'code' => 'required|string|min:4',
+            'password' => 'nullable|string|min:6',
         ]);
 
-        // If password is updated, hash it
-        if ($request->filled('password')) {
-            $validatedData['password'] = Hash::make($request->password);
-        } else {
-            unset($validatedData['password']);
-        }
+        $user->update([
+            'name' => $request->name,
+            'faculty' => $request->faculty,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'code' => $request->code,
+            'password' => $request->password ? Hash::make($request->password) : $user->password,
+        ]);
 
-        // Update user
-        $user->update($validatedData);
-
-        // Assign new role (if changed)
-        $user->syncRoles([$validatedData['role']]);
-
-        return redirect()->route('users.index')->with('success', 'User updated successfully!');
-    }
-
-    /**
-     * Delete a user from the database.
-     */
-    public function destroy(User $user)
-    {
-        // Remove role before deleting user
-        $user->roles()->detach();
-        $user->delete();
-
-        return redirect()->route('users.index')->with('success', 'User deleted successfully!');
+        return redirect()->back()->with('success', 'User updated successfully!');
     }
 }

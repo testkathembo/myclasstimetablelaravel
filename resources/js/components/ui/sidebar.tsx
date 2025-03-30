@@ -1,49 +1,33 @@
-import { useState } from "react";
-import { Link, usePage } from "@inertiajs/react"; // Import usePage
-import { Home, Users, Settings, ChevronDown, LayoutDashboard, GraduationCap, Briefcase } from "lucide-react"; // Icons
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { Link } from '@inertiajs/react';
+import { LayoutDashboard, Users, GraduationCap, Settings } from 'lucide-react';
 
 const Sidebar = () => {
-  const { auth } = usePage().props as { auth: { user: any } };
-
-  const hasRole = (role: string) => auth?.user?.roles?.includes(role);
-
-  return (
-    <div className="Sidebar"> {/* Reduced padding */}
-      
-      {/* Navigation Menu */}
-      <nav className="flex-1">
-        <ul>
-          <li>
-            {hasRole('SuperAdmin') && (
-              <Link href="/admin/dashboard">Admin Dashboard</Link>
-            )}
-          </li>
-          <li>
-            {hasRole('SchoolAdmin') && (
-              <Link href="/schooladmin/dashboard">School Admin Dashboard</Link>
-            )}
-          </li>
-          <li>
-            {hasRole('ExamOffice') && (
-              <Link href="/examoffice/dashboard">Exam Office Dashboard</Link>
-            )}
-          </li>
-          <li>
-            {hasRole('Lecturer') && (
-              <Link href="/lecturer/dashboard">Lecturer Dashboard</Link>
-            )}
-          </li>
-          <li>
-            {hasRole('Student') && (
-              <Link href="/student/dashboard">Student Dashboard</Link>
-            )}
-          </li>
-        </ul>
-      </nav>
-
-    </div>
-  );
+    return (
+        <div className="bg-blue-800 text-white w-64 h-full flex flex-col">
+            <div className="p-4 text-lg font-bold border-b border-blue-700">
+                MyClassTimetable
+            </div>
+            <nav className="flex-1 p-4 space-y-2">
+                <Link href="/dashboard" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                    <LayoutDashboard className="h-5 w-5" />
+                    <span>Dashboard</span>
+                </Link>
+                <Link href="/users" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                    <Users className="h-5 w-5" />
+                    <span>Users</span>
+                </Link>
+                <Link href="/timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                    <GraduationCap className="h-5 w-5" />
+                    <span>Timetable</span>
+                </Link>
+                <Link href="/settings" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                    <Settings className="h-5 w-5" />
+                    <span>Settings</span>
+                </Link>
+            </nav>
+        </div>
+    );
 };
 
 export default Sidebar;
