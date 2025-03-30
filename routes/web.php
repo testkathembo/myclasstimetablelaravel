@@ -49,13 +49,13 @@ Route::middleware(['auth'])->group(function () {
             return Inertia::render('Admin/Dashboard');
         })->name('admin.dashboard');
 
-       Route::resource('users', UserController::class); // Ensure this route exists
+        Route::resource('users', UserController::class); // Ensure this route exists
         Route::resource('faculties', FacultyController::class);
         Route::resource('units', UnitController::class);
         Route::resource('classrooms', ClassroomController::class);
     });
 
-    Route::resource('users', UserController::class); // Ensure this route exists
+    Route::resource('users', UserController::class);
 });
 
 // ✅ Authentication Routes

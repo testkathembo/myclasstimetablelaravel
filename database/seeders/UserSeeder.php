@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
+use Faker\Factory as Faker;
 
 class UserSeeder extends Seeder
 {
@@ -16,60 +16,21 @@ class UserSeeder extends Seeder
      */
     public function run()
     {
-        // Create roles if they don't exist
-        $roles = ['SuperAdmin', 'SchoolAdmin', 'ExamOffice', 'Lecturer'];
-        foreach ($roles as $role) {
-            Role::firstOrCreate(['name' => $role]);
-        }
+        $faker = Faker::create();
+        $faculties = ['SBS', 'SCES', 'SL', 'SH', 'TM']; // List of faculties
 
-        // Seed users
-        $users = [
-            [
-                'code' => '112722',
-                'first_name' => 'Benjamin',
-                'last_name' => 'Mwangi',
-                'faculty' => 'SCES',
-                'email' => 'ben@strathmore.edu',
-                'phone' => '0716571995',
-                'password' => Hash::make('password'), // Change 'password' to a secure password
-                'role' => 'SuperAdmin',
-            ],
-            [
-                'code' => '112729',
-                'first_name' => 'John',
-                'last_name' => 'Doe',
-                'faculty' => 'SCES',
-                'email' => 'john.doe@strathmore.edu',
-                'phone' => '0706571996',
-                'password' => Hash::make('password'), // Change 'password' to a secure password
-                'role' => 'SchoolAdmin',
-            ],
-            [
-                'code' => '112723',
-                'first_name' => 'Jane',
-                'last_name' => 'Doe',
-                'faculty' => 'SCES',
-                'email' => 'jane.do@strathmore.edu',
-                'phone' => '0706571997',
-                'password' => Hash::make('password'), // Change 'password' to a secure password
-                'role' => 'ExamOffice',
-            ],
-            [
-                'code' => '112724',
-                'first_name' => 'JaneHello',
-                'last_name' => 'DoeHell',
-                'faculty' => 'SL',
-                'email' => 'jane@strathmore.edu',
-                'phone' => '0706571998',
-                'password' => Hash::make('password'), // Change 'password' to a secure password
-                'role' => 'Lecturer',
-            ],
-        ];
-        
-
-        foreach ($users as $userData) {
-            $user = User::create($userData);
-            $user->assignRole($userData['role']);
+        foreach ($faculties as $faculty) {
+            for ($i = 0; $i < 300; $i++) {
+                User::create([
+                    'code' => $faker->unique()->numerify('######'), // Generate a unique 6-digit code
+                    'first_name' => $faker->firstName,
+                    'last_name' => $faker->lastName,
+                    'faculty' => $faculty,
+                    'email' => $faker->unique()->safeEmail,
+                    'phone' => $faker->unique()->numerify('07########'), // Generate a Kenyan phone number
+                    'password' => Hash::make('password'), // Default password
+                ]);
+            }
         }
     }
 }
