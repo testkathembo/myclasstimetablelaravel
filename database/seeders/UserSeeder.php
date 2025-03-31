@@ -32,5 +32,47 @@ class UserSeeder extends Seeder
                 ]);
             }
         }
+
+        // Add 50 lecturers (10 per faculty)
+        foreach ($faculties as $faculty) {
+            for ($i = 0; $i < 10; $i++) {
+                User::create([
+                    'code' => $faker->unique()->numerify('L######'), // Generate a unique lecturer code
+                    'first_name' => $faker->firstName,
+                    'last_name' => $faker->lastName,
+                    'faculty' => $faculty,
+                    'email' => $faker->unique()->safeEmail,
+                    'phone' => $faker->unique()->numerify('07########'), // Generate a Kenyan phone number
+                    'password' => Hash::make('password'), // Default password
+                    'user_role' => 'lecturer', // Role: Lecturer
+                ]);
+            }
+        }
+
+        // Add 1 exam officer
+        User::create([
+            'code' => 'EXAM001',
+            'first_name' => 'Exam',
+            'last_name' => 'Officer',
+            'faculty' => 'All',
+            'email' => 'exam.officer@example.com',
+            'phone' => '0700000001',
+            'password' => Hash::make('password'), // Default password
+            'user_role' => 'examofficer', // Role: Exam Officer
+        ]);
+
+        // Add 5 faculty admins (1 per faculty)
+        foreach ($faculties as $faculty) {
+            User::create([
+                'code' => $faker->unique()->numerify('FA######'), // Generate a unique faculty admin code
+                'first_name' => $faker->firstName,
+                'last_name' => $faker->lastName,
+                'faculty' => $faculty,
+                'email' => $faker->unique()->safeEmail,
+                'phone' => $faker->unique()->numerify('07########'), // Generate a Kenyan phone number
+                'password' => Hash::make('password'), // Default password
+                'user_role' => 'facultyadmin', // Role: Faculty Admin
+            ]);
+        }
     }
 }

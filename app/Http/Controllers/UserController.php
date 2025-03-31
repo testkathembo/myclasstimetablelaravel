@@ -21,7 +21,8 @@ class UserController extends Controller
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('faculty', 'like', "%{$search}%");
+                    ->orWhere('faculty', 'like', "%{$search}%")
+                    ->orWhere('user_role', 'like', "%{$search}%");
             })
             ->paginate($perPage);
 
@@ -42,6 +43,7 @@ class UserController extends Controller
             'phone' => 'required|string|max:15',
             'code' => 'required|string|max:10',
             'password' => 'required|string|min:8',
+            'user_role' => 'required|string|in:admin, examofficer, lecturer, student', // Validate user_role
         ]);
 
         $data = $request->all();
@@ -62,6 +64,7 @@ class UserController extends Controller
             'phone' => 'required|string|min:6',
             'code' => 'required|string|min:4',
             'password' => 'nullable|string|min:6',
+            'user_role' => 'required|string|in:admin, examofficer, lecturer, student', // Validate user_role
         ]);
 
         $user->update([
@@ -72,6 +75,7 @@ class UserController extends Controller
             'phone' => $request->phone,
             'code' => $request->code,
             'password' => $request->password ? Hash::make($request->password) : $user->password,
+            'user_role' => $request->user_role, // Update user_role
         ]);
 
         return redirect()->back()->with('success', 'User updated successfully!');

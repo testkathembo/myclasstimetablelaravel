@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('semesters', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // e.g. "Spring 2024", "Fall 2024"
+            $table->string('name')->unique();
             $table->timestamps();
         });
     }

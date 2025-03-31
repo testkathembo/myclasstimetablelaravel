@@ -10,6 +10,7 @@ interface User {
     faculty: string;
     phone: string;
     code: string;
+    user_role: string; // Added user_role field
     password?: string;
 }
 
@@ -40,7 +41,7 @@ const Users = () => {
         setModalType(type);
         setCurrentUser(
             type === 'create'
-                ? { id: 0, first_name: '', last_name: '', email: '', faculty: '', phone: '', code: '', password: '' }
+                ? { id: 0, first_name: '', last_name: '', email: '', faculty: '', phone: '', code: '', user_role: 'student', password: '' } // Added user_role field
                 : user
         );
         setIsModalOpen(true);
@@ -164,6 +165,7 @@ const Users = () => {
                             <th className="px-4 py-2 border">Faculty</th>
                             <th className="px-4 py-2 border">Phone</th>
                             <th className="px-4 py-2 border">Code</th>
+                            <th className="px-4 py-2 border">Role</th> {/* Added Role column */}
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
@@ -177,6 +179,7 @@ const Users = () => {
                                 <td className="px-4 py-2 border">{user.faculty}</td>
                                 <td className="px-4 py-2 border">{user.phone}</td>
                                 <td className="px-4 py-2 border">{user.code}</td>
+                                <td className="px-4 py-2 border">{user.user_role}</td> {/* Display Role */}
                                 <td className="px-4 py-2 border text-center">
                                     <button
                                         onClick={() => handleOpenModal('edit', user)}
@@ -298,6 +301,22 @@ const Users = () => {
                                         className="w-full border rounded p-2"
                                         required
                                     />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Role</label>
+                                    <select
+                                        value={currentUser?.user_role || 'student'}
+                                        onChange={(e) =>
+                                            setCurrentUser({ ...currentUser!, user_role: e.target.value })
+                                        }
+                                        className="w-full border rounded p-2"
+                                        required
+                                    >
+                                        <option value="student">Student</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="examofficer">Exam Officer</option>
+                                        <option value="lecturer">Lecturer</option>
+                                    </select>
                                 </div>
                                 {modalType === 'create' && (
                                     <div className="mb-4">

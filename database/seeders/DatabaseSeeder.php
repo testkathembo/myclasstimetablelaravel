@@ -3,6 +3,11 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Database\Seeders\UnitSeeder;
+use Database\Seeders\FacultySeeder;
+use Database\Seeders\ClassroomSeeder;
+use Database\Seeders\SemesterSeeder;
+use Database\Seeders\GroupSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,6 +21,12 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AdminSeeder::class,
             UserSeeder::class,
+            UnitSeeder::class,
+            FacultySeeder::class,
+            ClassroomSeeder::class, // Added ClassroomSeeder
+            GroupSeeder::class, // Added GroupSeeder
+            SemesterSeeder::class, // Added SemesterSeeder
+            
           
             // Add other seeders here if needed
         ]);
