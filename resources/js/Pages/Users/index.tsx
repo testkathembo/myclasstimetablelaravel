@@ -222,7 +222,7 @@ const Users = () => {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                    <div className="bg-white p-6 rounded shadow-md w-96">
+                    <div className="bg-white p-6 rounded shadow-md" style={{ width: 'auto', maxWidth: '90%', minWidth: '300px' }}>
                         <h2 className="text-xl font-bold mb-4">
                             {modalType === 'create' && 'Add User'}
                             {modalType === 'edit' && 'Edit User'}

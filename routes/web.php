@@ -9,6 +9,7 @@ use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\EnrollmentController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -50,15 +51,16 @@ Route::middleware(['auth'])->group(function () {
             return Inertia::render('Admin/Dashboard');
         })->name('admin.dashboard');
 
-        Route::resource('users', UserController::class); // Ensure this route exists
-        Route::resource('faculties', FacultyController::class); // Faculties
-        Route::resource('units', UnitController::class); // Units
-        Route::resource('classrooms', ClassroomController::class); // Classrooms
-        Route::resource('groups', GroupController::class); // Groups
-        Route::resource('semesters', SemesterController::class); // Semesters
     });
 
     Route::resource('users', UserController::class);
+    Route::resource('classrooms', ClassroomController::class); 
+    Route::resource('units', UnitController::class); // Units
+    Route::resource('faculties', FacultyController::class); // Faculties
+    Route::resource('groups', GroupController::class); // Groups
+    Route::resource('semesters', SemesterController::class); // Semesters
+    Route::resource('enrollments', EnrollmentController::class); // Enrollments
+    
 });
 
 // ✅ Authentication Routes

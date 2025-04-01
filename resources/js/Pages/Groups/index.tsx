@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
-interface Unit {
+interface Group {
     id: number;
-    code: string;
     name: string;
 }
 
@@ -14,29 +13,29 @@ interface PaginationLinks {
     active: boolean;
 }
 
-interface PaginatedUnits {
-    data: Unit[];
+interface PaginatedGroups {
+    data: Group[];
     links: PaginationLinks[];
     total: number;
     per_page: number;
     current_page: number;
 }
 
-const Units = () => {
-    const { units, perPage, search } = usePage().props as { units: PaginatedUnits; perPage: number; search: string };
+const Groups = () => {
+    const { groups, perPage, search } = usePage().props as { groups: PaginatedGroups; perPage: number; search: string };
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'create' | 'edit' | 'delete' | ''>('');
-    const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
+    const [currentGroup, setCurrentGroup] = useState<Group | null>(null);
     const [itemsPerPage, setItemsPerPage] = useState(perPage);
     const [searchQuery, setSearchQuery] = useState(search);
 
-    const handleOpenModal = (type: 'create' | 'edit' | 'delete', unit: Unit | null = null) => {
+    const handleOpenModal = (type: 'create' | 'edit' | 'delete', group: Group | null = null) => {
         setModalType(type);
-        setCurrentUnit(
+        setCurrentGroup(
             type === 'create'
-                ? { id: 0, code: '', name: '' }
-                : unit
+                ? { id: 0, name: '' }
+                : group
         );
         setIsModalOpen(true);
     };
@@ -44,40 +43,40 @@ const Units = () => {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setModalType('');
-        setCurrentUnit(null);
+        setCurrentGroup(null);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
         if (modalType === 'create') {
-            router.post('/units', currentUnit, {
+            router.post('/groups', currentGroup, {
                 onSuccess: () => {
-                    alert('Unit created successfully!');
+                    alert('Group created successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error creating unit:', errors);
+                    console.error('Error creating group:', errors);
                 },
             });
-        } else if (modalType === 'edit' && currentUnit) {
-            router.put(`/units/${currentUnit.id}`, currentUnit, {
+        } else if (modalType === 'edit' && currentGroup) {
+            router.put(`/groups/${currentGroup.id}`, currentGroup, {
                 onSuccess: () => {
-                    alert('Unit updated successfully!');
+                    alert('Group updated successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error updating unit:', errors);
+                    console.error('Error updating group:', errors);
                 },
             });
-        } else if (modalType === 'delete' && currentUnit) {
-            router.delete(`/units/${currentUnit.id}`, {
+        } else if (modalType === 'delete' && currentGroup) {
+            router.delete(`/groups/${currentGroup.id}`, {
                 onSuccess: () => {
-                    alert('Unit deleted successfully!');
+                    alert('Group deleted successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error deleting unit:', errors);
+                    console.error('Error deleting group:', errors);
                 },
             });
         }
@@ -85,13 +84,13 @@ const Units = () => {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get('/units', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
+        router.get('/groups', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
     };
 
     const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newPerPage = parseInt(e.target.value, 10);
         setItemsPerPage(newPerPage);
-        router.get('/units', { per_page: newPerPage, search: searchQuery }, { preserveState: true });
+        router.get('/groups', { per_page: newPerPage, search: searchQuery }, { preserveState: true });
     };
 
     const handlePageChange = (url: string | null) => {
@@ -102,22 +101,22 @@ const Units = () => {
 
     return (
         <AuthenticatedLayout>
-            <Head title="Units" />
+            <Head title="Groups" />
             <div className="p-6 bg-white rounded-lg shadow-md">
-                <h1 className="text-2xl font-semibold mb-4">Units</h1>
+                <h1 className="text-2xl font-semibold mb-4">Groups</h1>
                 <div className="flex justify-between items-center mb-4">
                     <button
                         onClick={() => handleOpenModal('create')}
                         className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                     >
-                        + Add Unit
+                        + Add Group
                     </button>
                     <form onSubmit={handleSearch} className="flex items-center space-x-2">
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search units..."
+                            placeholder="Search groups..."
                             className="border rounded p-2 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <button
@@ -147,25 +146,23 @@ const Units = () => {
                 <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="px-4 py-2 border">Code</th>
                             <th className="px-4 py-2 border">Name</th>
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {units.data.map((unit) => (
-                            <tr key={unit.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-2 border">{unit.code}</td>
-                                <td className="px-4 py-2 border">{unit.name}</td>
+                        {groups.data.map((group) => (
+                            <tr key={group.id} className="border-b hover:bg-gray-50">
+                                <td className="px-4 py-2 border">{group.name}</td>
                                 <td className="px-4 py-2 border text-center">
                                     <button
-                                        onClick={() => handleOpenModal('edit', unit)}
+                                        onClick={() => handleOpenModal('edit', group)}
                                         className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 mr-2"
                                     >
                                         Edit
                                     </button>
                                     <button
-                                        onClick={() => handleOpenModal('delete', unit)}
+                                        onClick={() => handleOpenModal('delete', group)}
                                         className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
                                     >
                                         Delete
@@ -177,10 +174,10 @@ const Units = () => {
                 </table>
                 <div className="mt-4 flex justify-between items-center">
                     <p className="text-sm text-gray-600">
-                        Showing {units.data.length} of {units.total} units
+                        Showing {groups.data.length} of {groups.total} groups
                     </p>
                     <div className="flex space-x-2">
-                        {units.links.map((link, index) => (
+                        {groups.links.map((link, index) => (
                             <button
                                 key={index}
                                 onClick={() => handlePageChange(link.url)}
@@ -201,31 +198,19 @@ const Units = () => {
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="bg-white p-6 rounded shadow-md" style={{ width: 'auto', maxWidth: '90%', minWidth: '300px' }}>
                         <h2 className="text-xl font-bold mb-4">
-                            {modalType === 'create' && 'Add Unit'}
-                            {modalType === 'edit' && 'Edit Unit'}
-                            {modalType === 'delete' && 'Delete Unit'}
+                            {modalType === 'create' && 'Add Group'}
+                            {modalType === 'edit' && 'Edit Group'}
+                            {modalType === 'delete' && 'Delete Group'}
                         </h2>
                         {modalType !== 'delete' ? (
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Code</label>
-                                    <input
-                                        type="text"
-                                        value={currentUnit?.code || ''}
-                                        onChange={(e) =>
-                                            setCurrentUnit((prev) => ({ ...prev!, code: e.target.value }))
-                                        }
-                                        className="w-full border rounded p-2"
-                                        required
-                                    />
-                                </div>
-                                <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Name</label>
                                     <input
                                         type="text"
-                                        value={currentUnit?.name || ''}
+                                        value={currentGroup?.name || ''}
                                         onChange={(e) =>
-                                            setCurrentUnit((prev) => ({ ...prev!, name: e.target.value }))
+                                            setCurrentGroup((prev) => ({ ...prev!, name: e.target.value }))
                                         }
                                         className="w-full border rounded p-2"
                                         required
@@ -247,7 +232,7 @@ const Units = () => {
                             </form>
                         ) : (
                             <div>
-                                <p>Are you sure you want to delete this unit?</p>
+                                <p>Are you sure you want to delete this group?</p>
                                 <div className="mt-4 flex justify-end">
                                     <button
                                         onClick={handleSubmit}
@@ -271,4 +256,4 @@ const Units = () => {
     );
 };
 
-export default Units;
+export default Groups;

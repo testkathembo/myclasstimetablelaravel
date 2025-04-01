@@ -8,10 +8,15 @@ use Inertia\Inertia;
 
 class ClassroomController extends Controller
 {
+    
     public function index()
     {
-        $classrooms = Classroom::all();
-        return Inertia::render('Classrooms/index', ['classrooms' => $classrooms]);
+        $classrooms = Classroom::paginate(10); // Use pagination
+        return Inertia::render('Classrooms/index', [
+            'classrooms' => $classrooms,
+            'perPage' => 10,
+            'search' => request('search', ''),
+        ]);
     }
 
     public function create()

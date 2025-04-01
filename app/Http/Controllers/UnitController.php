@@ -4,18 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\Unit;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class UnitController extends Controller
 {
     public function index()
     {
-        $units = Unit::all();
-        return inertia('Units/index', ['units' => $units]);
+        $units = Unit::paginate(10); // Use pagination
+        return Inertia::render('Units/index', [
+            'units' => $units,
+            'perPage' => 10,
+            'search' => request('search', ''),
+        ]);
     }
 
     public function create()
     {
-        return view('units.create');
+        return Inertia::render('Units/Create');
     }
 
     public function store(Request $request)
@@ -27,17 +32,18 @@ class UnitController extends Controller
 
         Unit::create($request->all());
 
-        return redirect()->route('units.index')->with('success', 'Unit created successfully.');
+        return redirect()->route('units.index')
+                         ->with('success', 'Unit created successfully.');
     }
 
     public function show(Unit $unit)
     {
-        return view('units.show', compact('unit'));
+        return Inertia::render('Units/Show', ['unit' => $unit]);
     }
 
     public function edit(Unit $unit)
     {
-        return view('units.edit', compact('unit'));
+        return Inertia::render('Units/Edit', ['unit' => $unit]);
     }
 
     public function update(Request $request, Unit $unit)
@@ -49,13 +55,15 @@ class UnitController extends Controller
 
         $unit->update($request->all());
 
-        return redirect()->route('units.index')->with('success', 'Unit updated successfully.');
+        return redirect()->route('units.index')
+                         ->with('success', 'Unit updated successfully.');
     }
 
     public function destroy(Unit $unit)
     {
         $unit->delete();
 
-        return redirect()->route('units.index')->with('success', 'Unit deleted successfully.');
+        return redirect()->route('units.index')
+                         ->with('success', 'Unit deleted successfully.');
     }
 }

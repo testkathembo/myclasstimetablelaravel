@@ -9,5 +9,12 @@ class Group extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name']; // Fields for the groups table
+    protected $fillable = [
+        'name',
+    ];
+
+    public function students()
+    {
+        return $this->hasMany(Enrollment::class, 'group_id');
+    }
 }
