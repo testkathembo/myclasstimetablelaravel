@@ -109,6 +109,7 @@ const Enrollments = () => {
                 <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
+                            <th className="px-4 py-2 border">Code</th>
                             <th className="px-4 py-2 border">Student</th>
                             <th className="px-4 py-2 border">Unit</th>
                             <th className="px-4 py-2 border">Semester</th>
@@ -119,6 +120,7 @@ const Enrollments = () => {
                         {enrollmentData.length > 0 ? (
                             enrollmentData.map((enrollment) => (
                                 <tr key={enrollment.id}>
+                                    <td className="px-4 py-2 border">{enrollment.student.code}</td>
                                     <td className="px-4 py-2 border">
                                         {enrollment.student.first_name} {enrollment.student.last_name}
                                     </td>
@@ -138,7 +140,7 @@ const Enrollments = () => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={4} className="px-4 py-3 text-center text-gray-500">
+                                <td colSpan={5} className="px-4 py-3 text-center text-gray-500">
                                     No enrollments found.
                                 </td>
                             </tr>

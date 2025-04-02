@@ -15,11 +15,12 @@ class EnrollmentController extends Controller
     {
         $search = $request->input('search');
 
-        $enrollments = Enrollment::with(['student', 'unit', 'semester'])
+        $enrollments = Enrollment::with(['student:id,first_name,last_name,code', 'unit', 'semester']) // Include code
             ->when($search, function ($query, $search) {
                 $query->whereHas('student', function ($q) use ($search) {
                     $q->where('first_name', 'like', "%$search%")
-                      ->orWhere('last_name', 'like', "%$search%");
+                      ->orWhere('last_name', 'like', "%$search%")
+                      ->orWhere('code', 'like', "%$search%"); // Search by code
                 })->orWhereHas('unit', function ($q) use ($search) {
                     $q->where('name', 'like', "%$search%");
                 })->orWhereHas('semester', function ($q) use ($search) {
