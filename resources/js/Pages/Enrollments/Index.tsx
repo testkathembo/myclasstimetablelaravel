@@ -4,9 +4,18 @@ import { usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const Enrollments = () => {
-    const { enrollments = {}, students, units, groups, auth } = usePage().props;
-    const enrollmentData = enrollments.data || []; // Safely access the data key
-    const [form, setForm] = useState({ student_id: '', unit_id: '', group_id: '' });
+    const { enrollments = {}, students, units, semesters, auth } = usePage().props;
+    const enrollmentData = enrollments.data || [];
+    const [form, setForm] = useState({ student_id: '', semester_id: '', unit_ids: [] });
+
+    const handleUnitSelection = (unitId) => {
+        setForm((prevForm) => {
+            const unit_ids = prevForm.unit_ids.includes(unitId)
+                ? prevForm.unit_ids.filter((id) => id !== unitId) // Remove unit if already selected
+                : [...prevForm.unit_ids, unitId]; // Add unit if not selected
+            return { ...prevForm, unit_ids };
+        });
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -34,32 +43,37 @@ const Enrollments = () => {
                             ))}
                         </select>
                         <select
-                            value={form.unit_id}
-                            onChange={(e) => setForm({ ...form, unit_id: e.target.value })}
+                            value={form.semester_id}
+                            onChange={(e) => setForm({ ...form, semester_id: e.target.value })}
                             className="border p-2 rounded"
                             required
                         >
-                            <option value="">Select Unit</option>
-                            {units.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                    {unit.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            value={form.group_id}
-                            onChange={(e) => setForm({ ...form, group_id: e.target.value })}
-                            className="border p-2 rounded"
-                            required
-                        >
-                            <option value="">Select Group</option>
-                            {groups.map((group) => (
-                                <option key={group.id} value={group.id}>
-                                    {group.name} ({group.students_count}/35)
+                            <option value="">Select Semester</option>
+                            {semesters.map((semester) => (
+                                <option key={semester.id} value={semester.id}>
+                                    {semester.name}
                                 </option>
                             ))}
                         </select>
                     </div>
+
+                    <div className="mt-4">
+                        <h2 className="text-lg font-semibold mb-2">Select Units</h2>
+                        <div className="grid grid-cols-3 gap-4">
+                            {units.map((unit) => (
+                                <label key={unit.id} className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        value={unit.id}
+                                        checked={form.unit_ids.includes(unit.id)}
+                                        onChange={() => handleUnitSelection(unit.id)}
+                                    />
+                                    <span>{unit.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
                     <button type="submit" className="mt-4 bg-blue-600 text-white px-4 py-2 rounded">
                         Enroll
                     </button>
@@ -70,7 +84,6 @@ const Enrollments = () => {
                         <tr>
                             <th className="px-4 py-2 border">Student</th>
                             <th className="px-4 py-2 border">Unit</th>
-                            <th className="px-4 py-2 border">Group</th>
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
@@ -82,7 +95,6 @@ const Enrollments = () => {
                                         {enrollment.student.first_name} {enrollment.student.last_name}
                                     </td>
                                     <td className="px-4 py-2 border">{enrollment.unit.name}</td>
-                                    <td className="px-4 py-2 border">{enrollment.group.name}</td>
                                     <td className="px-4 py-2 border">
                                         <button
                                             onClick={() => Inertia.delete(`/enrollments/${enrollment.id}`)}
@@ -95,7 +107,7 @@ const Enrollments = () => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={4} className="px-4 py-3 text-center text-gray-500">
+                                <td colSpan={3} className="px-4 py-3 text-center text-gray-500">
                                     No enrollments found.
                                 </td>
                             </tr>

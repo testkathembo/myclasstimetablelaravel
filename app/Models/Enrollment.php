@@ -9,7 +9,7 @@ class Enrollment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['student_id', 'unit_id', 'group_id'];
+    protected $fillable = ['student_id', 'unit_id']; // Remove group_id
 
     public function student()
     {
@@ -19,10 +19,5 @@ class Enrollment extends Model
     public function unit()
     {
         return $this->belongsTo(Unit::class);
-    }
-
-    public function group()
-    {
-        return $this->belongsTo(Group::class);
     }
 }

@@ -24,7 +24,6 @@ class DatabaseSeeder extends Seeder
             UnitSeeder::class,
             FacultySeeder::class,
             ClassroomSeeder::class, // Added ClassroomSeeder
-            GroupSeeder::class, // Added GroupSeeder
             SemesterSeeder::class, // Added SemesterSeeder
             
           

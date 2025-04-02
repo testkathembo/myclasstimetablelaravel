@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Enrollment;
 use App\Models\Unit;
-use App\Models\Group;
 use App\Models\User;
+use App\Models\Semester;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -13,16 +13,16 @@ class EnrollmentController extends Controller
 {
     public function index()
     {
-        $enrollments = Enrollment::with('student', 'unit', 'group')->paginate(10);
+        $enrollments = Enrollment::with('student', 'unit')->paginate(10); // Remove group
         $students = User::where('user_role', 'student')->get();
         $units = Unit::all();
-        $groups = Group::withCount('students')->get();
+        $semesters = Semester::all();
 
         return Inertia::render('Enrollments/Index', [
             'enrollments' => $enrollments,
             'students' => $students,
             'units' => $units,
-            'groups' => $groups,
+            'semesters' => $semesters,
         ]);
     }
 
@@ -30,19 +30,19 @@ class EnrollmentController extends Controller
     {
         $request->validate([
             'student_id' => 'required|exists:users,id',
-            'unit_id' => 'required|exists:units,id',
-            'group_id' => 'required|exists:groups,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'unit_ids' => 'required|array', // Validate multiple units
+            'unit_ids.*' => 'exists:units,id', // Ensure each unit_id exists
         ]);
 
-        $group = Group::find($request->group_id);
-
-        if ($group->students()->count() >= 35) {
-            return back()->withErrors(['group_id' => 'This group has reached the maximum capacity of 35 students.']);
+        foreach ($request->unit_ids as $unit_id) {
+            Enrollment::create([
+                'student_id' => $request->student_id,
+                'unit_id' => $unit_id,
+            ]);
         }
 
-        Enrollment::create($request->only('student_id', 'unit_id', 'group_id'));
-
-        return redirect()->route('enrollments.index')->with('success', 'Student enrolled successfully.');
+        return redirect()->route('enrollments.index')->with('success', 'Student enrolled in selected units successfully.');
     }
 
     public function destroy(Enrollment $enrollment)

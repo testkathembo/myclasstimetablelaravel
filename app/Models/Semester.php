@@ -12,4 +12,9 @@ class Semester extends Model
     protected $fillable = ['name', 'group_id'];
 
     public $timestamps = true;
+
+    public function groups()
+    {
+        return $this->hasMany(Group::class); // Define relationship with Group
+    }
 }

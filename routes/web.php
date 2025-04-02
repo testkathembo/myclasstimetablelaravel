@@ -8,7 +8,6 @@ use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\GroupController;
 use App\Http\Controllers\EnrollmentController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -57,7 +56,6 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('classrooms', ClassroomController::class); 
     Route::resource('units', UnitController::class); // Units
     Route::resource('faculties', FacultyController::class); // Faculties
-    Route::resource('groups', GroupController::class); // Groups
     Route::resource('semesters', SemesterController::class); // Semesters
     Route::resource('enrollments', EnrollmentController::class); // Enrollments
     
