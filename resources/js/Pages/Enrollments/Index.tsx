@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Inertia } from '@inertiajs/inertia';
 import { usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Pagination } from '@/components/ui/pagination';
 
 const Enrollments = () => {
     const { enrollments = {}, students, units, semesters, auth } = usePage().props;
     const enrollmentData = enrollments.data || [];
     const [form, setForm] = useState({ student_id: '', semester_id: '', unit_ids: [] });
+    const [search, setSearch] = useState(''); // State for search input
 
     const handleUnitSelection = (unitId) => {
         setForm((prevForm) => {
@@ -20,6 +22,14 @@ const Enrollments = () => {
     const handleSubmit = (e) => {
         e.preventDefault();
         Inertia.post('/enrollments', form);
+    };
+
+    const handleSearch = () => {
+        Inertia.get('/enrollments', { search }); // Send search query to the backend
+    };
+
+    const handlePageChange = (url) => {
+        Inertia.get(url); // Navigate to the selected page
     };
 
     return (
@@ -79,11 +89,29 @@ const Enrollments = () => {
                     </button>
                 </form>
 
+                {/* Search Bar */}
+                <div className="flex items-center justify-between mb-4">
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search enrollments..."
+                        className="border p-2 rounded w-full max-w-md"
+                    />
+                    <button
+                        onClick={handleSearch}
+                        className="ml-4 bg-blue-600 text-white px-4 py-2 rounded"
+                    >
+                        Search
+                    </button>
+                </div>
+
                 <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="px-4 py-2 border">Student</th>
                             <th className="px-4 py-2 border">Unit</th>
+                            <th className="px-4 py-2 border">Semester</th>
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
@@ -96,6 +124,9 @@ const Enrollments = () => {
                                     </td>
                                     <td className="px-4 py-2 border">{enrollment.unit.name}</td>
                                     <td className="px-4 py-2 border">
+                                        {enrollment.semester ? enrollment.semester.name : 'N/A'}
+                                    </td>
+                                    <td className="px-4 py-2 border">
                                         <button
                                             onClick={() => Inertia.delete(`/enrollments/${enrollment.id}`)}
                                             className="bg-red-600 text-white px-3 py-1 rounded"
@@ -107,13 +138,23 @@ const Enrollments = () => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={3} className="px-4 py-3 text-center text-gray-500">
+                                <td colSpan={4} className="px-4 py-3 text-center text-gray-500">
                                     No enrollments found.
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
+
+                {/* Pagination Controls */}
+                <div className="mt-4">
+                    {enrollments.links && (
+                        <Pagination
+                            links={enrollments.links}
+                            onPageChange={(url) => handlePageChange(url)}
+                        />
+                    )}
+                </div>
             </div>
         </AuthenticatedLayout>
     );

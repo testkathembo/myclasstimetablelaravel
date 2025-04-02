@@ -11,9 +11,23 @@ use Inertia\Inertia;
 
 class EnrollmentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $enrollments = Enrollment::with('student', 'unit')->paginate(10); // Remove group
+        $search = $request->input('search');
+
+        $enrollments = Enrollment::with(['student', 'unit', 'semester'])
+            ->when($search, function ($query, $search) {
+                $query->whereHas('student', function ($q) use ($search) {
+                    $q->where('first_name', 'like', "%$search%")
+                      ->orWhere('last_name', 'like', "%$search%");
+                })->orWhereHas('unit', function ($q) use ($search) {
+                    $q->where('name', 'like', "%$search%");
+                })->orWhereHas('semester', function ($q) use ($search) {
+                    $q->where('name', 'like', "%$search%");
+                });
+            })
+            ->paginate(10);
+
         $students = User::where('user_role', 'student')->get();
         $units = Unit::all();
         $semesters = Semester::all();
@@ -39,6 +53,7 @@ class EnrollmentController extends Controller
             Enrollment::create([
                 'student_id' => $request->student_id,
                 'unit_id' => $unit_id,
+                'semester_id' => $request->semester_id, // Save semester_id
             ]);
         }
 
