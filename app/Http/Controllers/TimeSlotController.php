@@ -17,6 +17,12 @@ class TimeSlotController extends Controller
             ->paginate($perPage)
             ->appends(['search' => $search, 'per_page' => $perPage]);
 
+        // Add the day of the week for each time slot
+        $timeSlots->getCollection()->transform(function ($timeSlot) {
+            $timeSlot->day = date('l', strtotime($timeSlot->date)); // Get the day of the week
+            return $timeSlot;
+        });
+
         return Inertia::render('TimeSlots/index', [
             'timeSlots' => $timeSlots,
             'perPage' => $perPage,

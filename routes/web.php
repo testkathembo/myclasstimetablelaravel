@@ -116,7 +116,11 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/timeslotes/{timeslote}', [TimesloteController::class, 'update'])->name('timeslotes.update');
     Route::delete('/timeslotes/{timeslote}', [TimesloteController::class, 'destroy'])->name('timeslotes.destroy');
 
+    // TimeSlots
     Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
+    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
 
     // Logout
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
