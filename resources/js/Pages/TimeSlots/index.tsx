@@ -90,6 +90,12 @@ const TimeSlots = () => {
         router.get('/timeslots', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
     };
 
+    const handleDateChange = (date: string) => {
+        const selectedDate = new Date(date);
+        const day = selectedDate.toLocaleDateString('en-US', { weekday: 'long' }); // Get the day of the week
+        setCurrentTimeSlot((prev) => ({ ...prev!, date, day })); // Update both date and day
+    };
+
     return (
         <AuthenticatedLayout>
             <Head title="Time Slots" />
@@ -165,27 +171,22 @@ const TimeSlots = () => {
                         {modalType !== 'delete' ? (
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Day</label>
+                                    <label className="block text-sm font-medium text-gray-700">Date</label>
                                     <input
-                                        type="text"
-                                        value={currentTimeSlot?.day || ''}
-                                        onChange={(e) =>
-                                            setCurrentTimeSlot((prev) => ({ ...prev!, day: e.target.value }))
-                                        }
+                                        type="date"
+                                        value={currentTimeSlot?.date || ''}
+                                        onChange={(e) => handleDateChange(e.target.value)} // Update date and fetch day
                                         className="w-full border rounded p-2"
                                         required
                                     />
                                 </div>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Date</label>
+                                    <label className="block text-sm font-medium text-gray-700">Day</label>
                                     <input
-                                        type="date"
-                                        value={currentTimeSlot?.date || ''}
-                                        onChange={(e) =>
-                                            setCurrentTimeSlot((prev) => ({ ...prev!, date: e.target.value }))
-                                        }
-                                        className="w-full border rounded p-2"
-                                        required
+                                        type="text"
+                                        value={currentTimeSlot?.day || ''}
+                                        readOnly // Make this field read-only
+                                        className="w-full border rounded p-2 bg-gray-100"
                                     />
                                 </div>
                                 <div className="mb-4">
@@ -237,6 +238,7 @@ const TimeSlots = () => {
                                         Delete
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={handleCloseModal}
                                         className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 ml-2"
                                     >
