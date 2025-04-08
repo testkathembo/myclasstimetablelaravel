@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import Pagination from '@/components/ui/Pagination'; // Import the Pagination component
 
 interface TimeSlot {
     id: number;
@@ -96,33 +97,63 @@ const TimeSlots = () => {
         setCurrentTimeSlot((prev) => ({ ...prev!, date, day })); // Update both date and day
     };
 
+    const handlePageChange = (url: string | null) => {
+        if (url) {
+            router.get(url, { per_page: itemsPerPage, search: searchQuery }, { preserveState: true });
+        }
+    };
+
+    const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newPerPage = parseInt(e.target.value, 10);
+        setItemsPerPage(newPerPage);
+        router.get('/timeslots', { per_page: newPerPage, search: searchQuery }, { preserveState: true });
+    };
+
     return (
         <AuthenticatedLayout>
             <Head title="Time Slots" />
             <div className="p-6 bg-white rounded-lg shadow-md">
                 <h1 className="text-2xl font-semibold mb-4">Time Slots</h1>
-                <button
-                    onClick={() => handleOpenModal('create')}
-                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                >
-                    + Add Time Slot
-                </button>
-                <form onSubmit={handleSearch} className="flex items-center space-x-2">
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search classrooms..."
-                        className="border rounded p-2 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                <div className="flex justify-between items-center mb-4">
                     <button
-                        type="submit"
-                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                        onClick={() => handleOpenModal('create')}
+                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                     >
-                        Search
+                        + Add Time Slot
                     </button>
-                </form>
-                <table className="min-w-full border-collapse border border-gray-200 mt-4">
+                    <form onSubmit={handleSearch} className="flex items-center space-x-2">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search classrooms..."
+                            className="border rounded p-2 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                            type="submit"
+                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                        >
+                            Search
+                        </button>
+                    </form>
+                    <div>
+                        <label htmlFor="perPage" className="mr-2 text-sm font-medium text-gray-700">
+                            Rows per page:
+                        </label>
+                        <select
+                            id="perPage"
+                            value={itemsPerPage}
+                            onChange={handlePerPageChange}
+                            className="border rounded p-2"
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={20}>20</option>
+                        </select>
+                    </div>
+                </div>
+                <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="px-4 py-2 border">Day</th>
@@ -157,6 +188,7 @@ const TimeSlots = () => {
                         ))}
                     </tbody>
                 </table>
+                <Pagination links={timeSlots.links} onPageChange={handlePageChange} />
             </div>
 
             {/* Modal */}
