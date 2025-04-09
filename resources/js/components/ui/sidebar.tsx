@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from '@inertiajs/react';
-import { LayoutDashboard, Users, GraduationCap, Settings, Book, Building, MapPin, Layers, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, GraduationCap, Settings, Book, Building, MapPin, Layers, Calendar, ClipboardList } from 'lucide-react';
 
 const Sidebar = () => {
     return (
@@ -41,9 +41,9 @@ const Sidebar = () => {
                     <Layers className="h-5 w-5" />
                     <span>Time Slots</span>
                 </Link>
-                <Link href="/timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                <Link href="/examtimetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
                     <GraduationCap className="h-5 w-5" />
-                    <span>Timetable</span>
+                    <span>Exam Timetable</span>
                 </Link>
                 <Link href="/settings" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
                     <Settings className="h-5 w-5" />

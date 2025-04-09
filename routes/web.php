@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\TimeSlotController;
+use App\Http\Controllers\ExamTimetableController; // Import the ExamTimetableController
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -122,10 +123,22 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
 
+    // Exam Timetable
+    Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('exam-timetable.index');
+    Route::get('/exam-timetable/view', [ExamTimetableController::class, 'view'])->name('exam-timetable.view');
+
+    /** ========================
+     *  🔹 Exam Timetable Routes
+     *  ======================== */
+    Route::prefix('exam-timetables')->group(function () {
+        Route::get('/', [ExamTimetableController::class, 'index'])->name('exam-timetables.index');
+        Route::post('/', [ExamTimetableController::class, 'store'])->name('exam-timetables.store');
+        Route::put('/{id}', [ExamTimetableController::class, 'update'])->name('exam-timetables.update');
+        Route::delete('/{id}', [ExamTimetableController::class, 'destroy'])->name('exam-timetables.destroy');
+    });
+
     // Logout
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
-    
-   
     
 });
 

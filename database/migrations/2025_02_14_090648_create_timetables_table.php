@@ -15,12 +15,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('classroom_id')->constrained();
             $table->foreignId('unit_id')->constrained();
-            $table->foreignId('lecturer_id')->constrained('users'); 
-            $table->dateTime('start_time');
-            $table->dateTime('end_time');
+            $table->foreignId('lecturer_id')->constrained('users');
+            $table->foreignId('time_slot_id')->constrained(); // Link to time_slots table
+            $table->foreignId('semester_id')->constrained(); // Link to semesters table
             $table->timestamps();
+
+            // Add unique constraint to prevent collisions
+            $table->unique(['time_slot_id', 'unit_id', 'semester_id'], 'unique_timetable');
         });
-        
     }
 
     /**
