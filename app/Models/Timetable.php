@@ -10,7 +10,7 @@ class Timetable extends Model
     use HasFactory;
 
     protected $fillable = [
-        'unit_id',
+        'enrollment_id', // Replace unit_id with enrollment_id
         'classroom_id',
         'lecturer_id',
         'semester_id',
@@ -24,9 +24,9 @@ class Timetable extends Model
         'chief_invigilator',
     ];
 
-    public function unit()
+    public function enrollment()
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(Enrollment::class); // Reference the enrollments table
     }
 
     public function classroom()
