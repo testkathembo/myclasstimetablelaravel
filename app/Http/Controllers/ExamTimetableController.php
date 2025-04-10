@@ -13,39 +13,39 @@ use Inertia\Inertia; // Import the Inertia facade
 
 class ExamTimetableController extends Controller
 {
-    // This is a simplified example of what your controller method might look like
-    public function index(Request $request)
-    {
-        $perPage = $request->input('per_page', 10);
-        $search = $request->input('search', '');
-        
-        $examTimetables = ExamTimetable::query()
-            ->when($search, function ($query, $search) {
-                return $query->where('day', 'like', "%{$search}%")
-                    ->orWhere('venue', 'like', "%{$search}%");
-            })
-            ->paginate($perPage);
-        
-        // Get all semesters
-        $semesters = Semester::all();
-        
-        // Get enrollments with unit information
-        $enrollments = Enrollment::select('enrollments.id', 'units.name as unit_name', 'enrollments.semester_id')
-            ->join('units', 'units.id', '=', 'enrollments.unit_id')
-            ->get();
-        
-        // Get time slots
-        $timeSlots = TimeSlot::all();
-        
-        return Inertia::render('ExamTimetable/index', [
-            'examTimetables' => $examTimetables,
-            'perPage' => $perPage,
-            'search' => $search,
-            'semesters' => $semesters,
-            'enrollments' => $enrollments,
-            'timeSlots' => $timeSlots,
-        ]);
-    }
+public function index(Request $request)
+{
+    $perPage = $request->input('per_page', 10);
+    $search = $request->input('search', '');
+    
+    $examTimetables = ExamTimetable::query()
+        ->when($search, function ($query, $search) {
+            return $query->where('day', 'like', "%{$search}%")
+                ->orWhere('venue', 'like', "%{$search}%");
+        })
+        ->paginate($perPage);
+    
+    // Get all semesters
+    $semesters = Semester::all();
+    
+    // Get enrollments with unit information
+    $enrollments = Enrollment::select('enrollments.id', 'units.name as unit_name', 'enrollments.semester_id')
+        ->join('units', 'units.id', '=', 'enrollments.unit_id')
+        ->get();
+    
+    // Get time slots with day and date information
+    $timeSlots = TimeSlot::select('id', 'day', 'date', 'start_time', 'end_time')->get();
+    
+    return Inertia::render('ExamTimetable/index', [
+        'examTimetables' => $examTimetables,
+        'perPage' => $perPage,
+        'search' => $search,
+        'semesters' => $semesters,
+        'enrollments' => $enrollments,
+        'timeSlots' => $timeSlots,
+    ]);
+}
+
 
 
     public function store(Request $request)

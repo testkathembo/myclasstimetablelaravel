@@ -33,6 +33,8 @@ interface Semester {
 
 interface TimeSlot {
   id: number
+  day: string
+  date: string
   start_time: string
   end_time: string
 }
@@ -83,8 +85,13 @@ const ExamTimetable = () => {
   const [itemsPerPage, setItemsPerPage] = useState(perPage)
   const [searchQuery, setSearchQuery] = useState(search)
 
+  // Filter enrollments by semester and remove duplicates by unit_name
   const filteredEnrollments = selectedSemester
-    ? enrollments.filter((enrollment) => enrollment.semester_id === selectedSemester)
+    ? enrollments
+        .filter((enrollment) => enrollment.semester_id === selectedSemester)
+        .filter(
+          (enrollment, index, self) => index === self.findIndex((e) => e.unit_name === enrollment.unit_name), // Remove duplicates by unit_name
+        )
     : []
 
   const handleOpenModal = (type: "create" | "edit" | "delete", timetable: ExamTimetable | null = null) => {
@@ -152,6 +159,8 @@ const ExamTimetable = () => {
         ...prev!,
         start_time: slot.start_time,
         end_time: slot.end_time,
+        day: slot.day,
+        date: slot.date,
       }))
       setSelectedTimeSlotId(slotId)
     }
@@ -172,6 +181,17 @@ const ExamTimetable = () => {
     const newPerPage = Number.parseInt(e.target.value, 10)
     setItemsPerPage(newPerPage)
     router.get("/exam-timetables", { per_page: newPerPage, search: searchQuery }, { preserveState: true })
+  }
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   return (
@@ -310,7 +330,7 @@ const ExamTimetable = () => {
                         value={slot.id}
                         style={{ color: "black", backgroundColor: "white", padding: "8px" }}
                       >
-                        {slot.start_time} - {slot.end_time}
+                        {formatDate(slot.date)} ({slot.day}) - {slot.start_time} to {slot.end_time}
                       </option>
                     ))}
                   </select>
@@ -321,28 +341,31 @@ const ExamTimetable = () => {
                   </div>
                 </div>
 
-                <input
-                  type="text"
-                  placeholder="Day"
-                  value={formState?.day || ""}
-                  onChange={(e) => setFormState((prev) => ({ ...prev!, day: e.target.value }))}
-                  className="w-full border rounded p-2 mb-3"
-                  required
-                />
-                <input
-                  type="date"
-                  value={formState?.date || ""}
-                  onChange={(e) => setFormState((prev) => ({ ...prev!, date: e.target.value }))}
-                  className="w-full border rounded p-2 mb-3"
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Group"
-                  value={formState?.group || ""}
-                  onChange={(e) => setFormState((prev) => ({ ...prev!, group: e.target.value }))}
-                  className="w-full border rounded p-2 mb-3"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
+                    <input
+                      type="text"
+                      placeholder="Day"
+                      value={formState?.day || ""}
+                      onChange={(e) => setFormState((prev) => ({ ...prev!, day: e.target.value }))}
+                      className="w-full border rounded p-2 mb-3 bg-gray-100"
+                      required
+                      readOnly
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={formState?.date || ""}
+                      onChange={(e) => setFormState((prev) => ({ ...prev!, date: e.target.value }))}
+                      className="w-full border rounded p-2 mb-3 bg-gray-100"
+                      required
+                      readOnly
+                    />
+                  </div>
+                </div>                
                 <input
                   type="text"
                   placeholder="Venue"
