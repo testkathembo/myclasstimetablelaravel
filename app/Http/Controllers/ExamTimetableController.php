@@ -3,48 +3,50 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Timetable;
+use App\Models\ExamTimetable;
 use App\Models\Semester;
 use App\Models\Enrollment;
 use App\Models\TimeSlot;
 use App\Models\Classroom;
 use App\Models\User;
+use Inertia\Inertia; // Import the Inertia facade
 
 class ExamTimetableController extends Controller
 {
+    // This is a simplified example of what your controller method might look like
     public function index(Request $request)
     {
-        $search = $request->input('search', '');
         $perPage = $request->input('per_page', 10);
-
-        $query = Timetable::query()
-            ->with(['enrollment', 'classroom', 'lecturer'])
-            ->when($search, function ($q) use ($search) {
-                $q->whereHas('enrollment', function ($q) use ($search) {
-                    $q->where('unit_name', 'like', "%$search%"); // Assuming enrollments table has a unit_name column
-                });
-            });
-
-        $examTimetables = $query->paginate($perPage);
-
-        // Fetch supporting dropdown data
+        $search = $request->input('search', '');
+        
+        $examTimetables = ExamTimetable::query()
+            ->when($search, function ($query, $search) {
+                return $query->where('day', 'like', "%{$search}%")
+                    ->orWhere('venue', 'like', "%{$search}%");
+            })
+            ->paginate($perPage);
+        
+        // Get all semesters
         $semesters = Semester::all();
-        $enrollments = Enrollment::with('semester')->get(); // Fetch enrollments with semester relationship
+        
+        // Get enrollments with unit information
+        $enrollments = Enrollment::select('enrollments.id', 'units.name as unit_name', 'enrollments.semester_id')
+            ->join('units', 'units.id', '=', 'enrollments.unit_id')
+            ->get();
+        
+        // Get time slots
         $timeSlots = TimeSlot::all();
-        $classrooms = Classroom::all();
-        $lecturers = User::all(); // Fetch all users without filtering by roles
-
-        return inertia('ExamTimetable/index', [
+        
+        return Inertia::render('ExamTimetable/index', [
             'examTimetables' => $examTimetables,
             'perPage' => $perPage,
             'search' => $search,
             'semesters' => $semesters,
             'enrollments' => $enrollments,
             'timeSlots' => $timeSlots,
-            'classrooms' => $classrooms,
-            'lecturers' => $lecturers,
         ]);
     }
+
 
     public function store(Request $request)
     {
