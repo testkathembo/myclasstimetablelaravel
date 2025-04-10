@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
     public function run()
     {
         $faker = Faker::create();
-        $faculties = ['SBS', 'SCES', 'SL', 'SH', 'TM']; // List of faculties
+        $faculties = ['SBS', 'BBIT', 'SL', 'SH', 'TM']; // List of faculties
 
         foreach ($faculties as $faculty) {
             for ($i = 0; $i < 300; $i++) {
