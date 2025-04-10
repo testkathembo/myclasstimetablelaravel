@@ -13,6 +13,7 @@ interface ExamTimetable {
   unit_name: string
   group: string
   venue: string
+  location: string // Added location field
   no: number
   chief_invigilator: string
   start_time: string
@@ -69,6 +70,7 @@ interface FormState {
   enrollment_id: number
   group: string
   venue: string
+  location: string // Added location field
   no: number
   chief_invigilator: string
   start_time: string
@@ -96,13 +98,14 @@ const ExamTimetable = () => {
   const [searchQuery, setSearchQuery] = useState(search)
   const [suitableClassrooms, setSuitableClassrooms] = useState<Classroom[]>([])
   const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null)
+  const [remainingCapacity, setRemainingCapacity] = useState<number | null>(null)
 
-  // Filter enrollments by semester and remove duplicates by unit_name
   const filteredEnrollments = selectedSemester
     ? enrollments
         .filter((enrollment) => enrollment.semester_id === selectedSemester)
         .filter(
-          (enrollment, index, self) => index === self.findIndex((e) => e.unit_name === enrollment.unit_name), // Remove duplicates by unit_name
+          (enrollment, index, self) =>
+            index === self.findIndex((e) => e.unit_name === enrollment.unit_name)
         )
     : []
 
@@ -116,6 +119,7 @@ const ExamTimetable = () => {
         enrollment_id: 0,
         group: "",
         venue: "",
+        location: "",
         no: 0,
         chief_invigilator: "",
         start_time: "",
@@ -130,6 +134,7 @@ const ExamTimetable = () => {
         enrollment_id: timetable.unit_id,
         group: timetable.group,
         venue: timetable.venue,
+        location: timetable.location,
         no: timetable.no,
         chief_invigilator: timetable.chief_invigilator,
         start_time: timetable.start_time,
@@ -149,6 +154,7 @@ const ExamTimetable = () => {
     setSelectedTimeSlotId(null)
     setSuitableClassrooms([])
     setSelectedClassroom(null)
+    setRemainingCapacity(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -166,6 +172,17 @@ const ExamTimetable = () => {
     })
   }
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    router.get("/exam-timetables", { search: searchQuery, per_page: itemsPerPage }, { preserveState: true })
+  }
+
+  const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newPerPage = Number.parseInt(e.target.value, 10)
+    setItemsPerPage(newPerPage)
+    router.get("/exam-timetables", { per_page: newPerPage, search: searchQuery }, { preserveState: true })
+  }
+
   const handleTimeSlotSelect = (slotId: number) => {
     const slot = timeSlots.find((t) => t.id === slotId)
     if (slot) {
@@ -180,24 +197,6 @@ const ExamTimetable = () => {
     }
   }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    router.get("/exam-timetables", { search: searchQuery, per_page: itemsPerPage }, { preserveState: true })
-  }
-
-  const handlePageChange = (url: string | null) => {
-    if (url) {
-      router.get(url, { per_page: itemsPerPage, search: searchQuery }, { preserveState: true })
-    }
-  }
-
-  const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newPerPage = Number.parseInt(e.target.value, 10)
-    setItemsPerPage(newPerPage)
-    router.get("/exam-timetables", { per_page: newPerPage, search: searchQuery }, { preserveState: true })
-  }
-
-  // Format date for display
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
     const date = new Date(dateString)
@@ -293,30 +292,27 @@ const ExamTimetable = () => {
                       const enrollmentId = Number.parseInt(e.target.value)
                       const selectedEnrollment = enrollments.find((e) => e.id === enrollmentId)
 
-                      // Update form state with enrollment ID and student count
                       setFormState((prev) => ({
                         ...prev!,
                         enrollment_id: enrollmentId,
                         no: selectedEnrollment ? selectedEnrollment.student_count : 0,
                       }))
 
-                      // Find suitable classrooms based on student count
                       if (selectedEnrollment) {
                         const studentCount = selectedEnrollment.student_count
                         const suitable = classrooms
                           .filter((c) => c.capacity >= studentCount)
-                          .sort((a, b) => a.capacity - b.capacity) // Sort by capacity (smallest first)
+                          .sort((a, b) => a.capacity - b.capacity)
                         setSuitableClassrooms(suitable)
                       } else {
                         setSuitableClassrooms([])
                       }
 
-                      // Reset selected classroom
                       setSelectedClassroom(null)
                     }}
                     required
-                    disabled={!selectedSemester} // Disable if no semester is selected
-                    style={{ color: "black" }} // Inline style to force text color
+                    disabled={!selectedSemester}
+                    style={{ color: "black" }}
                   >
                     <option value="" style={{ color: "black", backgroundColor: "white" }}>
                       Select enrollment
@@ -402,13 +398,15 @@ const ExamTimetable = () => {
                     />
                   </div>
                 </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Venue && Location</label>
                 <input
                   type="text"
-                  placeholder="Venue"
+                  placeholder="eg: xxx (Phase1)"
                   value={formState?.venue || ""}
                   onChange={(e) => setFormState((prev) => ({ ...prev!, venue: e.target.value }))}
                   className="w-full border rounded p-2 mb-3"
                 />
+                <label className="block text-sm font-medium text-gray-700 mb-1">No of Students/Unit</label>
                 <input
                   type="number"
                   placeholder="No"
@@ -417,52 +415,50 @@ const ExamTimetable = () => {
                   className="w-full border rounded p-2 mb-3 bg-gray-100"
                   readOnly
                 />
-                <label className="block text-sm font-medium text-gray-700 mb-1">Classroom</label>
-                <div className="relative">
-                  <select
-                    className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
-                    value={selectedClassroom || ""}
-                    onChange={(e) => {
-                      const classroomId = Number.parseInt(e.target.value)
-                      setSelectedClassroom(classroomId)
-                      const classroom = classrooms.find((c) => c.id === classroomId)
-                      if (classroom) {
-                        setFormState((prev) => ({
-                          ...prev!,
-                          venue: `${classroom.name} (${classroom.location})`,
-                        }))
-                      }
-                    }}
-                    disabled={suitableClassrooms.length === 0}
-                    style={{ color: "black" }}
-                  >
-                    <option value="" style={{ color: "black", backgroundColor: "white" }}>
-                      Select classroom
-                    </option>
-                    {suitableClassrooms.map((classroom) => (
-                      <option
-                        key={classroom.id}
-                        value={classroom.id}
-                        style={{ color: "black", backgroundColor: "white", padding: "8px" }}
-                      >
-                        {classroom.name} - Capacity: {classroom.capacity} ({classroom.location})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
-                  </div>
-                </div>
-                {suitableClassrooms.length > 0 && (
-                  <div className="text-xs text-green-600 -mt-2 mb-2">
+                
+        <label className="block text-sm font-medium text-gray-700 mb-1">Venue && Capacity</label>
+        <div className="relative">
+          <select
+            className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
+            value={selectedClassroom || ""}
+            onChange={(e) => {
+              const classroomId = Number.parseInt(e.target.value)
+              setSelectedClassroom(classroomId)
+              const classroom = classrooms.find((c) => c.id === classroomId)
+              if (classroom) {
+                setFormState((prev) => ({
+                  ...prev!,
+                  venue: classroom.name,
+                  location: classroom.location,
+                }))
+                if (formState) {
+                  const remaining = classroom.capacity - formState.no
+                  setRemainingCapacity(remaining >= 0 ? remaining : 0)
+                }
+              }
+            }}
+            disabled={suitableClassrooms.length === 0}
+            style={{ color: "black" }}
+          >
+            <option value="">Select venue</option>
+            {suitableClassrooms.map((classroom) => (
+              <option key={classroom.id} value={classroom.id}>
+                {classroom.name} - Capacity: {classroom.capacity} ({classroom.location})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {remainingCapacity !== null && (
+          <div className={`text-xs mb-2 ${remainingCapacity > 0 ? "text-red-600" : "text-red-600"}`}>
+            Remaining space: {remainingCapacity} student{remainingCapacity !== 1 ? "s" : ""}
                     {suitableClassrooms.length} suitable classroom(s) found
                   </div>
                 )}
                 {suitableClassrooms.length === 0 && formState?.no > 0 && (
                   <div className="text-xs text-red-600 -mt-2 mb-2">No classrooms with enough capacity found</div>
                 )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
                 <input
                   type="text"
                   placeholder="Chief Invigilator"
