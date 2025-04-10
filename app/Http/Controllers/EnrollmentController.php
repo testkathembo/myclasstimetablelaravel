@@ -12,33 +12,48 @@ use Inertia\Inertia;
 class EnrollmentController extends Controller
 {
     public function index(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $perPage = $request->input('per_page', 10);
+    $search = $request->input('search', '');
 
-        $enrollments = Enrollment::with(['student', 'unit', 'semester'])
-            ->when($search, function ($query, $search) {
-                $query->whereHas('student', function ($q) use ($search) {
-                    $q->where('first_name', 'like', "%$search%")
-                      ->orWhere('last_name', 'like', "%$search%");
-                })->orWhereHas('unit', function ($q) use ($search) {
-                    $q->where('name', 'like', "%$search%");
-                })->orWhereHas('semester', function ($q) use ($search) {
-                    $q->where('name', 'like', "%$search%");
-                });
-            })
-            ->paginate(10);
+    $examTimetables = ExamTimetable::query()
+        ->when($search, function ($query, $search) {
+            return $query->where('day', 'like', "%{$search}%")
+                ->orWhere('venue', 'like', "%{$search}%");
+        })
+        ->paginate($perPage);
 
-        $students = User::where('user_role', 'student')->get();
-        $units = Unit::all();
-        $semesters = Semester::all();
+    // ✅ Get all semesters
+    $semesters = Semester::all();
 
-        return Inertia::render('Enrollments/Index', [
-            'enrollments' => $enrollments,
-            'students' => $students,
-            'units' => $units,
-            'semesters' => $semesters,
-        ]);
-    }
+    // ✅ Updated: Get enrollments with student count AND include unique enrollment.id
+    $enrollments = Enrollment::select(
+            DB::raw('MIN(enrollments.id) as id'), // Use MIN to get any valid id for that unit in semester
+            'enrollments.unit_id',
+            'units.name as unit_name',
+            'enrollments.semester_id',
+            DB::raw('COUNT(DISTINCT enrollments.student_id) as student_count')
+        )
+        ->join('units', 'units.id', '=', 'enrollments.unit_id')
+        ->groupBy('enrollments.unit_id', 'units.name', 'enrollments.semester_id')
+        ->get();
+
+    // ✅ Get time slots
+    $timeSlots = TimeSlot::select('id', 'day', 'date', 'start_time', 'end_time')->get();
+
+    // ✅ Get classrooms
+    $classrooms = Classroom::all();
+
+    return Inertia::render('ExamTimetable/index', [
+        'examTimetables' => $examTimetables,
+        'perPage' => $perPage,
+        'search' => $search,
+        'semesters' => $semesters,
+        'enrollments' => $enrollments,
+        'timeSlots' => $timeSlots,
+        'classrooms' => $classrooms,
+    ]);
+}
 
     public function store(Request $request)
     {

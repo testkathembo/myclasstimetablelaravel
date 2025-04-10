@@ -22,8 +22,17 @@ interface ExamTimetable {
 
 interface Enrollment {
   id: number
-  unit_name: string // Assuming enrollments table has a unit_name column
+  unit_name: string
   semester_id: number
+  unit_id: number
+  student_count: number
+}
+
+interface Classroom {
+  id: number
+  name: string
+  capacity: number
+  location: string
 }
 
 interface Semester {
@@ -68,13 +77,14 @@ interface FormState {
 }
 
 const ExamTimetable = () => {
-  const { examTimetables, perPage, search, semesters, enrollments, timeSlots } = usePage().props as {
+  const { examTimetables, perPage, search, semesters, enrollments, timeSlots, classrooms } = usePage().props as {
     examTimetables: PaginatedExamTimetables
     perPage: number
     search: string
     semesters: Semester[]
     enrollments: Enrollment[]
     timeSlots: TimeSlot[]
+    classrooms: Classroom[]
   }
 
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -84,6 +94,8 @@ const ExamTimetable = () => {
   const [formState, setFormState] = useState<FormState | null>(null)
   const [itemsPerPage, setItemsPerPage] = useState(perPage)
   const [searchQuery, setSearchQuery] = useState(search)
+  const [suitableClassrooms, setSuitableClassrooms] = useState<Classroom[]>([])
+  const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null)
 
   // Filter enrollments by semester and remove duplicates by unit_name
   const filteredEnrollments = selectedSemester
@@ -135,6 +147,8 @@ const ExamTimetable = () => {
     setFormState(null)
     setSelectedSemester(null)
     setSelectedTimeSlotId(null)
+    setSuitableClassrooms([])
+    setSelectedClassroom(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -275,9 +289,31 @@ const ExamTimetable = () => {
                   <select
                     className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
                     value={formState?.enrollment_id || ""}
-                    onChange={(e) =>
-                      setFormState((prev) => ({ ...prev!, enrollment_id: Number.parseInt(e.target.value) }))
-                    }
+                    onChange={(e) => {
+                      const enrollmentId = Number.parseInt(e.target.value)
+                      const selectedEnrollment = enrollments.find((e) => e.id === enrollmentId)
+
+                      // Update form state with enrollment ID and student count
+                      setFormState((prev) => ({
+                        ...prev!,
+                        enrollment_id: enrollmentId,
+                        no: selectedEnrollment ? selectedEnrollment.student_count : 0,
+                      }))
+
+                      // Find suitable classrooms based on student count
+                      if (selectedEnrollment) {
+                        const studentCount = selectedEnrollment.student_count
+                        const suitable = classrooms
+                          .filter((c) => c.capacity >= studentCount)
+                          .sort((a, b) => a.capacity - b.capacity) // Sort by capacity (smallest first)
+                        setSuitableClassrooms(suitable)
+                      } else {
+                        setSuitableClassrooms([])
+                      }
+
+                      // Reset selected classroom
+                      setSelectedClassroom(null)
+                    }}
                     required
                     disabled={!selectedSemester} // Disable if no semester is selected
                     style={{ color: "black" }} // Inline style to force text color
@@ -365,7 +401,7 @@ const ExamTimetable = () => {
                       readOnly
                     />
                   </div>
-                </div>                
+                </div>
                 <input
                   type="text"
                   placeholder="Venue"
@@ -378,8 +414,55 @@ const ExamTimetable = () => {
                   placeholder="No"
                   value={formState?.no || ""}
                   onChange={(e) => setFormState((prev) => ({ ...prev!, no: Number.parseInt(e.target.value) }))}
-                  className="w-full border rounded p-2 mb-3"
+                  className="w-full border rounded p-2 mb-3 bg-gray-100"
+                  readOnly
                 />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Classroom</label>
+                <div className="relative">
+                  <select
+                    className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
+                    value={selectedClassroom || ""}
+                    onChange={(e) => {
+                      const classroomId = Number.parseInt(e.target.value)
+                      setSelectedClassroom(classroomId)
+                      const classroom = classrooms.find((c) => c.id === classroomId)
+                      if (classroom) {
+                        setFormState((prev) => ({
+                          ...prev!,
+                          venue: `${classroom.name} (${classroom.location})`,
+                        }))
+                      }
+                    }}
+                    disabled={suitableClassrooms.length === 0}
+                    style={{ color: "black" }}
+                  >
+                    <option value="" style={{ color: "black", backgroundColor: "white" }}>
+                      Select classroom
+                    </option>
+                    {suitableClassrooms.map((classroom) => (
+                      <option
+                        key={classroom.id}
+                        value={classroom.id}
+                        style={{ color: "black", backgroundColor: "white", padding: "8px" }}
+                      >
+                        {classroom.name} - Capacity: {classroom.capacity} ({classroom.location})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                    </svg>
+                  </div>
+                </div>
+                {suitableClassrooms.length > 0 && (
+                  <div className="text-xs text-green-600 -mt-2 mb-2">
+                    {suitableClassrooms.length} suitable classroom(s) found
+                  </div>
+                )}
+                {suitableClassrooms.length === 0 && formState?.no > 0 && (
+                  <div className="text-xs text-red-600 -mt-2 mb-2">No classrooms with enough capacity found</div>
+                )}
                 <input
                   type="text"
                   placeholder="Chief Invigilator"
