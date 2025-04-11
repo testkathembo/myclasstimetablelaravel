@@ -20,7 +20,7 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
         <nav className="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center">
             <div className="flex items-center space-x-2">
                 <img src="/images/strathmore.png" alt="Logo" className="h-10 w-10 rounded-full" />
-                <h2 className="text-lg font-bold">My Class Timetable</h2>
+                
             </div>
 
             <div className="flex items-center space-x-6">

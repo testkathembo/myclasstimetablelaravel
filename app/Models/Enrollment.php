@@ -9,7 +9,7 @@ class Enrollment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['student_id', 'unit_id', 'semester_id'];
+    protected $fillable = ['student_id', 'unit_id', 'semester_id', 'lecturer_id']; // Include lecturer_id
 
     public function student()
     {
@@ -24,5 +24,10 @@ class Enrollment extends Model
     public function semester()
     {
         return $this->belongsTo(Semester::class);
+    }
+
+    public function lecturer()
+    {
+        return $this->belongsTo(User::class, 'lecturer_id')->where('user_role', 'lecturer'); // Filter by user_role
     }
 }

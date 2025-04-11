@@ -6,7 +6,7 @@ const Sidebar = () => {
     return (
         <div className="bg-blue-800 text-white w-64 h-full flex flex-col">
             <div className="p-4 text-lg font-bold border-b border-blue-700">
-                MyClassTimetable
+            <h2 className="text-lg font-bold">Timetable Management</h2>
             </div>
             <nav className="flex-1 p-4 space-y-2">
                 <Link href="/dashboard" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">

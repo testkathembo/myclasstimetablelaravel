@@ -10,7 +10,8 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\TimeSlotController;
-use App\Http\Controllers\ExamTimetableController; // Import the ExamTimetableController
+use App\Http\Controllers\ExamTimetableController;
+use App\Http\Controllers\TimesloteController; // Ensure this controller is imported
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -71,6 +72,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/enrollments/{enrollment}/edit', [EnrollmentController::class, 'edit'])->name('enrollments.edit');
     Route::put('/enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
     Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
+    Route::post('/assign-lecturers', [EnrollmentController::class, 'assignLecturers'])->name('assign.lecturers');
+    Route::get('/lecturer-units/{lecturerId}', [EnrollmentController::class, 'lecturerUnits'])->name('lecturer.units');
+    Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'unassignLecturer'])->name('lecturer.unassign');
 
     // Units
     Route::get('/units', [UnitController::class, 'index'])->name('units.index');

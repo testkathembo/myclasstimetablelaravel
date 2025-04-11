@@ -5,16 +5,37 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Pagination } from '@/components/ui/pagination';
 
 const Enrollments = () => {
-    const { enrollments = {}, students, units, semesters, auth } = usePage().props;
+    const {
+        enrollments = {},
+        students = [],
+        units = [],
+        semesters = [],
+        lecturers = [],
+        lecturerUnitAssignments = [],
+        auth,
+    } = usePage().props;
+
     const enrollmentData = enrollments.data || [];
     const [form, setForm] = useState({ student_id: '', semester_id: '', unit_ids: [] });
-    const [search, setSearch] = useState(''); // State for search input
+    const [search, setSearch] = useState('');
+    const [lecturerAssignment, setLecturerAssignment] = useState({ unit_id: '', lecturer_id: '' });
+    const [currentPage, setCurrentPage] = useState(1);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [lecturerUnits, setLecturerUnits] = useState([]);
+    const [lecturerName, setLecturerName] = useState(''); // State for lecturer's name
+
+    const itemsPerPage = 5;
+    const totalPages = Math.ceil(lecturerUnitAssignments.length / itemsPerPage);
+    const paginatedAssignments = lecturerUnitAssignments.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
     const handleUnitSelection = (unitId) => {
         setForm((prevForm) => {
             const unit_ids = prevForm.unit_ids.includes(unitId)
-                ? prevForm.unit_ids.filter((id) => id !== unitId) // Remove unit if already selected
-                : [...prevForm.unit_ids, unitId]; // Add unit if not selected
+                ? prevForm.unit_ids.filter((id) => id !== unitId)
+                : [...prevForm.unit_ids, unitId];
             return { ...prevForm, unit_ids };
         });
     };
@@ -24,12 +45,50 @@ const Enrollments = () => {
         Inertia.post('/enrollments', form);
     };
 
-    const handleSearch = () => {
-        Inertia.get('/enrollments', { search }); // Send search query to the backend
+    const handleSearch = (e) => {
+        e.preventDefault();
+        Inertia.get('/enrollments', { search });
     };
 
     const handlePageChange = (url) => {
-        Inertia.get(url); // Navigate to the selected page
+        if (url) {
+            Inertia.get(url); // Navigate to the selected page
+        }
+    };
+
+    const handleLecturerAssignmentSubmit = (e) => {
+        e.preventDefault();
+        Inertia.post('/assign-lecturers', lecturerAssignment);
+    };
+
+    const handleDeleteAssignment = (unitId) => {
+        if (confirm('Are you sure you want to delete this assignment?')) {
+            Inertia.delete(`/assign-lecturers/${unitId}`);
+        }
+    };
+
+    const handleViewLecturerAssignments = async (lecturerId) => {
+        try {
+            const response = await fetch(`/lecturer-units/${lecturerId}`);
+            const data = await response.json();
+            setLecturerUnits(data.units || []);
+            setLecturerName(`${data.lecturer.first_name} ${data.lecturer.last_name}`); // Set lecturer's name
+            setIsModalOpen(true);
+        } catch (error) {
+            console.error('Failed to fetch lecturer units:', error);
+        }
+    };
+
+    const handleEditAssignment = (assignment) => {
+        setLecturerAssignment({
+            unit_id: assignment.unit_id,
+            lecturer_id: assignment.lecturer?.id || '',
+        });
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setLecturerUnits([]);
     };
 
     return (
@@ -89,7 +148,6 @@ const Enrollments = () => {
                     </button>
                 </form>
 
-                {/* Search Bar */}
                 <div className="flex items-center justify-between mb-4">
                     <input
                         type="text"
@@ -120,11 +178,11 @@ const Enrollments = () => {
                             enrollmentData.map((enrollment) => (
                                 <tr key={enrollment.id}>
                                     <td className="px-4 py-2 border">
-                                        {enrollment.student.first_name} {enrollment.student.last_name}
+                                        {enrollment.student?.first_name} {enrollment.student?.last_name}
                                     </td>
-                                    <td className="px-4 py-2 border">{enrollment.unit.name}</td>
+                                    <td className="px-4 py-2 border">{enrollment.unit?.name}</td>
                                     <td className="px-4 py-2 border">
-                                        {enrollment.semester ? enrollment.semester.name : 'N/A'}
+                                        {enrollment.semester?.name || 'N/A'}
                                     </td>
                                     <td className="px-4 py-2 border">
                                         <button
@@ -146,15 +204,158 @@ const Enrollments = () => {
                     </tbody>
                 </table>
 
-                {/* Pagination Controls */}
-                <div className="mt-4">
-                    {enrollments.links && (
-                        <Pagination
-                            links={enrollments.links}
-                            onPageChange={(url) => handlePageChange(url)}
-                        />
-                    )}
+                {enrollments.links && (
+                    <div className="mt-4">
+                        <Pagination links={enrollments.links} onPageChange={handlePageChange} />
+                    </div>
+                )}
+
+                <div className="mt-10">
+                    <h2 className="text-xl font-semibold mb-4">Current Lecturer Assignments</h2>
+                    <form onSubmit={handleLecturerAssignmentSubmit} className="mb-6">
+                        <div className="grid grid-cols-3 gap-4">
+                            <select
+                                value={lecturerAssignment.unit_id}
+                                onChange={(e) =>
+                                    setLecturerAssignment({ ...lecturerAssignment, unit_id: e.target.value })
+                                }
+                                className="border p-2 rounded"
+                                required
+                            >
+                                <option value="">Select Unit</option>
+                                {units.map((unit) => (
+                                    <option key={unit.id} value={unit.id}>
+                                        {unit.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <select
+                                value={lecturerAssignment.lecturer_id}
+                                onChange={(e) =>
+                                    setLecturerAssignment({ ...lecturerAssignment, lecturer_id: e.target.value })
+                                }
+                                className="border p-2 rounded"
+                                required
+                            >
+                                <option value="">Select Lecturer</option>
+                                {lecturers.map((lecturer) => (
+                                    <option key={lecturer.id} value={lecturer.id}>
+                                        {lecturer.first_name} {lecturer.last_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button type="submit" className="mt-4 bg-green-600 text-white px-4 py-2 rounded">
+                            Assign Lecturer
+                        </button>
+                    </form>
+
+                    <table className="min-w-full border-collapse border border-gray-200">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                <th className="px-4 py-2 border">Unit</th>
+                                <th className="px-4 py-2 border">Lecturer</th>
+                                <th className="px-4 py-2 border">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginatedAssignments.length > 0 ? (
+                                paginatedAssignments.map((assignment, idx) => (
+                                    <tr key={idx}>
+                                        <td className="px-4 py-2 border">{assignment.unit?.name}</td>
+                                        <td className="px-4 py-2 border">
+                                            {assignment.lecturer?.first_name} {assignment.lecturer?.last_name}
+                                        </td>
+                                        <td className="px-4 py-2 border">
+                                            <button
+                                                onClick={() => handleViewLecturerAssignments(assignment.lecturer?.id)}
+                                                className="bg-purple-700 text-white px-3 py-1 rounded mr-2"
+                                            >
+                                                View
+                                            </button>
+                                            <button
+                                                onClick={() => handleEditAssignment(assignment)}
+                                                className="bg-yellow-500 text-white px-3 py-1 rounded mr-2"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteAssignment(assignment.unit_id)}
+                                                className="bg-red-600 text-white px-3 py-1 rounded"
+                                            >
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={3} className="text-center text-gray-500 px-4 py-3">
+                                        No assignments found.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+
+                    {/* Pagination Controls */}
+                    <div className="mt-4 flex justify-center">
+                        <button
+                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            className="px-4 py-2 bg-gray-300 rounded-l"
+                            disabled={currentPage === 1}
+                        >
+                            Previous
+                        </button>
+                        <span className="px-4 py-2 bg-white border">{currentPage}</span>
+                        <button
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                            className="px-4 py-2 bg-gray-300 rounded-r"
+                            disabled={currentPage === totalPages}
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
+
+                {/* Modal for Lecturer's Assigned Units */}
+                {isModalOpen && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full">
+                            <h2 className="text-2xl font-semibold mb-4 text-center">Lecturer Details</h2>
+                            <div className="mb-4">
+                                <p className="text-lg font-medium">
+                                    <span className="font-semibold">Lecturer:</span> {lecturerName}
+                                </p>
+                                <p className="text-lg font-medium mt-2">
+                                    <span className="font-semibold">Assigned Units:</span>
+                                </p>
+                            </div>
+                            <ul className="list-disc pl-5">
+                                {lecturerUnits.length > 0 ? (
+                                    lecturerUnits.map((unit, index) => (
+                                        <li key={index} className="mb-2 text-gray-700">
+                                            <span className="font-semibold">Unit Name:</span> {unit.unit_name} <br />
+                                            <span className="font-semibold">Unit Code:</span> {unit.unit_code} <br />
+                                            <span className="font-semibold">Semester:</span> {unit.semester_name}
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li className="text-gray-500">No units assigned.</li>
+                                )}
+                            </ul>
+                            <div className="mt-6 flex justify-end">
+                                <button
+                                    onClick={closeModal}
+                                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </AuthenticatedLayout>
     );
