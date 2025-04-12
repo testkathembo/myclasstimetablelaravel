@@ -3,109 +3,157 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB; // ✅ Needed for raw queries
+use Illuminate\Support\Facades\DB;
 use App\Models\ExamTimetable;
 use App\Models\Semester;
 use App\Models\Enrollment;
 use App\Models\TimeSlot;
 use App\Models\Classroom;
-use Inertia\Inertia; // Import the Inertia facade
+use Inertia\Inertia;
 
 class ExamTimetableController extends Controller
 {
     public function index(Request $request)
-    {
-        $perPage = $request->input('per_page', 10);
-        $search = $request->input('search', '');
+{
+    $perPage = $request->input('per_page', 10);
+    $search = $request->input('search', '');
 
-        $examTimetables = ExamTimetable::query()
-            ->when($search, function ($query, $search) {
-                return $query->where('day', 'like', "%{$search}%")
-                    ->orWhere('venue', 'like', "%{$search}%");
-            })
-            ->paginate($perPage);
+    // ✅ Join units and fetch unit_name alongside examTimetables
+    $examTimetables = ExamTimetable::query()
+        ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
+        ->select('exam_timetables.*', 'units.name as unit_name') // ✅ Add unit_name to the selection
+        ->when($search, function ($query, $search) {
+            return $query->where('exam_timetables.day', 'like', "%{$search}%")
+                         ->orWhere('exam_timetables.venue', 'like', "%{$search}%");
+        })
+        ->paginate($perPage);
 
-        // ✅ Get all semesters
-        $semesters = Semester::all();
+    $semesters = Semester::all();
 
-        // ✅ Updated: Get enrollments with unit info AND student count per unit
-        $enrollments = Enrollment::select(
-                DB::raw('MIN(enrollments.id) as id'), // Use MIN to get any valid id for that unit in semester
-                'enrollments.unit_id',
-                'units.name as unit_name',
-                'enrollments.semester_id',
-                DB::raw('COUNT(DISTINCT enrollments.student_id) as student_count')
-            )
-            ->join('units', 'units.id', '=', 'enrollments.unit_id')
-            ->groupBy('enrollments.unit_id', 'units.name', 'enrollments.semester_id') // Ensure all selected columns are in GROUP BY
-            ->get();
+    $enrollments = Enrollment::selectRaw("
+            MIN(enrollments.id) as id,
+            enrollments.unit_id,
+            units.name as unit_name,
+            enrollments.semester_id,
+            COUNT(DISTINCT enrollments.student_id) as student_count,
+            MAX(enrollments.lecturer_id) as lecturer_id,
+            CONCAT(MAX(users.first_name), ' ', MAX(users.last_name)) as lecturer_name
+        ")
+        ->join('units', 'units.id', '=', 'enrollments.unit_id')
+        ->leftJoin('users', 'users.id', '=', 'enrollments.lecturer_id')
+        ->groupBy('enrollments.unit_id', 'units.name', 'enrollments.semester_id')
+        ->get();
 
-        // ✅ Get all time slots
-        $timeSlots = TimeSlot::select('id', 'day', 'date', 'start_time', 'end_time')->get();
+    $timeSlots = TimeSlot::select('id', 'day', 'date', 'start_time', 'end_time')->get();
 
-        // ✅ Get all classrooms (for filtering by capacity in frontend)
-        $classrooms = Classroom::all();
+    $classrooms = Classroom::all();
 
-        return Inertia::render('ExamTimetable/index', [
-            'examTimetables' => $examTimetables,
-            'perPage' => $perPage,
-            'search' => $search,
-            'semesters' => $semesters,
-            'enrollments' => $enrollments,
-            'timeSlots' => $timeSlots,
-            'classrooms' => $classrooms, // ✅ Pass to frontend
-        ]);
-    }
+    return Inertia::render('ExamTimetable/index', [
+        'examTimetables' => $examTimetables,
+        'perPage' => $perPage,
+        'search' => $search,
+        'semesters' => $semesters,
+        'enrollments' => $enrollments,
+        'timeSlots' => $timeSlots,
+        'classrooms' => $classrooms,
+    ]);
+}
+
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'enrollment_id' => 'required|exists:enrollments,id',
-            'classroom_id' => 'required|exists:classrooms,id',
-            'lecturer_id' => 'required|exists:users,id',
             'semester_id' => 'required|exists:semesters,id',
             'day' => 'required|string',
             'date' => 'required|date',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
             'group' => 'nullable|string',
-            'venue' => 'nullable|string',
-            'no' => 'nullable|integer',
-            'chief_invigilator' => 'nullable|string',
+            'venue' => 'required|string',
+            'location' => 'nullable|string',
+            'no' => 'required|integer',
+            'chief_invigilator' => 'required|string',
         ]);
 
-        ExamTimetable::create($validated); // ✅ Creates the timetable
+        // Get the unit_id from the enrollment
+        $enrollment = Enrollment::find($validated['enrollment_id']);
+        if (!$enrollment) {
+            return redirect()->back()->withErrors(['enrollment_id' => 'Invalid enrollment selected.']);
+        }
 
-        return redirect()->route('exam-timetables.index')->with('success', 'Exam timetable created successfully.');
+        // Create the data to be saved
+        $data = [
+            'semester_id' => $validated['semester_id'],
+            'unit_id' => $enrollment->unit_id, // Ensure unit_id is always included
+            'day' => $validated['day'],
+            'date' => $validated['date'],
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+            'group' => $validated['group'] ?? '',
+            'venue' => $validated['venue'],
+            'no' => $validated['no'],
+            'chief_invigilator' => $validated['chief_invigilator'],
+        ];
+
+        // Add location if it exists in the request
+        if (isset($validated['location'])) {
+            $data['location'] = $validated['location'];
+        }
+
+        ExamTimetable::create($data);
+
+        return redirect()->back()->with('success', 'Exam timetable created successfully.');
     }
 
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
             'enrollment_id' => 'required|exists:enrollments,id',
-            'classroom_id' => 'required|exists:classrooms,id',
-            'lecturer_id' => 'required|exists:users,id',
             'semester_id' => 'required|exists:semesters,id',
             'day' => 'required|string',
             'date' => 'required|date',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
             'group' => 'nullable|string',
-            'venue' => 'nullable|string',
-            'no' => 'nullable|integer',
-            'chief_invigilator' => 'nullable|string',
+            'venue' => 'required|string',
+            'location' => 'nullable|string',
+            'no' => 'required|integer',
+            'chief_invigilator' => 'required|string',
         ]);
 
-        $timetable = ExamTimetable::findOrFail($id);
-        $timetable->update($validated); // ✅ Updates the timetable
+        // Get the unit_id from the enrollment
+        $enrollment = Enrollment::find($validated['enrollment_id']);
+        
+        // Create the data to be updated
+        $data = [
+            'semester_id' => $validated['semester_id'],
+            'unit_id' => $enrollment->unit_id,
+            'day' => $validated['day'],
+            'date' => $validated['date'],
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+            'group' => $validated['group'] ?? '',
+            'venue' => $validated['venue'],
+            'no' => $validated['no'],
+            'chief_invigilator' => $validated['chief_invigilator'],
+        ];
 
-        return redirect()->route('exam-timetables.index')->with('success', 'Exam timetable updated successfully.');
+        // Add location if it exists in the request
+        if (isset($validated['location'])) {
+            $data['location'] = $validated['location'];
+        }
+
+        $timetable = ExamTimetable::findOrFail($id);
+        $timetable->update($data);
+
+        return redirect()->back()->with('success', 'Exam timetable updated successfully.');
     }
 
     public function destroy($id)
     {
         $timetable = ExamTimetable::findOrFail($id);
-        $timetable->delete(); // ✅ Deletes the timetable
+        $timetable->delete();
 
         return redirect()->route('exam-timetables.index')->with('success', 'Exam timetable deleted successfully.');
     }

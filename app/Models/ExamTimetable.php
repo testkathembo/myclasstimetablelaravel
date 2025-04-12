@@ -10,9 +10,7 @@ class ExamTimetable extends Model
     use HasFactory;
 
     protected $fillable = [
-        'enrollment_id', // Replace unit_id with enrollment_id
-        'classroom_id',
-        'lecturer_id',
+        'enrollment_id', // Add enrollment_id to the fillable array
         'semester_id',
         'day',
         'date',
@@ -20,6 +18,7 @@ class ExamTimetable extends Model
         'end_time',
         'group',
         'venue',
+        'location',
         'no',
         'chief_invigilator',
     ];
