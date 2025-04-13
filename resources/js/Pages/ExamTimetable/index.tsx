@@ -11,7 +11,6 @@ interface ExamTimetable {
   date: string
   unit_id: number
   unit_name: string
-  group: string
   venue: string
   location: string
   no: number
@@ -70,7 +69,6 @@ interface FormState {
   day: string
   date: string
   enrollment_id: number
-  group: string
   venue: string
   location: string
   no: number
@@ -127,7 +125,6 @@ const ExamTimetable = () => {
         day: "",
         date: "",
         enrollment_id: 0,
-        group: "",
         venue: "",
         location: "",
         no: 0,
@@ -143,7 +140,6 @@ const ExamTimetable = () => {
         day: timetable.day,
         date: timetable.date,
         enrollment_id: selectedEnrollment?.id || 0,
-        group: timetable.group,
         venue: timetable.venue,
         location: timetable.location,
         no: timetable.no,
@@ -188,6 +184,7 @@ const ExamTimetable = () => {
     const submissionData = {
       ...formState,
       unit_id: selectedEnrollment.unit_id, // ✅ Correctly included
+      enrollment_id: formState.enrollment_id,
       start_time: start24,
       end_time: end24,
     };
