@@ -4,6 +4,8 @@ import type React from "react"
 import { useState } from "react"
 import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
+import { Button } from "../../components/ui/button"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter } from "../../components/ui/dialog"
 
 interface ExamTimetable {
   id: number
@@ -11,6 +13,7 @@ interface ExamTimetable {
   date: string
   unit_id: number
   unit_name: string
+  group: string
   venue: string
   location: string
   no: number
@@ -69,6 +72,7 @@ interface FormState {
   day: string
   date: string
   enrollment_id: number
+  group: string
   venue: string
   location: string
   no: number
@@ -107,6 +111,7 @@ const ExamTimetable = () => {
   const [suitableClassrooms, setSuitableClassrooms] = useState<Classroom[]>([])
   const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null)
   const [remainingCapacity, setRemainingCapacity] = useState<number | null>(null)
+  const [scheduledStudents, setScheduledStudents] = useState<{[key: string]: number}>({});
 
   const filteredEnrollments = selectedSemester
     ? enrollments
@@ -125,6 +130,7 @@ const ExamTimetable = () => {
         day: "",
         date: "",
         enrollment_id: 0,
+        group: "",
         venue: "",
         location: "",
         no: 0,
@@ -140,6 +146,7 @@ const ExamTimetable = () => {
         day: timetable.day,
         date: timetable.date,
         enrollment_id: selectedEnrollment?.id || 0,
+        group: timetable.group,
         venue: timetable.venue,
         location: timetable.location,
         no: timetable.no,
@@ -166,34 +173,88 @@ const ExamTimetable = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-  
+
     if (!formState) {
       alert("Form state is invalid.");
       return;
     }
-  
-    const start24 = convert12to24(formState.start_time);
-    const end24 = convert12to24(formState.end_time);
-  
+
+    // Validate enrollment selection
     const selectedEnrollment = enrollments.find((e) => e.id === formState.enrollment_id);
     if (!selectedEnrollment) {
       alert("Invalid enrollment selected.");
       return;
     }
-  
+
+    // Validate classroom selection
+    if (!selectedClassroom) {
+      alert("Please select a suitable classroom.");
+      return;
+    }
+
+    const classroom = classrooms.find((c) => c.id === selectedClassroom);
+    if (!classroom) {
+      alert("Selected classroom is invalid.");
+      return;
+    }
+
+    // Check for time slot selection
+    if (!formState.start_time || !formState.end_time || !formState.date) {
+      alert("Please select a time slot.");
+      return;
+    }
+
+    // Calculate existing students in the selected venue at the selected time
+    const currentExamId = modalType === "edit" ? formState.id : 0;
+    let existingStudents = 0;
+
+    examTimetables.data.forEach((exam) => {
+      if (
+        exam.id !== currentExamId &&
+        exam.venue === classroom.name &&
+        exam.date === formState.date
+      ) {
+        // Check for time overlap
+        const start24 = convert12to24(formState.start_time);
+        const end24 = convert12to24(formState.end_time);
+
+        const examStart = exam.start_time;
+        const examEnd = exam.end_time;
+
+        if (
+          (examStart <= start24 && examEnd > start24) ||
+          (examStart < end24 && examEnd >= end24) ||
+          (examStart >= start24 && examEnd <= end24)
+        ) {
+          existingStudents += exam.no;
+        }
+      }
+    });
+
+    // Check if there's enough capacity
+    const remainingCapacity = classroom.capacity - existingStudents;
+    if (formState.no > remainingCapacity) {
+      alert(
+        `Cannot assign ${formState.no} students to ${classroom.name}. There are already ${existingStudents} students scheduled at this time. Remaining capacity is only ${remainingCapacity}.`
+      );
+      return;
+    }
+
+    const start24 = convert12to24(formState.start_time);
+    const end24 = convert12to24(formState.end_time);
+
     const submissionData = {
       ...formState,
-      unit_id: selectedEnrollment.unit_id, // ✅ Correctly included
-      enrollment_id: formState.enrollment_id,
+      unit_id: selectedEnrollment.unit_id,
       start_time: start24,
       end_time: end24,
     };
-  
+
     const url = modalType === "create"
       ? "/exam-timetables"
       : `/exam-timetables/${formState.id}`;
     const method = modalType === "create" ? "post" : "put";
-  
+
     router.visit(url, {
       method,
       data: submissionData,
@@ -201,12 +262,13 @@ const ExamTimetable = () => {
         alert("Saved successfully");
         setIsModalOpen(false);
       },
-      onError: () => {
-        alert("Validation or saving failed");
+      onError: (errors) => {
+        // Display the validation errors
+        const errorMessages = Object.values(errors).flat().join("\n");
+        alert(`Validation failed:\n${errorMessages}`);
       },
     });
   };
-  
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -220,7 +282,7 @@ const ExamTimetable = () => {
   }
 
   const handleTimeSlotSelect = (slotId: number) => {
-    const slot = timeSlots.find((t) => t.id === slotId)
+    const slot = timeSlots.find((t) => t.id === slotId);
     if (slot) {
       setFormState((prev) => ({
         ...prev!,
@@ -228,10 +290,94 @@ const ExamTimetable = () => {
         end_time: slot.end_time,
         day: slot.day,
         date: slot.date,
-      }))
-      setSelectedTimeSlotId(slotId)
+      }));
+      setSelectedTimeSlotId(slotId);
+      
+      // Calculate existing students for each venue at the selected time
+      const venueOccupancy: {[key: string]: number} = {};
+      
+      // Skip this step if we're in edit mode and have a current exam ID
+      const currentExamId = modalType === "edit" && formState ? formState.id : 0;
+      
+      examTimetables.data.forEach(exam => {
+        // Skip the current exam if we're editing
+        if (exam.id === currentExamId) return;
+        
+        // Check if this exam overlaps with the selected time slot
+        if (checkTimeOverlap(exam, slot.date, slot.start_time, slot.end_time)) {
+          // If this venue isn't in our occupancy map yet, initialize it
+          if (!venueOccupancy[exam.venue]) {
+            venueOccupancy[exam.venue] = 0;
+          }
+          // Add the student count to the venue's occupancy
+          venueOccupancy[exam.venue] += exam.no;
+        }
+      });
+      
+      setScheduledStudents(venueOccupancy);
+      
+      // If a classroom was already selected, update the remaining capacity
+      if (selectedClassroom && formState) {
+        const classroom = classrooms.find((c) => c.id === selectedClassroom);
+        if (classroom) {
+          const existingStudents = venueOccupancy[classroom.name] || 0;
+          const remaining = classroom.capacity - existingStudents - formState.no;
+          setRemainingCapacity(remaining >= 0 ? remaining : 0);
+        }
+      }
     }
-  }
+  };
+
+  const handleClassroomSelect = (classroomId: number) => {
+    setSelectedClassroom(classroomId);
+    const classroom = classrooms.find((c) => c.id === classroomId);
+    if (classroom && formState) {
+      setFormState((prev) => ({
+        ...prev!,
+        venue: classroom.name,
+        location: classroom.location,
+      }));
+      
+      // Calculate remaining capacity considering other exams
+      const existingStudents = scheduledStudents[classroom.name] || 0;
+      const remaining = classroom.capacity - existingStudents - formState.no;
+      setRemainingCapacity(remaining >= 0 ? remaining : 0);
+    }
+  };
+
+  const handleEnrollmentSelect = (enrollmentId: number) => {
+    const selectedEnrollment = enrollments.find((e) => e.id === enrollmentId);
+    setFormState((prev) => ({
+      ...prev!,
+      enrollment_id: enrollmentId,
+      no: selectedEnrollment ? selectedEnrollment.student_count : 0,
+      chief_invigilator: selectedEnrollment?.lecturer_name || "",
+    }));
+
+    if (selectedEnrollment && selectedTimeSlotId) {
+      const studentCount = selectedEnrollment.student_count;
+      const slot = timeSlots.find((t) => t.id === selectedTimeSlotId);
+
+      if (slot) {
+        // Calculate suitable classrooms based on remaining capacity after considering scheduled exams
+        const suitable = classrooms.filter((c) => {
+          const existingStudents = scheduledStudents[c.name] || 0;
+          return (c.capacity - existingStudents) >= studentCount;
+        }).sort((a, b) => a.capacity - b.capacity);
+
+        setSuitableClassrooms(suitable);
+      }
+    }
+  };
+
+  const handleDelete = (id: number) => {
+    if (confirm("Are you sure you want to delete this exam timetable?")) {
+      router.delete(`/exam-timetables/${id}`, {
+        onSuccess: () => alert("Exam timetable deleted successfully."),
+        onError: () => alert("Failed to delete the exam timetable."),
+      });
+    }
+  };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
@@ -249,12 +395,9 @@ const ExamTimetable = () => {
       <div className="p-6 bg-white rounded-lg shadow-md">
         <h1 className="text-2xl font-semibold mb-4">Exam Timetable</h1>
         <div className="flex justify-between items-center mb-4">
-          <button
-            onClick={() => handleOpenModal("create")}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
+          <Button onClick={() => handleOpenModal("create")} className="bg-green-500 hover:bg-green-600">
             + Add Exam
-          </button>
+          </Button>
           <form onSubmit={handleSearch} className="flex items-center space-x-2">
             <input
               type="text"
@@ -263,9 +406,9 @@ const ExamTimetable = () => {
               placeholder="Search exam timetable..."
               className="border rounded p-2 w-64"
             />
-            <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+            <Button type="submit" className="bg-blue-500 hover:bg-blue-600">
               Search
-            </button>
+            </Button>
           </form>
           <div>
             <label className="mr-2">Rows per page:</label>
@@ -280,34 +423,72 @@ const ExamTimetable = () => {
         </div>
 
         {examTimetables.data.length > 0 ? (
-          <table className="w-full mt-6 border text-sm text-left">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="px-3 py-2">#</th>
-                <th className="px-3 py-2">Unit</th>
-                <th className="px-3 py-2">Semester</th>
-                <th className="px-3 py-2">Day</th>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Time</th>
-                <th className="px-3 py-2">Venue</th>
-                <th className="px-3 py-2">Chief Invigilator</th>
-              </tr>
-            </thead>
-            <tbody>
-              {examTimetables.data.map((exam, index) => (
-                <tr key={exam.id} className="border-b">
-                  <td className="px-3 py-2">{index + 1}</td>
-                  <td className="px-3 py-2">{exam.unit_name}</td>
-                  <td className="px-3 py-2">{semesters.find(s => s.id === exam.semester_id)?.name}</td>
-                  <td className="px-3 py-2">{exam.day}</td>
-                  <td className="px-3 py-2">{exam.date}</td>
-                  <td className="px-3 py-2">{exam.start_time} - {exam.end_time}</td>
-                  <td className="px-3 py-2">{exam.venue}</td>
-                  <td className="px-3 py-2">{exam.chief_invigilator}</td>
+          <>
+            <table className="w-full mt-6 border text-sm text-left">
+              <thead className="bg-gray-100 border-b">
+                <tr>
+                  <th className="px-3 py-2">#</th>
+                  <th className="px-3 py-2">Unit</th>
+                  <th className="px-3 py-2">Semester</th>
+                  <th className="px-3 py-2">Day</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Time</th>
+                  <th className="px-3 py-2">Venue</th>
+                  <th className="px-3 py-2">Chief Invigilator</th>
+                  <th className="px-3 py-2">Actions</th>
                 </tr>
+              </thead>
+              <tbody>
+                {examTimetables.data.map((exam, index) => (
+                  <tr key={exam.id} className="border-b">
+                    <td className="px-3 py-2">{index + 1}</td>
+                    <td className="px-3 py-2">{exam.unit_name}</td>
+                    <td className="px-3 py-2">{semesters.find((s) => s.id === exam.semester_id)?.name}</td>
+                    <td className="px-3 py-2">{exam.day}</td>
+                    <td className="px-3 py-2">{exam.date}</td>
+                    <td className="px-3 py-2">
+                      {exam.start_time} - {exam.end_time}
+                    </td>
+                    <td className="px-3 py-2">{exam.venue}</td>
+                    <td className="px-3 py-2">{exam.chief_invigilator}</td>
+                    <td className="px-3 py-2 flex space-x-2">
+                      {/* Edit Action */}
+                      <Button
+                        onClick={() => handleOpenModal("edit", exam)}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                      >
+                        Edit
+                      </Button>
+
+                      {/* Delete Action */}
+                      <Button
+                        onClick={() => handleDelete(exam.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white"
+                      >
+                        Delete
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex justify-center mt-4">
+              {examTimetables.links.map((link, index) => (
+                <button
+                  key={index}
+                  onClick={() => link.url && router.get(link.url, {}, { preserveState: true })}
+                  disabled={!link.url}
+                  className={`px-4 py-2 mx-1 rounded ${
+                    link.active
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  {link.label === "&laquo; Previous" ? "Previous" : link.label === "Next &raquo;" ? "Next" : link.label}
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         ) : (
           <p className="mt-6 text-gray-600">No exam timetables available yet.</p>
         )}
@@ -355,29 +536,7 @@ const ExamTimetable = () => {
                   <select
                     className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
                     value={formState?.enrollment_id || ""}
-                    onChange={(e) => {
-                      const enrollmentId = Number.parseInt(e.target.value)
-                      const selectedEnrollment = enrollments.find((e) => e.id === enrollmentId)
-
-                      setFormState((prev) => ({
-                        ...prev!,
-                        enrollment_id: enrollmentId,
-                        no: selectedEnrollment ? selectedEnrollment.student_count : 0,
-                        chief_invigilator: selectedEnrollment?.lecturer_name || "",
-                      }))
-
-                      if (selectedEnrollment) {
-                        const studentCount = selectedEnrollment.student_count
-                        const suitable = classrooms
-                          .filter((c) => c.capacity >= studentCount)
-                          .sort((a, b) => a.capacity - b.capacity)
-                        setSuitableClassrooms(suitable)
-                      } else {
-                        setSuitableClassrooms([])
-                      }
-
-                      setSelectedClassroom(null)
-                    }}
+                    onChange={(e) => handleEnrollmentSelect(Number.parseInt(e.target.value))}
                     required
                     disabled={!selectedSemester}
                     style={{ color: "black" }}
@@ -499,22 +658,7 @@ const ExamTimetable = () => {
                   <select
                     className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
                     value={selectedClassroom || ""}
-                    onChange={(e) => {
-                      const classroomId = Number.parseInt(e.target.value)
-                      setSelectedClassroom(classroomId)
-                      const classroom = classrooms.find((c) => c.id === classroomId)
-                      if (classroom) {
-                        setFormState((prev) => ({
-                          ...prev!,
-                          venue: classroom.name,
-                          location: classroom.location,
-                        }))
-                        if (formState) {
-                          const remaining = classroom.capacity - formState.no
-                          setRemainingCapacity(remaining >= 0 ? remaining : 0)
-                        }
-                      }
-                    }}
+                    onChange={(e) => handleClassroomSelect(Number.parseInt(e.target.value))}
                     disabled={suitableClassrooms.length === 0}
                     style={{ color: "black" }}
                   >
@@ -528,10 +672,17 @@ const ExamTimetable = () => {
                 </div>
 
                 {remainingCapacity !== null && (
-                  <div className={`text-xs mb-2 ${remainingCapacity > 0 ? "text-green-600" : "text-red-600"}`}>
-                    Remaining space: {remainingCapacity} student{remainingCapacity !== 1 ? "s" : ""}
-                    <br />
-                    {suitableClassrooms.length} suitable classroom(s) found
+                  <div className={`text-xs mb-2 ${remainingCapacity > 0 ? "text-green-600" : "text-red-600 font-bold"}`}>
+                    {scheduledStudents[formState?.venue || ""] > 0 && (
+                      <>
+                        <span>Currently scheduled: {scheduledStudents[formState?.venue || ""]} students</span>
+                        <br />
+                      </>
+                    )}
+                    {remainingCapacity >= 0 
+                      ? `Remaining space: ${remainingCapacity} student${remainingCapacity !== 1 ? "s" : ""}`
+                      : `OVER CAPACITY by ${Math.abs(remainingCapacity)} student${Math.abs(remainingCapacity) !== 1 ? "s" : ""}!`
+                    }
                   </div>
                 )}
                 {suitableClassrooms.length === 0 && formState?.no > 0 && (

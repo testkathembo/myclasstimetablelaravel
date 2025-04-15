@@ -60,66 +60,7 @@ class ExamTimetableController extends Controller
 }
 
 
-public function store(Request $request)
-{
-    $validated = $request->validate([
-        'enrollment_id' => 'required|exists:enrollments,id',
-        'semester_id' => 'required|exists:semesters,id',
-        'day' => 'required|string',
-        'date' => 'required|date',
-        'start_time' => 'required|date_format:H:i',
-        'end_time' => 'required|date_format:H:i|after:start_time',            
-        'venue' => 'required|string',
-        'location' => 'nullable|string',
-        'no' => 'required|integer',
-        'chief_invigilator' => 'required|string',
-    ]);
-
-    // Get the unit_id from the enrollment
-    $enrollment = Enrollment::find($validated['enrollment_id']);
-    if (!$enrollment) {
-        return redirect()->back()->withErrors(['enrollment_id' => 'Invalid enrollment selected.']);
-    }
-
-    // Make sure semester_id is explicitly set
-    $semesterId = $validated['semester_id'];
-    if (!$semesterId) {
-        // If semester_id is not in validated data, try to get it from the enrollment
-        $semesterId = $enrollment->semester_id;
-    }
-
-    if (!$semesterId) {
-        return redirect()->back()->withErrors(['semester_id' => 'Semester ID is required.']);
-    }
-
-    // Create the data to be saved with explicit semester_id
-    $data = [
-        'semester_id' => $semesterId,
-        'unit_id' => $enrollment->unit_id,
-        'day' => $validated['day'],
-        'date' => $validated['date'],
-        'start_time' => $validated['start_time'],
-        'end_time' => $validated['end_time'],         
-        'venue' => $validated['venue'],
-        'no' => $validated['no'],
-        'chief_invigilator' => $validated['chief_invigilator'],
-    ];
-
-    // Add location if it exists in the request
-    if (isset($validated['location'])) {
-        $data['location'] = $validated['location'];
-    }
-
-    // For debugging, you can dump and die to see the data before creating
-    // dd($data);
-
-    $examTimetable = new ExamTimetable($data);
-    $examTimetable->semester_id = $semesterId; // Set it directly on the model as well
-    $examTimetable->save();
-
-    return redirect()->back()->with('success', 'Exam timetable created successfully.');
-}
-
+    
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
@@ -128,7 +69,8 @@ public function store(Request $request)
             'day' => 'required|string',
             'date' => 'required|date',
             'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',           
+            'end_time' => 'required|date_format:H:i|after:start_time',
+            'group' => 'nullable|string',
             'venue' => 'required|string',
             'location' => 'nullable|string',
             'no' => 'required|integer',
@@ -146,6 +88,7 @@ public function store(Request $request)
             'date' => $validated['date'],
             'start_time' => $validated['start_time'],
             'end_time' => $validated['end_time'],
+            'group' => $validated['group'] ?? '',
             'venue' => $validated['venue'],
             'no' => $validated['no'],
             'chief_invigilator' => $validated['chief_invigilator'],
