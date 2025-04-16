@@ -323,13 +323,10 @@ const ExamTimetable = () => {
     // Check if there's enough capacity
     const remainingCapacity = classroom.capacity - existingStudents
     if (formState.no > remainingCapacity) {
-      const proceed = confirm(
-        `Warning: You're trying to assign ${formState.no} students to ${classroom.name}. There are already ${existingStudents} students scheduled at this time. Remaining capacity is only ${remainingCapacity}.\n\nThis will exceed the classroom capacity by ${formState.no - remainingCapacity} students.\n\nDo you want to proceed anyway?`,
-      )
-      if (!proceed) {
-        return
-      }
-      // If they choose to proceed, we'll let them, but the backend validation will still apply
+      alert(`ERROR: Cannot schedule this exam. The classroom ${classroom.name} has a capacity of ${classroom.capacity}, but there would be ${existingStudents + formState.no} students scheduled at this time (exceeding capacity by ${formState.no - remainingCapacity} students).
+
+Please select a different venue with sufficient capacity.`)
+      return // Prevent form submission
     }
 
     const submissionData = {
@@ -781,8 +778,35 @@ const ExamTimetable = () => {
                   onChange={(e) => setFormState((prev) => ({ ...prev!, chief_invigilator: e.target.value }))}
                   className="w-full border rounded p-2 mb-3"
                 />
-                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
-                  Submit
+                <button
+                  type="submit"
+                  className={`px-4 py-2 rounded ${
+                    selectedClassroom &&
+                    formState &&
+                    formState.no > 0 &&
+                    (scheduledStudents[classrooms.find((c) => c.id === selectedClassroom)?.name || ""] || 0) +
+                      formState.no >
+                      (classrooms.find((c) => c.id === selectedClassroom)?.capacity || 0)
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  } text-white`}
+                  disabled={
+                    selectedClassroom &&
+                    formState &&
+                    formState.no > 0 &&
+                    (scheduledStudents[classrooms.find((c) => c.id === selectedClassroom)?.name || ""] || 0) +
+                      formState.no >
+                      (classrooms.find((c) => c.id === selectedClassroom)?.capacity || 0)
+                  }
+                >
+                  {selectedClassroom &&
+                  formState &&
+                  formState.no > 0 &&
+                  (scheduledStudents[classrooms.find((c) => c.id === selectedClassroom)?.name || ""] || 0) +
+                    formState.no >
+                    (classrooms.find((c) => c.id === selectedClassroom)?.capacity || 0)
+                    ? "Capacity Exceeded"
+                    : "Submit"}
                 </button>
                 <button
                   type="button"

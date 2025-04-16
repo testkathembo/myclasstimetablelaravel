@@ -105,12 +105,16 @@ class ExamTimetableController extends Controller
         // Calculate total students already scheduled
         $totalStudents = $conflictingExams->sum('no');
         
+        // Add this right before the capacity check
+        \Log::debug("Exam scheduling validation: Venue: {$validated['venue']}, Capacity: {$classroom->capacity}, Current students: {$totalStudents}, New students: {$validated['no']}, Total: " . ($totalStudents + $validated['no']));
+
         // Check if adding this exam would exceed classroom capacity
         if ($totalStudents + $validated['no'] > $classroom->capacity) {
             return redirect()->back()->with('error', 
                 "Cannot schedule this exam. The classroom {$validated['venue']} has a capacity of {$classroom->capacity}, " .
-                "but there would be " . ($totalStudents + $validated['no']) . " students scheduled at this time."
-            );
+                "but there would be " . ($totalStudents + $validated['no']) . " students scheduled at this time " .
+                "(exceeding capacity by " . (($totalStudents + $validated['no']) - $classroom->capacity) . " students)."
+            )->withInput();
         }
         
         // Create the data to be stored
@@ -144,8 +148,8 @@ class ExamTimetableController extends Controller
             'semester_id' => 'required|exists:semesters,id',
             'day' => 'required|string',
             'date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'start_time' => 'required|date_format:H:i:s',
+            'end_time' => 'required|date_format:H:i:s|after:start_time',
             'group' => 'nullable|string',
             'venue' => 'required|string',
             'location' => 'nullable|string',
@@ -184,12 +188,16 @@ class ExamTimetableController extends Controller
         // Calculate total students already scheduled
         $totalStudents = $conflictingExams->sum('no');
         
+        // Add this right before the capacity check
+        \Log::debug("Exam scheduling validation: Venue: {$validated['venue']}, Capacity: {$classroom->capacity}, Current students: {$totalStudents}, New students: {$validated['no']}, Total: " . ($totalStudents + $validated['no']));
+
         // Check if updating this exam would exceed classroom capacity
         if ($totalStudents + $validated['no'] > $classroom->capacity) {
             return redirect()->back()->with('error', 
                 "Cannot schedule this exam. The classroom {$validated['venue']} has a capacity of {$classroom->capacity}, " .
-                "but there would be " . ($totalStudents + $validated['no']) . " students scheduled at this time."
-            );
+                "but there would be " . ($totalStudents + $validated['no']) . " students scheduled at this time " .
+                "(exceeding capacity by " . (($totalStudents + $validated['no']) - $classroom->capacity) . " students)."
+            )->withInput();
         }
         
         // Create the data to be updated
