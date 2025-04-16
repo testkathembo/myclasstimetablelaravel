@@ -81,12 +81,31 @@ interface FormState {
   semester_id: number
 }
 
-const convert12to24 = (timeStr: string) => {
-  const [time, modifier] = timeStr.split(" ")
-  let [hours, minutes] = time.split(":").map(Number)
-  if (modifier === "PM" && hours !== 12) hours += 12
-  if (modifier === "AM" && hours === 12) hours = 0
-  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
+// Helper function to ensure time is in H:i format
+const formatTimeToHi = (timeStr: string) => {
+  // If the time already has the correct format (H:i), return it
+  if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+    return timeStr
+  }
+
+  // If the time has seconds (H:i:s), remove them
+  if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(timeStr)) {
+    return timeStr.substring(0, 5)
+  }
+
+  // If it's in 12-hour format with AM/PM, convert to 24-hour
+  if (timeStr.includes("AM") || timeStr.includes("PM")) {
+    const [time, modifier] = timeStr.split(" ")
+    let [hours, minutes] = time.split(":").map(Number)
+
+    if (modifier === "PM" && hours < 12) hours += 12
+    if (modifier === "AM" && hours === 12) hours = 0
+
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
+  }
+
+  // If we can't parse it, return as is (validation will catch it)
+  return timeStr
 }
 
 // Helper function to check for time overlap
@@ -165,6 +184,11 @@ const ExamTimetable = () => {
       )
     } else if (timetable) {
       const selectedEnrollment = enrollments.find((e) => e.unit_id === timetable.unit_id)
+
+      // Format the time values to ensure they're in H:i format
+      const formattedStartTime = formatTimeToHi(timetable.start_time)
+      const formattedEndTime = formatTimeToHi(timetable.end_time)
+
       setFormState({
         id: timetable.id,
         day: timetable.day,
@@ -175,15 +199,15 @@ const ExamTimetable = () => {
         location: timetable.location,
         no: timetable.no,
         chief_invigilator: timetable.chief_invigilator,
-        start_time: timetable.start_time,
-        end_time: timetable.end_time,
+        start_time: formattedStartTime,
+        end_time: formattedEndTime,
         semester_id: timetable.semester_id,
       })
       setSelectedSemester(timetable.semester_id)
 
       // If we're editing, we need to calculate the classroom capacities
       if (timetable.date && timetable.start_time && timetable.end_time) {
-        calculateVenueOccupancy(timetable.date, timetable.start_time, timetable.end_time, timetable.id)
+        calculateVenueOccupancy(timetable.date, formattedStartTime, formattedEndTime, timetable.id)
       }
     }
     setIsModalOpen(true)
@@ -329,10 +353,15 @@ Please select a different venue with sufficient capacity.`)
       return // Prevent form submission
     }
 
+    // Ensure time values are in the correct format before submission
     const submissionData = {
       ...formState,
       unit_id: selectedEnrollment.unit_id,
+      start_time: formatTimeToHi(formState.start_time),
+      end_time: formatTimeToHi(formState.end_time),
     }
+
+    console.log("Submitting with formatted times:", submissionData.start_time, submissionData.end_time)
 
     const url = modalType === "create" ? "/exam-timetables" : `/exam-timetables/${formState.id}`
     const method = modalType === "create" ? "post" : "put"
@@ -366,10 +395,14 @@ Please select a different venue with sufficient capacity.`)
   const handleTimeSlotSelect = (slotId: number) => {
     const slot = timeSlots.find((t) => t.id === slotId)
     if (slot) {
+      // Format the time values to ensure they're in H:i format
+      const formattedStartTime = formatTimeToHi(slot.start_time)
+      const formattedEndTime = formatTimeToHi(slot.end_time)
+
       setFormState((prev) => ({
         ...prev!,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
+        start_time: formattedStartTime,
+        end_time: formattedEndTime,
         day: slot.day,
         date: slot.date,
       }))
@@ -377,7 +410,7 @@ Please select a different venue with sufficient capacity.`)
 
       // Calculate venue occupancy for this time slot
       const currentExamId = modalType === "edit" && formState ? formState.id : 0
-      calculateVenueOccupancy(slot.date, slot.start_time, slot.end_time, currentExamId)
+      calculateVenueOccupancy(slot.date, formattedStartTime, formattedEndTime, currentExamId)
     }
   }
 
@@ -521,7 +554,7 @@ Please select a different venue with sufficient capacity.`)
                     <td className="px-3 py-2">{exam.day}</td>
                     <td className="px-3 py-2">{exam.date}</td>
                     <td className="px-3 py-2">
-                      {exam.start_time} - {exam.end_time}
+                      {formatTimeToHi(exam.start_time)} - {formatTimeToHi(exam.end_time)}
                     </td>
                     <td className="px-3 py-2">{exam.venue}</td>
                     <td className="px-3 py-2">{exam.chief_invigilator}</td>
@@ -666,7 +699,8 @@ Please select a different venue with sufficient capacity.`)
                         value={slot.id}
                         style={{ color: "black", backgroundColor: "white", padding: "8px" }}
                       >
-                        {formatDate(slot.date)} ({slot.day}) - {slot.start_time} to {slot.end_time}
+                        {formatDate(slot.date)} ({slot.day}) - {formatTimeToHi(slot.start_time)} to{" "}
+                        {formatTimeToHi(slot.end_time)}
                       </option>
                     ))}
                   </select>
