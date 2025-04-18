@@ -534,11 +534,11 @@ Please select a different venue with sufficient capacity.`)
             <table className="w-full mt-6 border text-sm text-left">
               <thead className="bg-gray-100 border-b">
                 <tr>
-                  <th className="px-3 py-2">#</th>
-                  <th className="px-3 py-2">Unit</th>
-                  <th className="px-3 py-2">Semester</th>
+                  <th className="px-3 py-2">Id</th>
                   <th className="px-3 py-2">Day</th>
                   <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Unit</th>
+                  <th className="px-3 py-2">Semester</th>               
                   <th className="px-3 py-2">Time</th>
                   <th className="px-3 py-2">Venue</th>
                   <th className="px-3 py-2">Chief Invigilator</th>
@@ -549,10 +549,10 @@ Please select a different venue with sufficient capacity.`)
                 {examTimetables.data.map((exam, index) => (
                   <tr key={exam.id} className="border-b">
                     <td className="px-3 py-2">{index + 1}</td>
-                    <td className="px-3 py-2">{exam.unit_name}</td>
-                    <td className="px-3 py-2">{semesters.find((s) => s.id === exam.semester_id)?.name}</td>
                     <td className="px-3 py-2">{exam.day}</td>
                     <td className="px-3 py-2">{exam.date}</td>
+                    <td className="px-3 py-2">{exam.unit_name}</td>
+                    <td className="px-3 py-2">{semesters.find((s) => s.id === exam.semester_id)?.name}</td>                   
                     <td className="px-3 py-2">
                       {formatTimeToHi(exam.start_time)} - {formatTimeToHi(exam.end_time)}
                     </td>

@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             ClassroomSeeder::class, // Added ClassroomSeeder
             SemesterSeeder::class, // Added SemesterSeeder
             TimeSlotSeeder::class,
+            RoleAndPermissionSeeder::class,
           
             // Add other seeders here if needed
         ]);

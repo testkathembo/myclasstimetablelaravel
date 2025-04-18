@@ -6,13 +6,15 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
+    // ✅ Show paginated, searchable user list
     public function index(Request $request)
     {
-        $perPage = $request->get('per_page', 10); // Default to 10 items per page
-        $search = $request->get('search', ''); // Get the search query
+        $perPage = $request->get('per_page', 10);
+        $search = $request->get('search', '');
 
         $users = User::query()
             ->when($search, function ($query, $search) {
@@ -21,18 +23,19 @@ class UserController extends Controller
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('faculty', 'like', "%{$search}%")
-                    ->orWhere('user_role', 'like', "%{$search}%");
+                    ->orWhere('faculty', 'like', "%{$search}%");
             })
+            ->with('roles') // Load roles with user
             ->paginate($perPage);
 
         return Inertia::render('Users/index', [
             'users' => $users,
             'perPage' => $perPage,
-            'search' => $search, // Pass the search query to the frontend
+            'search' => $search,
         ]);
     }
 
+    // ✅ Create new user
     public function store(Request $request)
     {
         $request->validate([
@@ -43,17 +46,20 @@ class UserController extends Controller
             'phone' => 'required|string|max:15',
             'code' => 'required|string|max:10',
             'password' => 'required|string|min:8',
-            'user_role' => 'required|string|in:admin, examofficer, lecturer, student', // Validate user_role
         ]);
 
         $data = $request->all();
-        $data['password'] = bcrypt($data['password']);
+        $data['password'] = Hash::make($data['password']);
 
-        User::create($data);
+        $user = User::create($data);
+
+        // You can optionally assign a default role here if needed
+        // $user->assignRole('Student');
 
         return redirect()->route('users.index')->with('success', 'User created successfully!');
     }
 
+    // ✅ Update user info
     public function update(Request $request, User $user)
     {
         $request->validate([
@@ -64,7 +70,6 @@ class UserController extends Controller
             'phone' => 'required|string|min:6',
             'code' => 'required|string|min:4',
             'password' => 'nullable|string|min:6',
-            'user_role' => 'required|string|in:admin, examofficer, lecturer, student', // Validate user_role
         ]);
 
         $user->update([
@@ -75,21 +80,47 @@ class UserController extends Controller
             'phone' => $request->phone,
             'code' => $request->code,
             'password' => $request->password ? Hash::make($request->password) : $user->password,
-            'user_role' => $request->user_role, // Update user_role
         ]);
 
         return redirect()->back()->with('success', 'User updated successfully!');
     }
 
+    // ✅ Show user edit form
     public function edit(User $user)
     {
         return Inertia::render('Users/Edit', ['user' => $user]);
     }
 
+    // ✅ Delete user
     public function destroy(User $user)
     {
         $user->delete();
 
         return redirect()->route('users.index')->with('success', 'User deleted successfully!');
+    }
+
+    // ✅ Show form to change user's role
+    public function editRole(User $user)
+    {
+        $roles = Role::pluck('name');
+        $currentRole = $user->roles->pluck('name')->first();
+
+        return Inertia::render('Users/EditRole', [
+            'user' => $user,
+            'roles' => $roles,
+            'currentRole' => $currentRole,
+        ]);
+    }
+
+    // ✅ Save new role for user
+    public function updateRole(Request $request, User $user)
+    {
+        $request->validate([
+            'role' => 'required|exists:roles,name',
+        ]);
+
+        $user->syncRoles([$request->role]);
+
+        return redirect()->route('users.index')->with('success', 'User role updated successfully!');
     }
 }
