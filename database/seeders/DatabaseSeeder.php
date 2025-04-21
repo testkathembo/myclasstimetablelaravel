@@ -19,14 +19,15 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
-            AdminSeeder::class,
-            UserSeeder::class,
+            RoleAndPermissionSeeder::class,  // Run this first
+            UserSeeder::class,               // Then seed users
+            FacultySeeder::class,            // Other seeders
+            ClassroomSeeder::class,
             UnitSeeder::class,
-            FacultySeeder::class,
-            ClassroomSeeder::class, // Added ClassroomSeeder
-            SemesterSeeder::class, // Added SemesterSeeder
+            SemesterSeeder::class,
+            AdminSeeder::class,
             TimeSlotSeeder::class,
-            RoleAndPermissionSeeder::class,
+    
           
             // Add other seeders here if needed
         ]);

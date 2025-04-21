@@ -103,5 +103,7 @@ class RoleAndPermissionSeeder extends Seeder
             $role = Role::firstOrCreate(['name' => $role]);
             $role->syncPermissions($permissions);
         }
+
+        
     }
 }

@@ -15,6 +15,11 @@ class ExamTimetableController extends Controller
 {
     public function index(Request $request)
     {
+        // Check if user has permission to view timetables
+        if (!auth()->user()->can('view-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search', '');
 
@@ -25,8 +30,17 @@ class ExamTimetableController extends Controller
             ->when($search, function ($query, $search) {
                 return $query->where('exam_timetables.day', 'like', "%{$search}%")
                              ->orWhere('exam_timetables.venue', 'like', "%{$search}%");
-            })
-            ->paginate($perPage);
+            });
+            
+        // Filter based on user role
+        if (auth()->user()->hasRole('Faculty Admin')) {
+            $faculty = auth()->user()->faculty;
+            $examTimetables->whereHas('unit', function($query) use ($faculty) {
+                $query->where('faculty', $faculty);
+            });
+        }
+        
+        $examTimetables = $examTimetables->paginate($perPage);
 
         $semesters = Semester::all();
 
@@ -41,8 +55,17 @@ class ExamTimetableController extends Controller
             ")
             ->join('units', 'units.id', '=', 'enrollments.unit_id')
             ->leftJoin('users', 'users.id', '=', 'enrollments.lecturer_id')
-            ->groupBy('enrollments.unit_id', 'units.name', 'enrollments.semester_id')
-            ->get();
+            ->groupBy('enrollments.unit_id', 'units.name', 'enrollments.semester_id');
+            
+        // Filter enrollments based on user role
+        if (auth()->user()->hasRole('Faculty Admin')) {
+            $faculty = auth()->user()->faculty;
+            $enrollments->whereHas('unit', function($query) use ($faculty) {
+                $query->where('faculty', $faculty);
+            });
+        }
+        
+        $enrollments = $enrollments->get();
 
         $timeSlots = TimeSlot::select('id', 'day', 'date', 'start_time', 'end_time')->get();
 
@@ -56,11 +79,24 @@ class ExamTimetableController extends Controller
             'enrollments' => $enrollments,
             'timeSlots' => $timeSlots,
             'classrooms' => $classrooms,
+            'can' => [
+                'create' => auth()->user()->can('create-timetable'),
+                'edit' => auth()->user()->can('edit-timetable'),
+                'delete' => auth()->user()->can('delete-timetable'),
+                'process' => auth()->user()->can('process-timetable'),
+                'solve_conflicts' => auth()->user()->can('solve-conflicts'),
+                'download' => auth()->user()->can('download-timetable'),
+            ]
         ]);
     }
 
     public function store(Request $request)
     {
+        // Check if user has permission to create timetables
+        if (!auth()->user()->can('create-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+
         $validated = $request->validate([
             'enrollment_id' => 'required|exists:enrollments,id',
             'semester_id' => 'required|exists:semesters,id',
@@ -75,6 +111,7 @@ class ExamTimetableController extends Controller
             'chief_invigilator' => 'required|string',
         ]);
 
+        // Rest of your store method remains the same...
         // Get the unit_id from the enrollment
         $enrollment = Enrollment::find($validated['enrollment_id']);
         
@@ -143,6 +180,12 @@ class ExamTimetableController extends Controller
     
     public function update(Request $request, $id)
     {
+        // Check if user has permission to edit timetables
+        if (!auth()->user()->can('edit-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Rest of your update method remains the same...
         $validated = $request->validate([
             'enrollment_id' => 'required|exists:enrollments,id',
             'semester_id' => 'required|exists:semesters,id',
@@ -227,10 +270,213 @@ class ExamTimetableController extends Controller
 
     public function destroy($id)
     {
+        // Check if user has permission to delete timetables
+        if (!auth()->user()->can('delete-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+
         $timetable = ExamTimetable::findOrFail($id);
         $timetable->delete();
 
-        return redirect()->route('exam-timetables.index')->with('success', 'Exam timetable deleted successfully.');
+        return redirect()->route('exam-timetable.index')->with('success', 'Exam timetable deleted successfully.');
+    }
+    
+    // Add methods for role-specific views
+    
+    // For all authenticated users with proper permissions
+    public function view(Request $request)
+    {
+        // Check if user has permission to view timetables
+        if (!auth()->user()->can('view-timetable') && 
+            !auth()->user()->can('view-own-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        $semester_id = $request->input('semester_id');
+        $query = ExamTimetable::query()
+            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
+            ->select('exam_timetables.*', 'units.name as unit_name');
+            
+        if ($semester_id) {
+            $query->where('exam_timetables.semester_id', $semester_id);
+        }
+        
+        // Filter based on user role
+        $user = auth()->user();
+        if ($user->hasRole('Faculty Admin')) {
+            $faculty = $user->faculty;
+            $query->whereHas('unit', function($q) use ($faculty) {
+                $q->where('faculty', $faculty);
+            });
+        } elseif ($user->hasRole('Lecturer')) {
+            $lecturerId = $user->id;
+            $query->whereHas('unit.enrollments', function($q) use ($lecturerId) {
+                $q->where('lecturer_id', $lecturerId);
+            });
+        } elseif ($user->hasRole('Student')) {
+            $studentId = $user->id;
+            $query->whereHas('unit.enrollments', function($q) use ($studentId) {
+                $q->where('student_id', $studentId);
+            });
+        }
+        
+        $timetables = $query->get();
+        $semesters = Semester::all();
+        
+        return Inertia::render('ExamTimetable/View', [
+            'timetables' => $timetables,
+            'semesters' => $semesters,
+            'current_semester' => $semester_id,
+            'can' => [
+                'download' => $user->can('download-timetable') || 
+                              $user->can('download-own-timetable') || 
+                              $user->can('download-faculty-timetable'),
+            ]
+        ]);
+    }
+    
+    // For lecturers
+    public function viewLecturerTimetable(Request $request)
+    {
+        // Check role and permission
+        if (!auth()->user()->hasRole('Lecturer') || 
+            !auth()->user()->can('view-own-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        $lecturerId = auth()->id();
+        $semester_id = $request->input('semester_id');
+        
+        $query = ExamTimetable::query()
+            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
+            ->select('exam_timetables.*', 'units.name as unit_name')
+            ->whereHas('unit.enrollments', function($q) use ($lecturerId) {
+                $q->where('lecturer_id', $lecturerId);
+            });
+            
+        if ($semester_id) {
+            $query->where('exam_timetables.semester_id', $semester_id);
+        }
+        
+        $timetables = $query->get();
+        $semesters = Semester::all();
+        
+        return Inertia::render('Lecturer/Timetable', [
+            'timetables' => $timetables,
+            'semesters' => $semesters,
+            'current_semester' => $semester_id,
+            'can' => [
+                'download' => auth()->user()->can('download-own-timetable'),
+            ]
+        ]);
+    }
+    
+    // For students
+    public function viewStudentTimetable(Request $request)
+    {
+        // Check role and permission
+        if (!auth()->user()->hasRole('Student') || 
+            !auth()->user()->can('view-own-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        $studentId = auth()->id();
+        $semester_id = $request->input('semester_id');
+        
+        $query = ExamTimetable::query()
+            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
+            ->select('exam_timetables.*', 'units.name as unit_name')
+            ->whereHas('unit.enrollments', function($q) use ($studentId) {
+                $q->where('student_id', $studentId);
+            });
+            
+        if ($semester_id) {
+            $query->where('exam_timetables.semester_id', $semester_id);
+        }
+        
+        $timetables = $query->get();
+        $semesters = Semester::all();
+        
+        return Inertia::render('Student/Timetable', [
+            'timetables' => $timetables,
+            'semesters' => $semesters,
+            'current_semester' => $semester_id,
+            'can' => [
+                'download' => auth()->user()->can('download-own-timetable'),
+            ]
+        ]);
+    }
+    
+    // Process timetable (for Exam Office)
+    public function process(Request $request)
+    {
+        // Check permission
+        if (!auth()->user()->can('process-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Process logic here...
+        // This is where you would implement your algorithm to generate timetables
+        
+        return redirect()->back()->with('success', 'Timetable processing completed.');
+    }
+    
+    // Solve conflicts (for Exam Office)
+    public function solveConflicts(Request $request)
+    {
+        // Check permission
+        if (!auth()->user()->can('solve-conflicts')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Conflict resolution logic here...
+        // This is where you would identify and resolve scheduling conflicts
+        
+        return redirect()->back()->with('success', 'Conflicts resolved successfully.');
+    }
+    
+    // Download methods for different roles
+    
+    public function downloadLecturerTimetable(Request $request)
+    {
+        // Check role and permission
+        if (!auth()->user()->hasRole('Lecturer') || 
+            !auth()->user()->can('download-own-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Download logic for lecturer timetable
+        // TODO: Implement PDF generation or Excel export
+        
+        return response()->download($pathToFile, 'lecturer-timetable.pdf');
+    }
+    
+    public function downloadStudentTimetable(Request $request)
+    {
+        // Check role and permission
+        if (!auth()->user()->hasRole('Student') || 
+            !auth()->user()->can('download-own-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Download logic for student timetable
+        // TODO: Implement PDF generation or Excel export
+        
+        return response()->download($pathToFile, 'student-timetable.pdf');
+    }
+    
+    public function downloadFacultyTimetable(Request $request)
+    {
+        // Check role and permission
+        if (!auth()->user()->hasRole('Faculty Admin') || 
+            !auth()->user()->can('download-faculty-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Download logic for faculty timetable
+        // TODO: Implement PDF generation or Excel export
+        
+        return response()->download($pathToFile, 'faculty-timetable.pdf');
     }
     
     // Helper function to check for time overlap

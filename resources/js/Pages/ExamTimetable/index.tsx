@@ -5,6 +5,7 @@ import { useState } from "react"
 import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "../../components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface ExamTimetable {
   id: number
@@ -120,7 +121,7 @@ const checkTimeOverlap = (exam: ExamTimetable, date: string, startTime: string, 
 }
 
 const ExamTimetable = () => {
-  const { examTimetables, perPage, search, semesters, enrollments, timeSlots, classrooms } = usePage().props as {
+  const { examTimetables, perPage, search, semesters, enrollments, timeSlots, classrooms, can } = usePage().props as {
     examTimetables: PaginatedExamTimetables
     perPage: number
     search: string
@@ -128,6 +129,14 @@ const ExamTimetable = () => {
     enrollments: Enrollment[]
     timeSlots: TimeSlot[]
     classrooms: Classroom[]
+    can: {
+      create: boolean
+      edit: boolean
+      delete: boolean
+      process: boolean
+      solve_conflicts: boolean
+      download: boolean
+    }
   }
 
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -140,10 +149,11 @@ const ExamTimetable = () => {
   const [scheduledStudents, setScheduledStudents] = useState<{ [key: string]: number }>({})
   const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null)
   const [remainingCapacity, setRemainingCapacity] = useState<number | null>(null)
+  const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   // Instead of filtering classrooms, we'll enhance them with capacity information
-  const [classroomsWithCapacity, setClassroomsWithCapacity] = useState<
-    Array<
+  const [classroomsWithCapacity, setClassroomsWithCapacity] = useState
+    Array
       Classroom & {
         remainingCapacity?: number
         isSuitable?: boolean
@@ -290,32 +300,32 @@ const ExamTimetable = () => {
     e.preventDefault()
 
     if (!formState) {
-      alert("Form state is invalid.")
+      setAlertMessage({ type: "error", message: "Form state is invalid." })
       return
     }
 
     // Validate enrollment selection
     const selectedEnrollment = enrollments.find((e) => e.id === formState.enrollment_id)
     if (!selectedEnrollment) {
-      alert("Invalid enrollment selected.")
+      setAlertMessage({ type: "error", message: "Invalid enrollment selected." })
       return
     }
 
     // Validate classroom selection
     if (!selectedClassroom) {
-      alert("Please select a venue.")
+      setAlertMessage({ type: "error", message: "Please select a venue." })
       return
     }
 
     const classroom = classrooms.find((c) => c.id === selectedClassroom)
     if (!classroom) {
-      alert("Selected classroom is invalid.")
+      setAlertMessage({ type: "error", message: "Selected classroom is invalid." })
       return
     }
 
     // Check for time slot selection
     if (!formState.start_time || !formState.end_time || !formState.date) {
-      alert("Please select a time slot.")
+      setAlertMessage({ type: "error", message: "Please select a time slot." })
       return
     }
 
@@ -347,9 +357,10 @@ const ExamTimetable = () => {
     // Check if there's enough capacity
     const remainingCapacity = classroom.capacity - existingStudents
     if (formState.no > remainingCapacity) {
-      alert(`ERROR: Cannot schedule this exam. The classroom ${classroom.name} has a capacity of ${classroom.capacity}, but there would be ${existingStudents + formState.no} students scheduled at this time (exceeding capacity by ${formState.no - remainingCapacity} students).
-
-Please select a different venue with sufficient capacity.`)
+      setAlertMessage({ 
+        type: "error", 
+        message: `ERROR: Cannot schedule this exam. The classroom ${classroom.name} has a capacity of ${classroom.capacity}, but there would be ${existingStudents + formState.no} students scheduled at this time (exceeding capacity by ${formState.no - remainingCapacity} students). Please select a different venue with sufficient capacity.`
+      })
       return // Prevent form submission
     }
 
@@ -363,6 +374,7 @@ Please select a different venue with sufficient capacity.`)
 
     console.log("Submitting with formatted times:", submissionData.start_time, submissionData.end_time)
 
+    // Update URL to match your new route structure
     const url = modalType === "create" ? "/exam-timetables" : `/exam-timetables/${formState.id}`
     const method = modalType === "create" ? "post" : "put"
 
@@ -370,26 +382,26 @@ Please select a different venue with sufficient capacity.`)
       method,
       data: submissionData,
       onSuccess: () => {
-        alert("Saved successfully")
+        setAlertMessage({ type: "success", message: "Exam timetable saved successfully" })
         setIsModalOpen(false)
       },
       onError: (errors) => {
         // Display the validation errors
         const errorMessages = Object.values(errors).flat().join("\n")
-        alert(`Validation failed:\n${errorMessages}`)
+        setAlertMessage({ type: "error", message: `Validation failed: ${errorMessages}` })
       },
     })
   }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    router.get("/exam-timetables", { search: searchQuery, per_page: itemsPerPage }, { preserveState: true })
+    router.get("/examtimetable", { search: searchQuery, per_page: itemsPerPage }, { preserveState: true })
   }
 
   const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newPerPage = Number.parseInt(e.target.value, 10)
     setItemsPerPage(newPerPage)
-    router.get("/exam-timetables", { per_page: newPerPage, search: searchQuery }, { preserveState: true })
+    router.get("/examtimetable", { per_page: newPerPage, search: searchQuery }, { preserveState: true })
   }
 
   const handleTimeSlotSelect = (slotId: number) => {
@@ -431,9 +443,10 @@ Please select a different venue with sufficient capacity.`)
 
       // Show warning if capacity is insufficient
       if (remaining < 0) {
-        alert(
-          `Warning: This venue doesn't have enough capacity. It can hold ${classroom.capacity} students, but you're trying to schedule ${formState.no} students when there are already ${existingStudents} students scheduled at this time.`,
-        )
+        setAlertMessage({
+          type: "error",
+          message: `Warning: This venue doesn't have enough capacity. It can hold ${classroom.capacity} students, but you're trying to schedule ${formState.no} students when there are already ${existingStudents} students scheduled at this time.`,
+        })
       }
     }
   }
@@ -480,8 +493,8 @@ Please select a different venue with sufficient capacity.`)
   const handleDelete = (id: number) => {
     if (confirm("Are you sure you want to delete this exam timetable?")) {
       router.delete(`/exam-timetables/${id}`, {
-        onSuccess: () => alert("Exam timetable deleted successfully."),
-        onError: () => alert("Failed to delete the exam timetable."),
+        onSuccess: () => setAlertMessage({ type: "success", message: "Exam timetable deleted successfully." }),
+        onError: () => setAlertMessage({ type: "error", message: "Failed to delete the exam timetable." }),
       })
     }
   }
@@ -496,15 +509,63 @@ Please select a different venue with sufficient capacity.`)
     })
   }
 
+  const handleProcessTimetable = () => {
+    router.post("/process-timetable", {}, {
+      onSuccess: () => setAlertMessage({ type: "success", message: "Timetable processed successfully." }),
+      onError: () => setAlertMessage({ type: "error", message: "Failed to process timetable." }),
+    })
+  }
+
+  const handleSolveConflicts = () => {
+    router.get("/solve-conflicts", {}, {
+      onSuccess: () => setAlertMessage({ type: "success", message: "Conflicts resolved successfully." }),
+      onError: () => setAlertMessage({ type: "error", message: "Failed to resolve conflicts." }),
+    })
+  }
+
+  const handleDownloadTimetable = () => {
+    window.open("/download-timetable", "_blank")
+  }
+
   return (
     <AuthenticatedLayout>
       <Head title="Exam Timetable" />
       <div className="p-6 bg-white rounded-lg shadow-md">
         <h1 className="text-2xl font-semibold mb-4">Exam Timetable</h1>
+        
+        {alertMessage && (
+          <Alert className={`mb-4 ${alertMessage.type === "error" ? "bg-red-50 text-red-800 border-red-200" : "bg-green-50 text-green-800 border-green-200"}`}>
+            <AlertDescription>{alertMessage.message}</AlertDescription>
+          </Alert>
+        )}
+        
         <div className="flex justify-between items-center mb-4">
-          <Button onClick={() => handleOpenModal("create")} className="bg-green-500 hover:bg-green-600">
-            + Add Exam
-          </Button>
+          <div className="flex space-x-2">
+            {can.create && (
+              <Button onClick={() => handleOpenModal("create")} className="bg-green-500 hover:bg-green-600">
+                + Add Exam
+              </Button>
+            )}
+            
+            {can.process && (
+              <Button onClick={handleProcessTimetable} className="bg-blue-500 hover:bg-blue-600">
+                Process Timetable
+              </Button>
+            )}
+            
+            {can.solve_conflicts && (
+              <Button onClick={handleSolveConflicts} className="bg-purple-500 hover:bg-purple-600">
+                Solve Conflicts
+              </Button>
+            )}
+            
+            {can.download && (
+              <Button onClick={handleDownloadTimetable} className="bg-indigo-500 hover:bg-indigo-600">
+                Download
+              </Button>
+            )}
+          </div>
+          
           <form onSubmit={handleSearch} className="flex items-center space-x-2">
             <input
               type="text"
@@ -560,17 +621,21 @@ Please select a different venue with sufficient capacity.`)
                     <td className="px-3 py-2">{exam.chief_invigilator}</td>
                     <td className="px-3 py-2 flex space-x-2">
                       {/* Edit Action */}
-                      <Button
-                        onClick={() => handleOpenModal("edit", exam)}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                      >
-                        Edit
-                      </Button>
+                      {can.edit && (
+                        <Button
+                          onClick={() => handleOpenModal("edit", exam)}
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                        >
+                          Edit
+                        </Button>
+                      )}
 
                       {/* Delete Action */}
-                      <Button onClick={() => handleDelete(exam.id)} className="bg-red-500 hover:bg-red-600 text-white">
-                        Delete
-                      </Button>
+                      {can.delete && (
+                        <Button onClick={() => handleDelete(exam.id)} className="bg-red-500 hover:bg-red-600 text-white">
+                          Delete
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -687,7 +752,7 @@ Please select a different venue with sufficient capacity.`)
                   <select
                     className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
                     value={selectedTimeSlotId || ""}
-                    onChange={(e) => handleTimeSlotSelect(Number.parseInt(e.target.value))}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTimeSlotSelect(Number.parseInt(e.target.value))}
                     style={{ color: "black" }}
                   >
                     <option value="" style={{ color: "black", backgroundColor: "white" }}>

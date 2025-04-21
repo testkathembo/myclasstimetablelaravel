@@ -35,56 +35,37 @@ class UserController extends Controller
         ]);
     }
 
-    // ✅ Create new user
     public function store(Request $request)
-    {
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'faculty' => 'required|string|max:255',
-            'phone' => 'required|string|max:15',
-            'code' => 'required|string|max:10',
-            'password' => 'required|string|min:8',
-        ]);
+{
+    // Validate request
+    $validated = $request->validate([
+        'first_name' => 'required|string|max:255',
+        'last_name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'faculty' => 'required|string|max:255',
+        'phone' => 'required|string|max:255',
+        'code' => 'required|string|max:255|unique:users',
+        'password' => 'required|string|min:8|confirmed',
+        'role' => 'required|string|exists:roles,name',
+    ]);
 
-        $data = $request->all();
-        $data['password'] = Hash::make($data['password']);
+    // Create user
+    $user = User::create([
+        'first_name' => $validated['first_name'],
+        'last_name' => $validated['last_name'],
+        'email' => $validated['email'],
+        'faculty' => $validated['faculty'],
+        'phone' => $validated['phone'],
+        'code' => $validated['code'],
+        'password' => Hash::make($validated['password']),
+    ]);
 
-        $user = User::create($data);
+    // Assign role
+    $user->assignRole($validated['role']);
 
-        // You can optionally assign a default role here if needed
-        // $user->assignRole('Student');
-
-        return redirect()->route('users.index')->with('success', 'User created successfully!');
-    }
-
-    // ✅ Update user info
-    public function update(Request $request, User $user)
-    {
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'faculty' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'phone' => 'required|string|min:6',
-            'code' => 'required|string|min:4',
-            'password' => 'nullable|string|min:6',
-        ]);
-
-        $user->update([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'faculty' => $request->faculty,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'code' => $request->code,
-            'password' => $request->password ? Hash::make($request->password) : $user->password,
-        ]);
-
-        return redirect()->back()->with('success', 'User updated successfully!');
-    }
-
+    return redirect()->route('users.index')
+        ->with('success', 'User created successfully');
+}
     // ✅ Show user edit form
     public function edit(User $user)
     {
