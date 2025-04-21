@@ -9,70 +9,84 @@ use Faker\Factory as Faker;
 
 class UserSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     *
-     * @return void
-     */
     public function run()
+    <?php
+
+namespace Database\Seeders;
+
+use App\Models\User;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+
+class UserSeeder extends Seeder
+{
+    public function run(): void
+    {
+        // Create admin user
+        $admin = User::create([
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin@example.com',
+            'faculty' => 'Administration',
+            'phone' => '1234567890',
+            'code' => 'ADM001',
+            'password' => Hash::make('password'),
+        ]);
+        $admin->assignRole('Admin');
+
+        // Create exam office user
+        $examOffice = User::create([
+            'first_name' => 'Exam',
+            'last_name' => 'Office',
+            'email' => 'exam@example.com',
+            'faculty' => 'Examination',
+            'phone' => '1234567891',
+            'code' => 'EXM001',
+            'password' => Hash::make('password'),
+        ]);
+        $examOffice->assignRole('Exam office');
+
+        // Create faculty admin user
+        $facultyAdmin = User::create([
+            'first_name' => 'Faculty',
+            'last_name' => 'Admin',
+            'email' => 'faculty@example.com',
+            'faculty' => 'Science',  // Specify actual faculty
+            'phone' => '1234567892',
+            'code' => 'FAC001',
+            'password' => Hash::make('password'),
+        ]);
+        $facultyAdmin->assignRole('Faculty Admin');
+
+        // Create lecturer user
+        $lecturer = User::create([
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'lecturer@example.com',
+            'faculty' => 'Science',  // Specify actual faculty
+            'phone' => '1234567893',
+            'code' => 'LEC001',
+            'password' => Hash::make('password'),
+        ]);
+        $lecturer->assignRole('Lecturer');
+
+        // Create student user
+        $student = User::create([
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'email' => 'student@example.com',
+            'faculty' => 'Science',  // Specify actual faculty
+            'phone' => '1234567894',
+            'code' => 'STU001',
+            'password' => Hash::make('password'),
+        ]);
+        $student->assignRole('Student');
+    }
+}
     {
         $faker = Faker::create();
-        $faculties = ['SBS', 'BBIT', 'SL', 'SH', 'TM']; // List of faculties
+        $faculties = ['SBS', 'BBIT', 'SL', 'SH', 'TM'];
 
-        foreach ($faculties as $faculty) {
-            for ($i = 0; $i < 300; $i++) {
-                User::create([
-                    'code' => $faker->unique()->numerify('######'), // Generate a unique 6-digit code
-                    'first_name' => $faker->firstName,
-                    'last_name' => $faker->lastName,
-                    'faculty' => $faculty,
-                    'email' => $faker->unique()->safeEmail,
-                    'phone' => $faker->unique()->numerify('07########'), // Generate a Kenyan phone number
-                    'password' => Hash::make('password'), // Default password
-                ]);
-            }
-        }
-
-        // Add 50 lecturers (10 per faculty)
-        foreach ($faculties as $faculty) {
-            for ($i = 0; $i < 10; $i++) {
-                User::create([
-                    'code' => $faker->unique()->numerify('L######'), // Generate a unique lecturer code
-                    'first_name' => $faker->firstName,
-                    'last_name' => $faker->lastName,
-                    'faculty' => $faculty,
-                    'email' => $faker->unique()->safeEmail,
-                    'phone' => $faker->unique()->numerify('07########'), // Generate a Kenyan phone number
-                    'password' => Hash::make('password'), // Default password
-                    'user_role' => 'lecturer', // Role: Lecturer
-                ]);
-            }
-        }
-
-        // Add 1 exam officer
-        User::create([
-            'code' => 'EXAM001',
-            'first_name' => 'Exam',
-            'last_name' => 'Officer',
-            'faculty' => 'All',
-            'email' => 'exam.officer@example.com',
-            'phone' => '0700000001',
-            'password' => Hash::make('password'), // Default password
-            'user_role' => 'examofficer', // Role: Exam Officer
-        ]);
-
-        // Add 5 faculty admins (1 per faculty)
-        foreach ($faculties as $faculty) {
-            User::create([
-                'code' => $faker->unique()->numerify('FA######'), // Generate a unique faculty admin code
-                'first_name' => $faker->firstName,
-                'last_name' => $faker->lastName,
-                'faculty' => $faculty,
-                'email' => $faker->unique()->safeEmail,
-                'phone' => $faker->unique()->numerify('07########'), // Generate a Kenyan phone number
-                'password' => Hash::make('password'), // Default password
-                'user_role' => 'facultyadmin', // Role: Faculty Admin
-            ]);
-        }
+        // --- Create Key Users ---
     }
 }

@@ -14,8 +14,8 @@ class ClassroomSeeder extends Seeder
             ['name' => 'Bleu Sky', 'capacity' => 40, 'location' => 'Phase1'],
             ['name' => 'AUDITORIUM', 'capacity' => 50, 'location' => 'Phase2'],
            
-            ['name' => 'STMB', 'capacity' => 45, 'location' => 'Phase2'],
-            ['name' => 'MSB', 'capacity' => 55, 'location' => 'Phase2'],
+            ['name' => 'STMB 5th Floor', 'capacity' => 45, 'location' => 'Phase2'],
+           
             
         ];
 
