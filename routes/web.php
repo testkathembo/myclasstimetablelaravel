@@ -160,6 +160,13 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::put('/timeslotes/{timeslote}', [TimesloteController::class, 'update'])->name('timeslotes.update');
         Route::delete('/timeslotes/{timeslote}', [TimesloteController::class, 'destroy'])->name('timeslotes.destroy');
     });
+
+    // Roles management
+    Route::resource('roles', RoleController::class);
+});
+
+Route::middleware(['auth', 'role:Admin'])->group(function () {
+    Route::resource('roles', RoleController::class)->only(['index', 'store', 'update', 'destroy']);
 });
 
 // ✅ Exam Office Routes
