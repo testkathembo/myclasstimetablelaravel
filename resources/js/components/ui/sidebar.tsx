@@ -11,7 +11,6 @@ import {
   Layers,
   Calendar,
   FileSpreadsheet,
-  UserCog,
   BookOpen,
   DownloadCloud,
   Puzzle,
@@ -54,10 +53,11 @@ const Sidebar = () => {
         )}
         
         {/* Roles & Permissions Management */}
+        {/* Roles & Permissions Management */}
         {(isAdmin || can('manage-roles')) && (
           <Link href="/roles" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <UserCog className="h-5 w-5" />
-            <span>Roles</span>
+             <Users className="h-5 w-5 rotate-12" /> 
+                <span>Roles</span>
           </Link>
         )}
         

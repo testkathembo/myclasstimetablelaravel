@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Inertia\Inertia;
 
 class RoleController extends Controller
 {
@@ -14,7 +15,12 @@ class RoleController extends Controller
     public function index()
     {
         $roles = Role::with('permissions')->get();
-        return view('roles.index', compact('roles'));
+        $permissions = Permission::all();
+
+        return Inertia::render('Roles/Index', [
+            'roles' => $roles,
+            'permissions' => $permissions,
+        ]);
     }
 
     /**
@@ -41,7 +47,7 @@ class RoleController extends Controller
             $role->syncPermissions($validated['permissions']);
         }
 
-        return redirect()->route('roles.index')->with('success', 'Role created successfully.');
+        return redirect()->route('roles.Index')->with('success', 'Role created successfully.');
     }
 
     /**
@@ -68,7 +74,7 @@ class RoleController extends Controller
             $role->syncPermissions($validated['permissions']);
         }
 
-        return redirect()->route('roles.index')->with('success', 'Role updated successfully.');
+        return redirect()->route('roles.Index')->with('success', 'Role updated successfully.');
     }
 
     /**
@@ -77,6 +83,6 @@ class RoleController extends Controller
     public function destroy(Role $role)
     {
         $role->delete();
-        return redirect()->route('roles.index')->with('success', 'Role deleted successfully.');
+        return redirect()->route('roles.Index')->with('success', 'Role deleted successfully.');
     }
 }

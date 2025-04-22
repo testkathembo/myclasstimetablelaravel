@@ -81,8 +81,17 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::put('/users/{user}/update-role', [UserController::class, 'updateRole'])->name('users.updateRole');
     });
     
-    // Roles and Permissions management
-    Route::middleware(['permission:manage-roles'])->resource('roles', RoleController::class);
+    // Roles and Permissions management - FIXED: removed duplicate route and added explicit routes
+    Route::middleware(['permission:manage-roles'])->group(function () {
+        Route::get('/roles', [RoleController::class, 'Index'])->name('roles.Index');
+        Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
+        Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+        Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+        Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
+    });
+    
     Route::middleware(['permission:manage-permissions'])->resource('permissions', PermissionController::class);
     
     // Faculties management
@@ -160,13 +169,6 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::put('/timeslotes/{timeslote}', [TimesloteController::class, 'update'])->name('timeslotes.update');
         Route::delete('/timeslotes/{timeslote}', [TimesloteController::class, 'destroy'])->name('timeslotes.destroy');
     });
-
-    // Roles management
-    Route::resource('roles', RoleController::class);
-});
-
-Route::middleware(['auth', 'role:Admin'])->group(function () {
-    Route::resource('roles', RoleController::class)->only(['index', 'store', 'update', 'destroy']);
 });
 
 // ✅ Exam Office Routes
