@@ -13,97 +13,110 @@ class RoleAndPermissionSeeder extends Seeder
      */
     public function run(): void
     {
-        //create cache
+        // Clear cached permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-        //create permissions
+
+        // Define permissions
         $permissions = [
-            'view-dashboard', 
-            'manage-users', 'view-users', 'edit-users', 'delete-users',
-            'manage-roles', 'view-roles', 'edit-roles', 'delete-roles',
-            'manage-permissions', 'view-permissions', 'edit-permissions', 'delete-permissions',
-            'manage-faculties', 'view-faculties', 'edit-faculties', 'delete-faculties',
-            'manage-classrooms', 'view-classrooms', 'edit-classrooms', 'delete-classrooms',
-            'manage-units', 'view-units', 'edit-units', 'delete-units',
-            'manage-semesters', 'view-semesters', 'edit-semesters', 'delete-semesters',
-            'manage-enrollments', 'view-enrollments', 'edit-enrollments', 'delete-enrollments',
-            'manage-time-slots', 'view-time-slots', 'edit-time-slots', 'delete-time-slots',
+            // Dashboard
+            'view-dashboard',
 
-            'create-timetable', 'view-timetable', 'edit-timetable', 'delete-timetable',
+            // User Management
+            'manage-users',
 
-            'manage-settings', 'view-settings', 'edit-settings', 'delete-settings',
+            // Role and Permission Management
+            'manage-roles',
+            'manage-permissions',
 
+            // Faculty Management
+            'manage-faculties',
+
+            // Classroom Management
+            'manage-classrooms',
+
+            // Unit Management
+            'manage-units',
+
+            // Semester Management
+            'manage-semesters',
+
+            // Enrollment Management
+            'manage-enrollments',
+
+            // Time Slot Management
+            'manage-time-slots',
+
+            // Timetable Management
+            'create-timetable',
+            'view-timetable',
+            'edit-timetable',
+            'delete-timetable',
+
+            // Settings Management
+            'manage-settings',
+
+            // Timetable Download
             'download-timetable',
+
+            // Conflict Resolution
             'process-timetable',
             'solve-conflicts',
-            'manage-lecturers', 'view-lecturers', 'edit-lecturers', 'delete-lecturers',
-            'manage-students', 'view-students', 'edit-students', 'delete-students',
-            'manage-faculty-users', 'view-faculty-users', 'edit-faculty-users', 'delete-faculty-users',
-            'manage-faculty-enrollments', 'view-faculty-enrollments', 'edit-faculty-enrollments', 'delete-faculty-enrollments',
-            'view-own-units',
-            'view-own-timetable', 'edit-own-timetable', 'delete-own-timetable',
-            'download-own-timetable', 'download-faculty-timetable',
-            'manage-faculty-units', 'view-faculty-units', 'edit-faculty-units', 'delete-faculty-units',
-            'manage-faculty-semesters', 'view-faculty-semesters', 'edit-faculty-semesters', 'delete-faculty-semesters',
 
-            
+            // Lecturer and Student-Specific Permissions
+            'view-own-timetable',
+            'download-own-timetable',
         ];
+
+        // Create permissions
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission]);
         }
-        //create roles
+
+        // Define roles and assign permissions
         $roles = [
-            'Admin' => $permissions, // has full access
+            'Admin' => $permissions, // Full access to all permissions
 
             'Exam office' => [
                 'view-dashboard',
-                'view-users',
                 'create-timetable',
                 'view-timetable',
                 'edit-timetable',
-                'manage-time-slots', 'view-time-slots', 'edit-time-slots', 'delete-time-slots',
-                'view-units',
-                'view-semesters',
-                'view-enrollments',
-                'manage-classrooms', 'view-classrooms', 
-                'view-faculties',
+                'manage-time-slots',
+                'manage-classrooms',
+                'manage-units',
+                'manage-semesters', // Ensure this permission is included
+                'manage-enrollments',
                 'download-timetable',
                 'process-timetable',
                 'solve-conflicts',
-            ], // has limited access
+            ],
 
             'Faculty Admin' => [
                 'view-dashboard',
-                'manage-faculty-users', 'view-faculty-users',
-                'view-timetable',  'download-faculty-timetable',
-                'manage-units', 'view-units',
-                'manage-semesters', 'view-semesters',
-                'manage-faculty-enrollments', 'view-faculty-enrollments',
-                'manage-lecturers', 'view-lecturers',
-                'manage-students', 'view-students',
-               
-            ], // has limited access
+                'manage-faculties',
+                'manage-units',
+                'manage-semesters', // Ensure this permission is included
+                'manage-enrollments',
+                'download-timetable',
+            ],
 
             'Lecturer' => [
                 'view-dashboard',
-                'view-own-units',
-                'view-own-timetable',  'download-own-timetable',
-                
-                
-            ], // has limited access
+                'view-own-timetable',
+                'download-own-timetable',
+            ],
 
             'Student' => [
                 'view-dashboard',
-                'view-own-units',
-                'view-own-timetable',  'download-own-timetable',
-                
-            ], // has limited access
-        
+                'view-own-timetable',
+                'download-own-timetable',
+            ],
         ];
-        foreach ($roles as $role => $permissions) {
-            $role = Role::firstOrCreate(['name' => $role]);
-            $role->syncPermissions($permissions);
-        }
 
-        
+        // Create roles and assign permissions
+        foreach ($roles as $roleName => $rolePermissions) {
+            $role = Role::firstOrCreate(['name' => $roleName]);
+            $role->syncPermissions($rolePermissions);
+        }
     }
 }

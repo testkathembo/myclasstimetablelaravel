@@ -12,38 +12,55 @@ class SemesterController extends Controller
     public function index()
     {
         $semesters = Semester::all();
-        return Inertia::render('Semesters/index', ['semesters' => $semesters]);
+
+        return Inertia::render('Semesters/Index', [
+            'semesters' => $semesters,
+        ]);
+    }
+
+    public function create()
+    {
+        return Inertia::render('Semesters/Create');
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255',
-           
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
         ]);
 
-        Semester::create($request->all());
+        Semester::create($request->only('name', 'start_date', 'end_date'));
 
-        return redirect()->route('semesters.index');
+        return redirect()->route('semesters.index')->with('success', 'Semester created successfully.');
+    }
+
+    public function edit(Semester $semester)
+    {
+        return Inertia::render('Semesters/Edit', [
+            'semester' => $semester,
+        ]);
     }
 
     public function update(Request $request, Semester $semester)
     {
         $request->validate([
             'name' => 'required|string|max:255',
-      
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
         ]);
 
-        $semester->update($request->all());
+        $semester->update($request->only('name', 'start_date', 'end_date'));
 
-        return redirect()->route('semesters.index');
+        return redirect()->route('semesters.index')->with('success', 'Semester updated successfully.');
     }
 
     public function destroy(Semester $semester)
     {
         $semester->delete();
 
-        return redirect()->route('semesters.index');
+        return redirect()->route('semesters.index')->with('success', 'Semester deleted successfully.');
     }
 
     public function viewTimetable(Request $request)

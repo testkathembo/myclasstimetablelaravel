@@ -162,34 +162,28 @@ const Users = () => {
                             <th className="px-4 py-2 border">First Name</th>
                             <th className="px-4 py-2 border">Last Name</th>
                             <th className="px-4 py-2 border">Email</th>
-                            <th className="px-4 py-2 border">Faculty</th>
-                            <th className="px-4 py-2 border">Phone</th>
-                            <th className="px-4 py-2 border">Code</th>
-                            <th className="px-4 py-2 border">Role</th> {/* Added Role column */}
+                            <th className="px-4 py-2 border">Role</th>
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {users.data.map((user) => (
-                            <tr key={user.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-2 border text-center">{user.id}</td>
+                            <tr key={user.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-2 border">{user.id}</td>
                                 <td className="px-4 py-2 border">{user.first_name}</td>
                                 <td className="px-4 py-2 border">{user.last_name}</td>
                                 <td className="px-4 py-2 border">{user.email}</td>
-                                <td className="px-4 py-2 border">{user.faculty}</td>
-                                <td className="px-4 py-2 border">{user.phone}</td>
-                                <td className="px-4 py-2 border">{user.code}</td>
-                                <td className="px-4 py-2 border">{user.user_role}</td> {/* Display Role */}
-                                <td className="px-4 py-2 border text-center">
+                                <td className="px-4 py-2 border">{user.roles.map((role) => role.name).join(', ')}</td>
+                                <td className="px-4 py-2 border">
                                     <button
                                         onClick={() => handleOpenModal('edit', user)}
-                                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 mr-2"
+                                        className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 mr-2"
                                     >
                                         Edit
                                     </button>
                                     <button
                                         onClick={() => handleOpenModal('delete', user)}
-                                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                                     >
                                         Delete
                                     </button>

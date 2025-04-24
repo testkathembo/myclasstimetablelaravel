@@ -18,7 +18,6 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\LecturerController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\TimesloteController;
 
 // ✅ Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -81,18 +80,11 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::put('/users/{user}/update-role', [UserController::class, 'updateRole'])->name('users.updateRole');
     });
     
-    // Roles and Permissions management - FIXED: removed duplicate route and added explicit routes
+    // Roles and Permissions management
     Route::middleware(['permission:manage-roles'])->group(function () {
-        Route::get('/roles', [RoleController::class, 'Index'])->name('roles.Index');
-        Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
-        Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
-        Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
-        Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
-        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
-        Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
+        Route::resource('roles', RoleController::class)->except(['show']);
+        Route::resource('permissions', PermissionController::class)->except(['show']);
     });
-    
-    Route::middleware(['permission:manage-permissions'])->resource('permissions', PermissionController::class);
     
     // Faculties management
     Route::middleware(['permission:manage-faculties'])->group(function () {
@@ -128,11 +120,10 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
     });
     
     // Semesters management
-    Route::middleware(['permission:manage-semesters'])->group(function () {
+    Route::middleware(['auth', 'role:Admin|permission:manage-semesters'])->group(function () {
         Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
         Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
         Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
-        Route::get('/semesters/{semester}', [SemesterController::class, 'show'])->name('semesters.show');
         Route::get('/semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
         Route::put('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
         Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
@@ -153,22 +144,24 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'unassignLecturer'])->name('lecturer.unassign');
     });
     
-    // Time Slots management
+    // Time Slots management - consolidated to a single controller
     Route::middleware(['permission:manage-time-slots'])->group(function () {
         Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+        Route::get('/timeslots/create', [TimeSlotController::class, 'create'])->name('timeslots.create');
         Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+        Route::get('/timeslots/{timeSlot}', [TimeSlotController::class, 'show'])->name('timeslots.show');
+        Route::get('/timeslots/{timeSlot}/edit', [TimeSlotController::class, 'edit'])->name('timeslots.edit');
         Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
         Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
-        
-        // Legacy route - you may want to consolidate these
-        Route::get('/timeslotes', [TimesloteController::class, 'index'])->name('timeslotes.index');
-        Route::get('/timeslotes/create', [TimesloteController::class, 'create'])->name('timeslotes.create');
-        Route::post('/timeslotes', [TimesloteController::class, 'store'])->name('timeslotes.store');
-        Route::get('/timeslotes/{timeslote}', [TimesloteController::class, 'show'])->name('timeslotes.show');
-        Route::get('/timeslotes/{timeslote}/edit', [TimesloteController::class, 'edit'])->name('timeslotes.edit');
-        Route::put('/timeslotes/{timeslote}', [TimesloteController::class, 'update'])->name('timeslotes.update');
-        Route::delete('/timeslotes/{timeslote}', [TimesloteController::class, 'destroy'])->name('timeslotes.destroy');
     });
+    
+    // Process timetable and solve conflicts
+    Route::middleware(['permission:process-timetable'])->get('/process-timetable', [ExamTimetableController::class, 'processForm'])->name('timetables.process-form');
+    Route::middleware(['permission:process-timetable'])->post('/process-timetable', [ExamTimetableController::class, 'process'])->name('timetables.process');
+    Route::middleware(['permission:solve-conflicts'])->get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('timetables.conflicts');
+    
+    // Download timetable
+    Route::middleware(['permission:download-timetable'])->get('/download-timetable', [ExamTimetableController::class, 'downloadTimetable'])->name('timetable.download');
 });
 
 // ✅ Exam Office Routes
@@ -185,8 +178,8 @@ Route::middleware(['auth', 'role:Exam office', 'permission:view-dashboard'])->gr
     });
     
     // Process timetable and solve conflicts
-    Route::middleware(['permission:process-timetable'])->post('/process-timetable', [ExamTimetableController::class, 'process'])->name('timetables.process');
-    Route::middleware(['permission:solve-conflicts'])->get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('timetables.conflicts');
+    Route::middleware(['permission:process-timetable'])->post('/process-timetable', [ExamTimetableController::class, 'process'])->name('exam.timetables.process');
+    Route::middleware(['permission:solve-conflicts'])->get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('exam.timetables.conflicts');
 });
 
 // ✅ Faculty Admin Routes
@@ -207,6 +200,11 @@ Route::middleware(['auth', 'role:Faculty Admin', 'permission:view-dashboard'])->
     // Faculty enrollments management
     Route::middleware(['permission:manage-faculty-enrollments'])->group(function () {
         Route::get('/faculty/enrollments', [EnrollmentController::class, 'facultyEnrollments'])->name('faculty.enrollments');
+    });
+    
+    // Faculty semesters management
+    Route::middleware(['permission:manage-semesters'])->group(function () {
+        Route::get('/semesters', [SemesterController::class, 'facultySemesters'])->name('faculty.semesters');
     });
     
     // Faculty timetable download
@@ -239,6 +237,12 @@ Route::middleware(['auth', 'role:Student', 'permission:view-dashboard'])->group(
     
     // Download own timetable
     Route::middleware(['permission:download-own-timetable'])->get('/student/timetable/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.timetable.download');
+});
+
+// Settings routes - accessible to users with manage-settings permission
+Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
+    Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
+    Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
 });
 
 // Catch-all route for SPA (must be at the bottom)

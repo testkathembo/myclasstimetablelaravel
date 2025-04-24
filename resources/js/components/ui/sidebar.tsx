@@ -15,6 +15,7 @@ import {
   DownloadCloud,
   Puzzle,
   Briefcase,
+  Shield, // Added Shield icon for Roles
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -53,11 +54,10 @@ const Sidebar = () => {
         )}
         
         {/* Roles & Permissions Management */}
-        {/* Roles & Permissions Management */}
         {(isAdmin || can('manage-roles')) && (
           <Link href="/roles" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-             <Users className="h-5 w-5 rotate-12" /> 
-                <span>Roles</span>
+             <Shield className="h-5 w-5" /> 
+             <span>Roles</span>
           </Link>
         )}
         
@@ -73,10 +73,9 @@ const Sidebar = () => {
         {(isAdmin || can('manage-units') || can('manage-faculty-units') || can('view-units')) && (
           <Link 
             href={can('manage-units') ? "/units" : can('manage-faculty-units') ? "/faculty/units" : "/units"} 
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
-          >
+            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
             <Book className="h-5 w-5" />
-            <span>{can('manage-faculty-units') ? "Faculty Units" : "Units"}</span>
+            <span>Units</span> 
           </Link>
         )}
         
@@ -89,13 +88,10 @@ const Sidebar = () => {
         )}
         
         {/* Semester Management */}
-        {(isAdmin || can('manage-semesters') || can('manage-faculty-semesters')) && (
-          <Link 
-            href={can('manage-semesters') ? "/semesters" : "/faculty/semesters"} 
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
-          >
+        {(isAdmin || can('manage-semesters')) && (
+          <Link href="/semesters" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
             <Calendar className="h-5 w-5" />
-            <span>{can('manage-faculty-semesters') ? "Faculty Semesters" : "Semesters"}</span>
+            <span>Semesters</span>
           </Link>
         )}
         

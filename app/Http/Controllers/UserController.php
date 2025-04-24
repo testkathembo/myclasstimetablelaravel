@@ -36,40 +36,58 @@ class UserController extends Controller
     }
 
     public function store(Request $request)
-{
-    // Validate request
-    $validated = $request->validate([
-        'first_name' => 'required|string|max:255',
-        'last_name' => 'required|string|max:255',
-        'email' => 'required|string|email|max:255|unique:users',
-        'faculty' => 'required|string|max:255',
-        'phone' => 'required|string|max:255',
-        'code' => 'required|string|max:255|unique:users',
-        'password' => 'required|string|min:8|confirmed',
-        'role' => 'required|string|exists:roles,name',
-    ]);
+    {
+        // Validate request
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'faculty' => 'required|string|max:255',
+            'phone' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'role' => 'required|string|exists:roles,name',
+        ]);
 
-    // Create user
-    $user = User::create([
-        'first_name' => $validated['first_name'],
-        'last_name' => $validated['last_name'],
-        'email' => $validated['email'],
-        'faculty' => $validated['faculty'],
-        'phone' => $validated['phone'],
-        'code' => $validated['code'],
-        'password' => Hash::make($validated['password']),
-    ]);
+        // Create user
+        $user = User::create([
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'email' => $validated['email'],
+            'faculty' => $validated['faculty'],
+            'phone' => $validated['phone'],
+            'code' => $validated['code'],
+            'password' => Hash::make($validated['password']),
+        ]);
 
-    // Assign role
-    $user->assignRole($validated['role']);
+        // Assign role
+        $user->assignRole($validated['role']);
 
-    return redirect()->route('users.index')
-        ->with('success', 'User created successfully');
-}
+        return redirect()->route('users.index')
+            ->with('success', 'User created successfully');
+    }
+
     // ✅ Show user edit form
     public function edit(User $user)
     {
         return Inertia::render('Users/Edit', ['user' => $user]);
+    }
+
+    // ✅ Update user
+    public function update(Request $request, User $user)
+    {
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'faculty' => 'required|string|max:255',
+            'phone' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:users,code,' . $user->id,
+        ]);
+
+        $user->update($request->only('first_name', 'last_name', 'email', 'faculty', 'phone', 'code'));
+
+        return redirect()->route('users.index')->with('success', 'User updated successfully.');
     }
 
     // ✅ Delete user
