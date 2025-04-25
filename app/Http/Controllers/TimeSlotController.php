@@ -4,116 +4,97 @@ namespace App\Http\Controllers;
 
 use App\Models\TimeSlot;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use Inertia\Inertia; // Correctly import the Inertia facade
 
 class TimeSlotController extends Controller
 {
     /**
-     * Display a listing of the time slots.
-     *
-     * @return \Inertia\Response
+     * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $timeSlots = TimeSlot::orderBy('start_time')->get();
-        
-        return Inertia::render('Admin/TimeSlots/Index', [
-            'timeSlots' => $timeSlots
+        // Add debugging to track what's being received
+        \Log::debug('TimeSlot Index Request', [
+            'search' => $request->search,
+            'per_page' => $request->get('per_page', 10)
+        ]);
+
+        $query = TimeSlot::query();
+
+        if ($request->has('search') && $request->search !== '') {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('day', 'like', "%{$search}%")
+                  ->orWhere('date', 'like', "%{$search}%")
+                  ->orWhere('start_time', 'like', "%{$search}%")
+                  ->orWhere('end_time', 'like', "%{$search}%");
+            });
+        }
+
+        $timeSlots = $query->paginate($request->get('per_page', 10));
+
+        // Add debugging to see what's being returned
+        \Log::debug('TimeSlot Index Response', [
+            'count' => count($timeSlots->items()),
+            'total' => $timeSlots->total()
+        ]);
+
+        return Inertia::render('TimeSlots/Index', [
+            'timeSlots' => $timeSlots,
+            'perPage' => (int)$request->get('per_page', 10),
+            'search' => $request->get('search', '')
         ]);
     }
 
     /**
-     * Show the form for creating a new time slot.
-     *
-     * @return \Inertia\Response
-     */
-    public function create()
-    {
-        return Inertia::render('Admin/TimeSlots/Create');
-    }
-
-    /**
-     * Store a newly created time slot in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
+     * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
+        // Validate the request
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'day_of_week' => 'nullable|integer|min:0|max:6',
+            'day' => 'required',
+            'date' => 'required|date',
+            'start_time' => 'required',
+            'end_time' => 'required',
         ]);
 
+        // Create the time slot
         TimeSlot::create($validated);
 
-        return redirect()->route('timeslots.index')->with('success', 'Time slot created successfully.');
+        return redirect()->back()
+            ->with('success', 'Time slot created successfully.');
     }
 
     /**
-     * Display the specified time slot.
-     *
-     * @param  \App\Models\TimeSlot  $timeSlot
-     * @return \Inertia\Response
-     */
-    public function show(TimeSlot $timeSlot)
-    {
-        return Inertia::render('Admin/TimeSlots/Show', [
-            'timeSlot' => $timeSlot
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified time slot.
-     *
-     * @param  \App\Models\TimeSlot  $timeSlot
-     * @return \Inertia\Response
-     */
-    public function edit(TimeSlot $timeSlot)
-    {
-        return Inertia::render('Admin/TimeSlots/Edit', [
-            'timeSlot' => $timeSlot
-        ]);
-    }
-
-    /**
-     * Update the specified time slot in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\TimeSlot  $timeSlot
-     * @return \Illuminate\Http\RedirectResponse
+     * Update the specified resource in storage.
      */
     public function update(Request $request, TimeSlot $timeSlot)
     {
+        // Validate the request
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'day_of_week' => 'nullable|integer|min:0|max:6',
+            'day' => 'required',
+            'date' => 'required|date',
+            'start_time' => 'required',
+            'end_time' => 'required',
         ]);
 
+        // Update the time slot
         $timeSlot->update($validated);
 
-        return redirect()->route('timeslots.index')->with('success', 'Time slot updated successfully.');
+        return redirect()->back()
+            ->with('success', 'Time slot updated successfully.');
     }
 
     /**
-     * Remove the specified time slot from storage.
-     *
-     * @param  \App\Models\TimeSlot  $timeSlot
-     * @return \Illuminate\Http\RedirectResponse
+     * Remove the specified resource from storage.
      */
     public function destroy(TimeSlot $timeSlot)
     {
-        // Check if time slot is in use before deleting
-        if ($timeSlot->examTimetables()->count() > 0) {
-            return redirect()->route('timeslots.index')->with('error', 'Cannot delete time slot that is in use by timetables.');
-        }
-        
+        // Delete the time slot
         $timeSlot->delete();
 
-        return redirect()->route('timeslots.index')->with('success', 'Time slot deleted successfully.');
+        return redirect()->back()
+            ->with('success', 'Time slot deleted successfully.');
     }
 }

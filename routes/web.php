@@ -26,6 +26,16 @@ require __DIR__.'/auth.php';
 
 // ✅ Authenticated routes
 Route::middleware(['auth'])->group(function () {
+
+     // Semesters management
+     Route::get('/all-semesters', [SemesterController::class, 'index'])->name('semesters.index');
+     Route::get('/all-semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
+     Route::post('/all-semesters', [SemesterController::class, 'store'])->name('semesters.store');
+     Route::get('/all-semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
+     Route::match(['PUT', 'PATCH'], '/all-semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
+     Route::delete('/all-semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
+ 
+    Route::get('/user/roles-permissions', [UserController::class, 'getUserRolesAndPermissions'])->name('user.roles-permissions');
     // Profile routes (accessible to all authenticated users)
     Route::prefix('profile')->group(function () {
         Route::get('/', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -59,6 +69,11 @@ Route::middleware(['auth'])->group(function () {
     
     // Logout route
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
+    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
 });
 
 // ✅ Admin Routes - view-dashboard permission required
@@ -93,7 +108,7 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::post('/faculties', [FacultyController::class, 'store'])->name('faculties.store');
         Route::get('/faculties/{faculty}', [FacultyController::class, 'show'])->name('faculties.show');
         Route::get('/faculties/{faculty}/edit', [FacultyController::class, 'edit'])->name('faculties.edit');
-        Route::put('/faculties/{faculty}', [FacultyController::class, 'update'])->name('faculties.update');
+        Route::match(['PUT', 'PATCH'], '/faculties/{faculty}', [FacultyController::class, 'update'])->name('faculties.update');
         Route::delete('/faculties/{faculty}', [FacultyController::class, 'destroy'])->name('faculties.destroy');
     });
     
@@ -119,15 +134,7 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
     });
     
-    // Semesters management
-    Route::middleware(['auth', 'role:Admin|permission:manage-semesters'])->group(function () {
-        Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
-        Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
-        Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
-        Route::get('/semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
-        Route::put('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
-        Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
-    });
+    // Enrollments management
     
     // Enrollments management
     Route::middleware(['permission:manage-enrollments'])->group(function () {
@@ -154,6 +161,8 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
         Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
         Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
     });
+
+    Route::get('/timeslots', fn() => Inertia::render('TimeSlots/index'))->name('timeslots.index');
     
     // Process timetable and solve conflicts
     Route::middleware(['permission:process-timetable'])->get('/process-timetable', [ExamTimetableController::class, 'processForm'])->name('timetables.process-form');
@@ -244,6 +253,11 @@ Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
     Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
     Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
 });
+
+// Lecturer assignment routes
+Route::post('/assign-lecturers', [App\Http\Controllers\EnrollmentController::class, 'assignLecturers'])->name('assign-lecturers');
+Route::delete('/assign-lecturers/{unitId}', [App\Http\Controllers\EnrollmentController::class, 'destroyLecturerAssignment'])->name('destroy-lecturer-assignment');
+Route::get('/lecturer-units/{lecturerId}', [App\Http\Controllers\EnrollmentController::class, 'getLecturerUnits'])->name('lecturer-units');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

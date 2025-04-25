@@ -159,6 +159,7 @@ const Users = () => {
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="px-4 py-2 border">ID</th>
+                            <th className="px-4 py-2 border">Student Id</th>
                             <th className="px-4 py-2 border">First Name</th>
                             <th className="px-4 py-2 border">Last Name</th>
                             <th className="px-4 py-2 border">Email</th>
@@ -170,6 +171,7 @@ const Users = () => {
                         {users.data.map((user) => (
                             <tr key={user.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-2 border">{user.id}</td>
+                                <td className="px-4 py-2 border">{user.code}</td>
                                 <td className="px-4 py-2 border">{user.first_name}</td>
                                 <td className="px-4 py-2 border">{user.last_name}</td>
                                 <td className="px-4 py-2 border">{user.email}</td>

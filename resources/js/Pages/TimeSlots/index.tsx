@@ -26,7 +26,14 @@ interface PaginatedTimeSlots {
 }
 
 const TimeSlots = () => {
-    const { timeSlots, perPage, search } = usePage().props as { timeSlots: PaginatedTimeSlots; perPage: number; search: string };
+    const { timeSlots = { data: [], links: [], total: 0, per_page: 10, current_page: 1 }, perPage = 10, search = '' } = usePage().props as {
+        timeSlots?: PaginatedTimeSlots;
+        perPage?: number;
+        search?: string;
+    };
+
+    // Debugging: Log the props to verify data
+    console.log('TimeSlots props:', { timeSlots, perPage, search });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'create' | 'edit' | 'delete' | ''>('');
@@ -164,28 +171,36 @@ const TimeSlots = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {timeSlots.data.map((timeSlot) => (
-                            <tr key={timeSlot.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-2 border">{timeSlot.day}</td>
-                                <td className="px-4 py-2 border">{timeSlot.date}</td>
-                                <td className="px-4 py-2 border">{timeSlot.start_time}</td>
-                                <td className="px-4 py-2 border">{timeSlot.end_time}</td>
-                                <td className="px-4 py-2 border text-center">
-                                    <button
-                                        onClick={() => handleOpenModal('edit', timeSlot)}
-                                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 mr-2"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => handleOpenModal('delete', timeSlot)}
-                                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                                    >
-                                        Delete
-                                    </button>
+                        {timeSlots.data.length > 0 ? (
+                            timeSlots.data.map((time_slots) => (
+                                <tr key={time_slots.id} className="border-b hover:bg-gray-50">
+                                    <td className="px-4 py-2 border">{time_slots.day}</td>
+                                    <td className="px-4 py-2 border">{time_slots.date}</td>
+                                    <td className="px-4 py-2 border">{time_slots.start_time}</td>
+                                    <td className="px-4 py-2 border">{time_slots.end_time}</td>
+                                    <td className="px-4 py-2 border text-center">
+                                        <button
+                                            onClick={() => handleOpenModal('edit', time_slots)}
+                                            className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 mr-2"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenModal('delete', time_slots)}
+                                            className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={5} className="px-4 py-2 text-center text-gray-500">
+                                    No time slots found.
                                 </td>
                             </tr>
-                        ))}
+                        )}
                     </tbody>
                 </table>
                 <Pagination links={timeSlots.links} onPageChange={handlePageChange} />

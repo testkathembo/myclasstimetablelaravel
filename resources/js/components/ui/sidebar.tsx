@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard,
@@ -27,8 +27,18 @@ const Sidebar = () => {
   const can = (permission: string) => permissions.includes(permission);
   
   // Special case for Admin
-  const isAdmin = hasRole('Admin');
-  
+  const [userPermissions, setUserPermissions] = useState<string[]>([])  
+  const [userRoles, setUserRoles] = useState<string[]>([])
+
+  useEffect(() => {
+      fetch("/user/roles-permissions", { credentials: "include" }) // Ensure session cookies are included
+          .then((res) => res.json())
+          .then((data) => {
+              setUserRoles(data.roles || [])
+              setUserPermissions(data.permissions || [])
+          })
+          .catch((error) => console.error("Error fetching roles & permissions:", error))
+  }, [])
   return (
     <div className="bg-blue-800 text-white w-64 h-full flex flex-col">
       <div className="p-4 text-lg font-bold border-b border-blue-700">
@@ -38,113 +48,168 @@ const Sidebar = () => {
            
       <nav className="flex-1 p-4 space-y-2">
         {/* Dashboard - available to all authenticated users */}
-        {(isAdmin || can('view-dashboard')) && (
-          <Link href="/dashboard" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <LayoutDashboard className="h-5 w-5" />
-            <span>Dashboard</span>
-          </Link>
-        )}
         
-        {/* User Management */}
-        {(isAdmin || can('manage-users')) && (
-          <Link href="/users" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Users className="h-5 w-5" />
-            <span>Users</span>
-          </Link>
-        )}
+
+{userPermissions.includes("view-dashboard") && (
+                                  <Link href="/dashboard" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                  <LayoutDashboard className="h-5 w-5" />
+                                  <span>Dashboard</span>
+                                </Link>                            )}
+
+
+
+{userPermissions.includes("manage-users") && (
+                                   <Link href="/users" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <Users className="h-5 w-5" />
+                                   <span>Users</span>
+                                 </Link>                    )}
+
+
+
+
+{userPermissions.includes("manage-roles") && (
+                                   <Link href="/roles" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <Shield className="h-5 w-5" /> 
+                                   <span>Roles</span>
+                                </Link>           )}
+ 
         
-        {/* Roles & Permissions Management */}
-        {(isAdmin || can('manage-roles')) && (
-          <Link href="/roles" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-             <Shield className="h-5 w-5" /> 
-             <span>Roles</span>
-          </Link>
-        )}
+
+
+
+{userPermissions.includes("manage-faculties") && (
+                                   <Link href="/faculties" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <Building className="h-5 w-5" />
+                                   <span>Faculties</span>
+                                 </Link>     
+                               )}
+ 
         
-        {/* Faculty Management */}
-        {(isAdmin || can('manage-faculties')) && (
-          <Link href="/faculties" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Building className="h-5 w-5" />
-            <span>Faculties</span>
-          </Link>
-        )}
+      
+{userPermissions.includes("manage-units") && (
+                                  <Link 
+                                  href={can('manage-units') ? "/units" : can('manage-faculty-units') ? "/faculty/units" : "/units"} 
+                                  className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                  <Book className="h-5 w-5" />
+                                  <span>Units</span> 
+                                </Link>  
+                               )}
+ 
+
+
         
-        {/* Units Management */}
-        {(isAdmin || can('manage-units') || can('manage-faculty-units') || can('view-units')) && (
-          <Link 
-            href={can('manage-units') ? "/units" : can('manage-faculty-units') ? "/faculty/units" : "/units"} 
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Book className="h-5 w-5" />
-            <span>Units</span> 
-          </Link>
-        )}
+      
+{userPermissions.includes("manage-classrooms") && (
+                                  <Link href="/classrooms" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                  <MapPin className="h-5 w-5" />
+                                  <span>Classrooms</span>
+                                </Link>
+                               )}
+ 
+
+
+      
+{userPermissions.includes("manage-semesters") && (
+                                   <Link href="/all-semesters" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <Calendar className="h-5 w-5" />
+                                   <span>Semesters</span>
+                                 </Link>
+                               )}
+
+
+
+{userPermissions.includes("manage-enrollments") && (
+                                     <Link 
+                                     href='/enrollments' className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
+                                   >
+                                    <Book className="h-5 w-5" />
+                                     <span>Enrollment</span>
+                                   </Link>
+                               )}
         
-        {/* Classroom Management */}
-        {(isAdmin || can('manage-classrooms')) && (
-          <Link href="/classrooms" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <MapPin className="h-5 w-5" />
-            <span>Classrooms</span>
-          </Link>
-        )}
+      
+
+{userPermissions.includes("manage-time-slots") && (
+                                     <Link href="/timeslots" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                     <Layers className="h-5 w-5" />
+                                     <span>Time Slots</span>
+                                   </Link>
+                               )}
         
-        {/* Semester Management */}
-        {(isAdmin || can('manage-semesters')) && (
-          <Link href="/semesters" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Calendar className="h-5 w-5" />
-            <span>Semesters</span>
-          </Link>
-        )}
+         
         
-        {/* Enrollment Management */}
-        {(isAdmin || can('manage-enrollments') || can('manage-faculty-enrollments')) && (
-          <Link 
-            href={can('manage-enrollments') ? "/enrollments" : "/faculty/enrollments"} 
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
-          >
-            <GraduationCap className="h-5 w-5" />
-            <span>{can('manage-faculty-enrollments') ? "Faculty Enrollments" : "Enrollments"}</span>
-          </Link>
-        )}
+ 
+{userPermissions.includes("create-timetable") && (
+                                   <Link href="/examtimetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <FileSpreadsheet className="h-5 w-5" />
+                                   <span>Exam Timetable</span>
+                                 </Link>
+                               )}
         
-        {/* Time Slots */}
-        {(isAdmin || can('manage-time-slots')) && (
-          <Link href="/timeslots" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Layers className="h-5 w-5" />
-            <span>Time Slots</span>
-          </Link>
-        )}
+      
+
         
-        {/* Exam Timetable Management */}
-        {(isAdmin || can('create-timetable') || can('view-timetable')) && (
-          <Link href="/examtimetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <FileSpreadsheet className="h-5 w-5" />
-            <span>Exam Timetable</span>
-          </Link>
-        )}
+ 
+{userPermissions.includes("process-timetable") && (
+                                    <Link href="/process-timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                    <Puzzle className="h-5 w-5" />
+                                    <span>Process Timetable</span>
+                                  </Link>
+                               )}
         
-        {/* Process Timetable */}
-        {(isAdmin || can('process-timetable')) && (
-          <Link href="/process-timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Puzzle className="h-5 w-5" />
-            <span>Process Timetable</span>
-          </Link>
-        )}
+
+
+ 
+{userPermissions.includes("solve-conflicts") && (
+                                   <Link href="/solve-conflicts" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <Briefcase className="h-5 w-5" />
+                                   <span>Solve Conflicts</span>
+                                 </Link>
+                               )}
         
-        {/* Solve Conflicts */}
-        {(isAdmin || can('solve-conflicts')) && (
-          <Link href="/solve-conflicts" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Briefcase className="h-5 w-5" />
-            <span>Solve Conflicts</span>
-          </Link>
-        )}
+       
+{userPermissions.includes("view-own-timetable") && (
+                                   <Link href="/lecturer/timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                   <Calendar className="h-5 w-5" />
+                                   <span>My Timetable</span>
+                                 </Link>
+                               )}
         
-        {/* Lecturer View Own Timetable */}
-        {(hasRole('Lecturer') && can('view-own-timetable')) && (
-          <Link href="/lecturer/timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Calendar className="h-5 w-5" />
-            <span>My Timetable</span>
-          </Link>
-        )}
+
+
+{userPermissions.includes("download-timetable") && (
+                                   <Link 
+                                   href={
+                                     can('download-timetable') 
+                                       ? "/download-timetable" 
+                                       : can('download-faculty-timetable') 
+                                         ? "/faculty/timetable/download" 
+                                         : hasRole('Lecturer') 
+                                           ? "/lecturer/timetable/download" 
+                                           : "/student/timetable/download"
+                                   } 
+                                   className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
+                                 >
+                                   <DownloadCloud className="h-5 w-5" />
+                                   <span>Download Timetable</span>
+                                 </Link>
+                               )}
+        
+       
+       
+       
+{userPermissions.includes("manage-settings") && (
+                                  <Link href="/settings" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
+                                  <Settings className="h-5 w-5" />
+                                  <span>Settings</span>
+                                </Link>                               )}
+        
+      
+        
+      
+        
+     
+        
         
         {/* Lecturer View Own Units */}
         {(hasRole('Lecturer') && can('view-own-units')) && (
@@ -169,33 +234,8 @@ const Sidebar = () => {
             <span>My Units</span>
           </Link>
         )}
-        
-        {/* Download Timetable Options */}
-        {(isAdmin || can('download-timetable') || can('download-own-timetable') || can('download-faculty-timetable')) && (
-          <Link 
-            href={
-              can('download-timetable') 
-                ? "/download-timetable" 
-                : can('download-faculty-timetable') 
-                  ? "/faculty/timetable/download" 
-                  : hasRole('Lecturer') 
-                    ? "/lecturer/timetable/download" 
-                    : "/student/timetable/download"
-            } 
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
-          >
-            <DownloadCloud className="h-5 w-5" />
-            <span>Download Timetable</span>
-          </Link>
-        )}
-        
-        {/* Settings */}
-        {(isAdmin || can('manage-settings')) && (
-          <Link href="/settings" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
-          </Link>
-        )}
+      
+       
       </nav>
     </div>
   );

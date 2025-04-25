@@ -13,7 +13,7 @@ class Enrollment extends Model
 
     public function student()
     {
-        return $this->belongsTo(User::class, 'student_id');
+        return $this->belongsTo(User::class);
     }
 
     public function unit()
@@ -28,6 +28,6 @@ class Enrollment extends Model
 
     public function lecturer()
     {
-        return $this->belongsTo(User::class, 'lecturer_id')->where('user_role', 'lecturer'); // Filter by user_role
+        return $this->belongsTo(User::class); // Filter by user_role
     }
 }

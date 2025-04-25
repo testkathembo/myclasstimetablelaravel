@@ -13,7 +13,7 @@ class SemesterController extends Controller
     {
         $semesters = Semester::all();
 
-        return Inertia::render('Semesters/Index', [
+        return Inertia::render('Semesters/index', [
             'semesters' => $semesters,
         ]);
     }
@@ -27,11 +27,10 @@ class SemesterController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
+           
         ]);
 
-        Semester::create($request->only('name', 'start_date', 'end_date'));
+        Semester::create($request->only('name'));
 
         return redirect()->route('semesters.index')->with('success', 'Semester created successfully.');
     }
@@ -46,12 +45,10 @@ class SemesterController extends Controller
     public function update(Request $request, Semester $semester)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
+            'name' => 'required|string|max:255',            
         ]);
 
-        $semester->update($request->only('name', 'start_date', 'end_date'));
+        $semester->update($request->only('name', 'group_id'));
 
         return redirect()->route('semesters.index')->with('success', 'Semester updated successfully.');
     }

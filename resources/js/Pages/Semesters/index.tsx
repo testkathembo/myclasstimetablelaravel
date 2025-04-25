@@ -71,19 +71,19 @@ const Semesters = () => {
     };
 
     const handleDelete = (semester: Semester) => {
-        setModalType('delete');
-        setCurrentSemester(semester);
-        setIsModalOpen(true);
+        if (confirm(`Are you sure you want to delete the semester "${semester.name}"?`)) {
+            Inertia.delete(`/all-semesters/${semester.id}`);
+        }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (modalType === 'create') {
-            Inertia.post('/semesters', currentSemester);
+            Inertia.post('/all-semesters', currentSemester);
         } else if (modalType === 'edit') {
-            Inertia.patch(`/semesters/${currentSemester.id}`, currentSemester);
+            Inertia.patch(`/all-semesters/${currentSemester.id}`, currentSemester);
         } else if (modalType === 'delete') {
-            Inertia.delete(`/semesters/${currentSemester.id}`);
+            Inertia.delete(`/all-semesters/${currentSemester.id}`);
         }
         setIsModalOpen(false);
     };

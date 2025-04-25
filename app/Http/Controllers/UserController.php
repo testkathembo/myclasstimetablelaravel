@@ -122,4 +122,31 @@ class UserController extends Controller
 
         return redirect()->route('users.index')->with('success', 'User role updated successfully!');
     }
+
+    public function getUserRolesAndPermissions(Request $request)
+    {
+        $user = $request->user();
+        return response()->json([
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+    }
+    public function updateUserRolesAndPermissions(Request $request, User $user)
+    {
+        $request->validate([
+            'roles' => 'array',
+            'permissions' => 'array',
+        ]);
+
+        $user->syncRoles($request->input('roles', []));
+        $user->syncPermissions($request->input('permissions', []));
+
+        return response()->json(['message' => 'User roles and permissions updated successfully.']);
+    }
+    public function getUserPermissions(User $user)
+    {
+        $permissions = $user->getAllPermissions();
+
+        return response()->json($permissions);
+    }   
 }
