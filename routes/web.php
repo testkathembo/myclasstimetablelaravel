@@ -152,17 +152,20 @@ Route::middleware(['auth', 'role:Admin', 'permission:view-dashboard'])->group(fu
     });
     
     // Time Slots management - consolidated to a single controller
-    Route::middleware(['permission:manage-time-slots'])->group(function () {
-        Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
-        Route::get('/timeslots/create', [TimeSlotController::class, 'create'])->name('timeslots.create');
-        Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
-        Route::get('/timeslots/{timeSlot}', [TimeSlotController::class, 'show'])->name('timeslots.show');
-        Route::get('/timeslots/{timeSlot}/edit', [TimeSlotController::class, 'edit'])->name('timeslots.edit');
-        Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
-        Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
-    });
-
-    Route::get('/timeslots', fn() => Inertia::render('TimeSlots/index'))->name('timeslots.index');
+    Route::get('/timeslotes', [TimesloteController::class, 'index'])->name('timeslotes.index');
+    Route::get('/timeslotes/create', [TimesloteController::class, 'create'])->name('timeslotes.create');
+    Route::post('/timeslotes', [TimesloteController::class, 'store'])->name('timeslotes.store');
+    Route::get('/timeslotes/{timeslote}', [TimesloteController::class, 'show'])->name('timeslotes.show');
+    Route::get('/timeslotes/{timeslote}/edit', [TimesloteController::class, 'edit'])->name('timeslotes.edit');
+    Route::put('/timeslotes/{timeslote}', [TimesloteController::class, 'update'])->name('timeslotes.update');
+    Route::delete('/timeslotes/{timeslote}', [TimesloteController::class, 'destroy'])->name('timeslotes.destroy');
+    
+    // TimeSlots
+    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
+    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+    
     
     // Process timetable and solve conflicts
     Route::middleware(['permission:process-timetable'])->get('/process-timetable', [ExamTimetableController::class, 'processForm'])->name('timetables.process-form');

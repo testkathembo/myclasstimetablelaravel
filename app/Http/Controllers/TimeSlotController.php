@@ -39,7 +39,7 @@ class TimeSlotController extends Controller
             'total' => $timeSlots->total()
         ]);
 
-        return Inertia::render('TimeSlots/Index', [
+        return Inertia::render('TimeSlots/index', [
             'timeSlots' => $timeSlots,
             'perPage' => (int)$request->get('per_page', 10),
             'search' => $request->get('search', '')
