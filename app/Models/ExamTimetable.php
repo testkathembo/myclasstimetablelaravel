@@ -12,7 +12,7 @@ class ExamTimetable extends Model
     protected $fillable = [
         'enrollment_id',
         'semester_id',
-        'unit_code',
+        'unit_id',
         'day',
         'date',
         'start_time',
@@ -40,6 +40,14 @@ class ExamTimetable extends Model
 
     public function semester()
     {
-        return $this->belongsTo(Semester::class);
+        return $this->belongsTo(Semester::class, 'semester_id');
+    }
+
+    /**
+     * Define the relationship with the Unit model.
+     */
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class, 'unit_id');
     }
 }

@@ -476,15 +476,26 @@ class ExamTimetableController extends Controller
     
     public function downloadTimetable(Request $request)
     {
-        $format = $request->input('format', 'pdf'); // Default to PDF
-        $timetables = ExamTimetable::all(); // Fetch timetables (adjust query as needed)
+        $timetables = ExamTimetable::with(['unit', 'semester'])->get(); // Eager-load unit and semester relationships
 
-        if ($format === 'pdf') {
-            $pdf = Pdf::loadView('timetables.pdf', ['timetables' => $timetables]);
-            return $pdf->download('timetable.pdf');
-        }
+        $pdf = Pdf::loadView('timetables.pdf', [
+            'timetables' => $timetables->map(function ($timetable) {
+                return [
+                    'id' => $timetable->id,
+                    'day' => $timetable->day,
+                    'date' => $timetable->date,
+                    'unit_code' => $timetable->unit->code ?? 'N/A', // Ensure unit_code is fetched
+                    'unit_name' => $timetable->unit->name ?? 'N/A', // Ensure unit_name is fetched
+                    'semester_name' => $timetable->semester->name ?? 'N/A',
+                    'start_time' => $timetable->start_time,
+                    'end_time' => $timetable->end_time,
+                    'venue' => $timetable->venue,
+                    'chief_invigilator' => $timetable->chief_invigilator,
+                ];
+            }),
+        ]);
 
-        // ...existing code for other formats...
+        return $pdf->download('exam-timetable.pdf');
     }
 
     // Helper function to check for time overlap

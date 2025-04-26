@@ -292,22 +292,22 @@ const ExamTimetable = () => {
                       >
                         View
                       </Button>
-                      {can.edit && (
+                    
                         <Button
                           onClick={() => handleOpenModal("edit", exam)}
                           className="bg-yellow-500 hover:bg-yellow-600 text-white"
                         >
                           Edit
                         </Button>
-                      )}
-                      {can.delete && (
+                      
+               
                         <Button
                           onClick={() => handleOpenModal("delete", exam)}
                           className="bg-red-500 hover:bg-red-600 text-white"
                         >
                           Delete
                         </Button>
-                      )}
+                      
                     </td>
                   </tr>
                 ))}

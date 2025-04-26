@@ -39,6 +39,7 @@
                 <th>Date</th>
                 <th>Unit Code</th>
                 <th>Unit Name</th>
+                <th>Semester</th>
                 <th>Time</th>
                 <th>Venue</th>
                 <th>Chief Invigilator</th>
@@ -47,13 +48,14 @@
         <tbody>
             @foreach ($timetables as $timetable)
                 <tr>
-                    <td>{{ $timetable->day }}</td>
-                    <td>{{ $timetable->date }}</td>
-                    <td>{{ $timetable->unit_code }}</td>
-                    <td>{{ $timetable->unit_name }}</td>
-                    <td>{{ $timetable->start_time }} - {{ $timetable->end_time }}</td>
-                    <td>{{ $timetable->venue }}</td>
-                    <td>{{ $timetable->chief_invigilator }}</td>
+                    <td>{{ $timetable['day'] }}</td>
+                    <td>{{ $timetable['date'] }}</td>
+                    <td>{{ $timetable['unit_code'] }}</td>
+                    <td>{{ $timetable['unit_name'] }}</td>
+                    <td>{{ $timetable['semester_name'] }}</td>
+                    <td>{{ $timetable['start_time'] }} - {{ $timetable['end_time'] }}</td>
+                    <td>{{ $timetable['venue'] }}</td>
+                    <td>{{ $timetable['chief_invigilator'] }}</td>
                 </tr>
             @endforeach
         </tbody>
