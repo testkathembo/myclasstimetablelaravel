@@ -49,14 +49,14 @@ class ExamTimetableController extends Controller
                 'exam_timetables.no',
                 'exam_timetables.chief_invigilator',
                 'units.name as unit_name',
-                'units.code as unit_code', // Include unit code
+                'units.code as unit_code', // Include unit_code
                 'semesters.name as semester_name'
             )
             ->when($search, function ($query, $search) {
                 return $query->where('exam_timetables.day', 'like', "%{$search}%")
                              ->orWhere('exam_timetables.venue', 'like', "%{$search}%")
                              ->orWhere('units.name', 'like', "%{$search}%")
-                             ->orWhere('units.code', 'like', "%{$search}%"); // Allow search by unit code
+                             ->orWhere('units.code', 'like', "%{$search}%"); // Allow search by unit_code
             })
             ->paginate($perPage);
 
