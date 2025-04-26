@@ -34,62 +34,39 @@ class ExamTimetableController extends Controller
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search', '');
 
-        // ✅ Join units and fetch unit_name alongside examTimetables
+        // Fetch exam timetables with related data
         $examTimetables = ExamTimetable::query()
             ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
-            ->select('exam_timetables.*', 'units.name as unit_name') // ✅ Add unit_name to the selection
+            ->leftJoin('semesters', 'exam_timetables.semester_id', '=', 'semesters.id')
+            ->select(
+                'exam_timetables.id',
+                'exam_timetables.date',
+                'exam_timetables.day',
+                'exam_timetables.start_time',
+                'exam_timetables.end_time',
+                'exam_timetables.venue',
+                'exam_timetables.location',
+                'exam_timetables.no',
+                'exam_timetables.chief_invigilator',
+                'units.name as unit_name',
+                'units.code as unit_code', // Include unit code
+                'semesters.name as semester_name'
+            )
             ->when($search, function ($query, $search) {
                 return $query->where('exam_timetables.day', 'like', "%{$search}%")
-                             ->orWhere('exam_timetables.venue', 'like', "%{$search}%");
-            });
-            
-        // Filter based on user role
-        if (auth()->user()->hasRole('Faculty Admin')) {
-            $faculty = auth()->user()->faculty;
-            $examTimetables->whereHas('unit', function($query) use ($faculty) {
-                $query->where('faculty', $faculty);
-            });
-        }
-        
-        $examTimetables = $examTimetables->paginate($perPage);
+                             ->orWhere('exam_timetables.venue', 'like', "%{$search}%")
+                             ->orWhere('units.name', 'like', "%{$search}%")
+                             ->orWhere('units.code', 'like', "%{$search}%"); // Allow search by unit code
+            })
+            ->paginate($perPage);
 
         $semesters = Semester::all();
-
-        $enrollments = Enrollment::selectRaw("
-                MIN(enrollments.id) as id,
-                enrollments.unit_id,
-                units.name as unit_name,
-                enrollments.semester_id,
-                COUNT(DISTINCT enrollments.student_id) as student_count,
-                MAX(enrollments.lecturer_id) as lecturer_id,
-                CONCAT(MAX(users.first_name), ' ', MAX(users.last_name)) as lecturer_name
-            ")
-            ->join('units', 'units.id', '=', 'enrollments.unit_id')
-            ->leftJoin('users', 'users.id', '=', 'enrollments.lecturer_id')
-            ->groupBy('enrollments.unit_id', 'units.name', 'enrollments.semester_id');
-            
-        // Filter enrollments based on user role
-        if (auth()->user()->hasRole('Faculty Admin')) {
-            $faculty = auth()->user()->faculty;
-            $enrollments->whereHas('unit', function($query) use ($faculty) {
-                $query->where('faculty', $faculty);
-            });
-        }
-        
-        $enrollments = $enrollments->get();
-
-        $timeSlots = TimeSlot::select('id', 'day', 'date', 'start_time', 'end_time')->get();
-
-        $classrooms = Classroom::all();
 
         return Inertia::render('ExamTimetable/index', [
             'examTimetables' => $examTimetables,
             'perPage' => $perPage,
             'search' => $search,
             'semesters' => $semesters,
-            'enrollments' => $enrollments,
-            'timeSlots' => $timeSlots,
-            'classrooms' => $classrooms,
             'can' => [
                 'create' => auth()->user()->can('create-timetable'),
                 'edit' => auth()->user()->can('edit-timetable'),
@@ -97,7 +74,7 @@ class ExamTimetableController extends Controller
                 'process' => auth()->user()->can('process-timetable'),
                 'solve_conflicts' => auth()->user()->can('solve-conflicts'),
                 'download' => auth()->user()->can('download-timetable'),
-            ]
+            ],
         ]);
     }
 

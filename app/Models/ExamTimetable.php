@@ -12,7 +12,7 @@ class ExamTimetable extends Model
     protected $fillable = [
         'enrollment_id',
         'semester_id',
-        'unit_id',
+        'unit_code',
         'day',
         'date',
         'start_time',

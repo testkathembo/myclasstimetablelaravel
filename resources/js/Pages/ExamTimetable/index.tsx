@@ -11,9 +11,8 @@ interface ExamTimetable {
   id: number
   day: string
   date: string
-  unit_id: number
-  unit_name: string
-  group: string
+  unit_code: string
+  unit_name: string  
   venue: string
   location: string
   no: number
@@ -27,7 +26,7 @@ interface Enrollment {
   id: number
   unit_name: string
   semester_id: number
-  unit_id: number
+  unit_code: string
   student_count: number
   lecturer_id: number | null
   lecturer_name: string | null
@@ -72,7 +71,6 @@ interface FormState {
   day: string
   date: string
   enrollment_id: number
-  group: string
   venue: string
   location: string
   no: number
@@ -173,8 +171,7 @@ const ExamTimetable = () => {
         id: 0,
         day: "",
         date: "",
-        enrollment_id: 0,
-        group: "",
+        enrollment_id: 0,       
         venue: "",
         location: "",
         no: 0,
@@ -192,7 +189,7 @@ const ExamTimetable = () => {
         })),
       )
     } else if (timetable) {
-      const selectedEnrollment = enrollments.find((e) => e.unit_id === timetable.unit_id)
+      const selectedEnrollment = enrollments.find((e) => e.unit_code === timetable.unit_code)
 
       // Format the time values to ensure they're in H:i format
       const formattedStartTime = formatTimeToHi(timetable.start_time)
@@ -202,8 +199,7 @@ const ExamTimetable = () => {
         id: timetable.id,
         day: timetable.day,
         date: timetable.date,
-        enrollment_id: selectedEnrollment?.id || 0,
-        group: timetable.group,
+        enrollment_id: selectedEnrollment?.id || 0,       
         venue: timetable.venue,
         location: timetable.location,
         no: timetable.no,
@@ -370,7 +366,7 @@ const ExamTimetable = () => {
     // Ensure time values are in the correct format before submission
     const submissionData = {
       ...formState,
-      unit_id: selectedEnrollment.unit_id,
+      unit_code: selectedEnrollment.unit_code,
       start_time: formatTimeToHi(formState.start_time),
       end_time: formatTimeToHi(formState.end_time),
     }
@@ -618,58 +614,55 @@ const ExamTimetable = () => {
             <table className="w-full mt-6 border text-sm text-left">
               <thead className="bg-gray-100 border-b">
                 <tr>
-                  <th className="px-3 py-2">Id</th>
+                  <th className="px-3 py-2">ID</th>
                   <th className="px-3 py-2">Day</th>
                   <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Unit</th>
-                  <th className="px-3 py-2">Semester</th>               
-                  <th className="px-3 py-2">Time</th>
+                  <th className="px-3 py-2">Unit Code</th>
+                  <th className="px-3 py-2">Unit Name</th>                 
                   <th className="px-3 py-2">Venue</th>
+                  <th className="px-3 py-2">Location</th>
+                  <th className="px-3 py-2">No. of Students</th>
                   <th className="px-3 py-2">Chief Invigilator</th>
+                  <th className="px-3 py-2">Start Time</th>
+                  <th className="px-3 py-2">End Time</th>
+                  <th className="px-3 py-2">Semester</th>
                   <th className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {examTimetables.data.map((exam, index) => (
+                {examTimetables.data.map((exam) => (
                   <tr key={exam.id} className="border-b">
-                    <td className="px-3 py-2">{index + 1}</td>
+                    <td className="px-3 py-2">{exam.id}</td>
                     <td className="px-3 py-2">{exam.day}</td>
                     <td className="px-3 py-2">{exam.date}</td>
-                    <td className="px-3 py-2">{exam.unit_name}</td>
-                    <td className="px-3 py-2">{semesters.find((s) => s.id === exam.semester_id)?.name}</td>                   
-                    <td className="px-3 py-2">
-                      {formatTimeToHi(exam.start_time)} - {formatTimeToHi(exam.end_time)}
-                    </td>
+                    <td className="px-3 py-2">{exam.unit_code}</td>
+                    <td className="px-3 py-2">{exam.unit_name}</td>                    
                     <td className="px-3 py-2">{exam.venue}</td>
+                    <td className="px-3 py-2">{exam.location || "N/A"}</td>
+                    <td className="px-3 py-2">{exam.no}</td>
                     <td className="px-3 py-2">{exam.chief_invigilator}</td>
+                    <td className="px-3 py-2">{exam.start_time}</td>
+                    <td className="px-3 py-2">{exam.end_time}</td>
+                    <td className="px-3 py-2">
+                      {semesters.find((s) => s.id === exam.semester_id)?.name || "N/A"}
+                    </td>
                     <td className="px-3 py-2 flex space-x-2">
-                      {/* View Action */}
-                      <Button
-                        onClick={() => handleOpenModal("view", exam)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white"
-                      >
-                        View
-                      </Button>
-
-                      {/* Edit Action */}
-                  
+                      {can.edit && (
                         <Button
                           onClick={() => handleOpenModal("edit", exam)}
                           className="bg-yellow-500 hover:bg-yellow-600 text-white"
                         >
                           Edit
                         </Button>
-                    
-
-                      {/* Delete Action */}
-                      
+                      )}
+                      {can.delete && (
                         <Button
                           onClick={() => handleOpenModal("delete", exam)}
                           className="bg-red-500 hover:bg-red-600 text-white"
                         >
                           Delete
                         </Button>
-                    
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -703,7 +696,8 @@ const ExamTimetable = () => {
                   <h2 className="text-xl font-semibold mb-4">View Exam Timetable</h2>
                   <p><strong>Day:</strong> {selectedTimetable.day}</p>
                   <p><strong>Date:</strong> {selectedTimetable.date}</p>
-                  <p><strong>Unit:</strong> {selectedTimetable.unit_name}</p>
+                  <p><strong>Unit Code:</strong> {selectedTimetable.unit_code}</p>
+                  <p><strong>Unit Name:</strong> {selectedTimetable.unit_name}</p>
                   <p><strong>Semester:</strong> {semesters.find((s) => s.id === selectedTimetable.semester_id)?.name}</p>
                   <p><strong>Time:</strong> {selectedTimetable.start_time} - {selectedTimetable.end_time}</p>
                   <p><strong>Venue:</strong> {selectedTimetable.venue}</p>
