@@ -4,19 +4,30 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\ExamTimetable;
 use App\Models\Semester;
 use App\Models\Enrollment;
 use App\Models\TimeSlot;
 use App\Models\Classroom;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\TimetableExport;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ExamTimetableController extends Controller
 {
     public function index(Request $request)
     {
+        $user = auth()->user();
+        Log::info('Accessing Exam Timetable', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
         // Check if user has permission to view timetables
-        if (!auth()->user()->can('view-timetable')) {
+        if (!auth()->user()->can('manage-timetable')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -453,6 +464,13 @@ class ExamTimetableController extends Controller
     
     public function downloadStudentTimetable(Request $request)
     {
+        $user = auth()->user();
+        Log::info('Downloading Student Timetable', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
         // Check role and permission
         if (!auth()->user()->hasRole('Student') || 
             !auth()->user()->can('download-own-timetable')) {
@@ -479,6 +497,90 @@ class ExamTimetableController extends Controller
         return response()->download($pathToFile, 'faculty-timetable.pdf');
     }
     
+    public function downloadTimetable(Request $request)
+    {
+        $user = auth()->user();
+        Log::info('Downloading Timetable', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
+        // Check permissions for downloading timetables
+        if (!$user->can('download-timetable') && !$user->can('download-own-timetable') && !$user->can('download-faculty-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Fetch timetables based on user role
+        $query = ExamTimetable::query()
+            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
+            ->select('exam_timetables.*', 'units.name as unit_name');
+
+        if ($user->hasRole('Faculty Admin')) {
+            $faculty = $user->faculty;
+            $query->whereHas('unit', function ($q) use ($faculty) {
+                $q->where('faculty', $faculty);
+            });
+        } elseif ($user->hasRole('Lecturer')) {
+            $lecturerId = $user->id;
+            $query->whereHas('unit.enrollments', function ($q) use ($lecturerId) {
+                $q->where('lecturer_id', $lecturerId);
+            });
+        } elseif ($user->hasRole('Student')) {
+            $studentId = $user->id;
+            $query->whereHas('unit.enrollments', function ($q) use ($studentId) {
+                $q->where('student_id', $studentId);
+            });
+        }
+
+        $timetables = $query->get();
+
+        // Determine the format
+        $format = $request->input('format', 'csv'); // Default to CSV if no format is specified
+
+        if ($format === 'pdf') {
+            $pdf = Pdf::loadView('timetables.pdf', ['timetables' => $timetables]);
+            return $pdf->download('timetable.pdf');
+        } elseif ($format === 'excel') {
+            return Excel::download(new TimetableExport($timetables), 'timetable.xlsx');
+        } elseif ($format === 'word') {
+            $headers = [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Content-Disposition' => 'attachment; filename="timetable.docx"',
+            ];
+
+            $content = view('timetables.word', ['timetables' => $timetables])->render();
+            return response($content, 200, $headers);
+        } else {
+            // Default to CSV
+            $filename = 'timetable.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function () use ($timetables) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['Day', 'Date', 'Unit', 'Time', 'Venue', 'Chief Invigilator']);
+
+                foreach ($timetables as $timetable) {
+                    fputcsv($file, [
+                        $timetable->day,
+                        $timetable->date,
+                        $timetable->unit_name,
+                        $timetable->start_time . ' - ' . $timetable->end_time,
+                        $timetable->venue,
+                        $timetable->chief_invigilator,
+                    ]);
+                }
+
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        }
+    }
+
     // Helper function to check for time overlap
     private function checkTimeOverlap($exam1, $exam2)
     {
@@ -496,5 +598,14 @@ class ExamTimetableController extends Controller
     {
         list($hours, $minutes) = explode(':', $time);
         return ($hours * 60) + $minutes;
+    }
+
+    public function show($id)
+    {
+        $timetable = ExamTimetable::with(['unit', 'semester'])->findOrFail($id);
+
+        return Inertia::render('ExamTimetable/View', [
+            'timetable' => $timetable,
+        ]);
     }
 }

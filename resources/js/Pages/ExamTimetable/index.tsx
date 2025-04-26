@@ -121,7 +121,7 @@ const checkTimeOverlap = (exam: ExamTimetable, date: string, startTime: string, 
 }
 
 const ExamTimetable = () => {
-  const { examTimetables, perPage, search, semesters, enrollments, timeSlots, classrooms, can } = usePage().props as {
+  const { examTimetables, perPage, search, semesters, enrollments, timeSlots, classrooms, can } = usePage().props as unknown as {
     examTimetables: PaginatedExamTimetables
     perPage: number
     search: string
@@ -140,7 +140,7 @@ const ExamTimetable = () => {
   }
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<"create" | "edit" | "delete" | "">("")
+  const [modalType, setModalType] = useState<"create" | "edit" | "delete" | "view" | "">("")
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<number | null>(null)
   const [formState, setFormState] = useState<FormState | null>(null)
@@ -150,15 +150,14 @@ const ExamTimetable = () => {
   const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null)
   const [remainingCapacity, setRemainingCapacity] = useState<number | null>(null)
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [selectedTimetable, setSelectedTimetable] = useState<ExamTimetable | null>(null)
 
   // Instead of filtering classrooms, we'll enhance them with capacity information
-  const [classroomsWithCapacity, setClassroomsWithCapacity] = useState
-    Array
-      Classroom & {
-        remainingCapacity?: number
-        isSuitable?: boolean
-      }
-    >
+  const [classroomsWithCapacity, setClassroomsWithCapacity] = useState<
+    (Classroom & {
+      remainingCapacity?: number
+      isSuitable?: boolean
+    })[]
   >([])
 
   const filteredEnrollments = selectedSemester
@@ -167,7 +166,7 @@ const ExamTimetable = () => {
         .filter((enrollment, index, self) => index === self.findIndex((e) => e.unit_name === enrollment.unit_name))
     : []
 
-  const handleOpenModal = (type: "create" | "edit" | "delete", timetable: ExamTimetable | null = null) => {
+  const handleOpenModal = (type: "create" | "edit" | "delete" | "view", timetable: ExamTimetable | null = null) => {
     setModalType(type)
     if (type === "create") {
       setFormState({
@@ -220,6 +219,9 @@ const ExamTimetable = () => {
         calculateVenueOccupancy(timetable.date, formattedStartTime, formattedEndTime, timetable.id)
       }
     }
+    if (type === "view" || type === "delete") {
+      setSelectedTimetable(timetable)
+    }
     setIsModalOpen(true)
   }
 
@@ -233,6 +235,7 @@ const ExamTimetable = () => {
     setSelectedClassroom(null)
     setRemainingCapacity(null)
     setScheduledStudents({})
+    setSelectedTimetable(null)
   }
 
   // Calculate venue occupancy based on date and time
@@ -490,13 +493,33 @@ const ExamTimetable = () => {
     }
   }
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this exam timetable?")) {
-      router.delete(`/exam-timetables/${id}`, {
-        onSuccess: () => setAlertMessage({ type: "success", message: "Exam timetable deleted successfully." }),
-        onError: () => setAlertMessage({ type: "error", message: "Failed to delete the exam timetable." }),
-      })
-    }
+  const handleDelete = () => {
+    if (!selectedTimetable) return
+
+    router.delete(`/exam-timetables/${selectedTimetable.id}`, {
+      onSuccess: () => {
+        setAlertMessage({ type: "success", message: "Exam timetable deleted successfully." })
+        handleCloseModal()
+      },
+      onError: () => {
+        setAlertMessage({ type: "error", message: "Failed to delete the exam timetable." })
+      },
+    })
+  }
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formState) return
+
+    router.put(`/exam-timetables/${formState.id}`, formState, {
+      onSuccess: () => {
+        setAlertMessage({ type: "success", message: "Exam timetable updated successfully." })
+        handleCloseModal()
+      },
+      onError: () => {
+        setAlertMessage({ type: "error", message: "Failed to update the exam timetable." })
+      },
+    })
   }
 
   const formatDate = (dateString: string) => {
@@ -620,22 +643,33 @@ const ExamTimetable = () => {
                     <td className="px-3 py-2">{exam.venue}</td>
                     <td className="px-3 py-2">{exam.chief_invigilator}</td>
                     <td className="px-3 py-2 flex space-x-2">
+                      {/* View Action */}
+                      <Button
+                        onClick={() => handleOpenModal("view", exam)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white"
+                      >
+                        View
+                      </Button>
+
                       {/* Edit Action */}
-                      {can.edit && (
+                  
                         <Button
                           onClick={() => handleOpenModal("edit", exam)}
                           className="bg-yellow-500 hover:bg-yellow-600 text-white"
                         >
                           Edit
                         </Button>
-                      )}
+                    
 
                       {/* Delete Action */}
-                      {can.delete && (
-                        <Button onClick={() => handleDelete(exam.id)} className="bg-red-500 hover:bg-red-600 text-white">
+                      
+                        <Button
+                          onClick={() => handleOpenModal("delete", exam)}
+                          className="bg-red-500 hover:bg-red-600 text-white"
+                        >
                           Delete
                         </Button>
-                      )}
+                      
                     </td>
                   </tr>
                 ))}
@@ -664,257 +698,58 @@ const ExamTimetable = () => {
         {isModalOpen && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-white p-6 rounded shadow-md w-96">
-              <form onSubmit={handleSubmit}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-                <div className="relative">
-                  <select
-                    className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
-                    value={formState?.semester_id || ""}
-                    onChange={(e) => {
-                      const id = Number.parseInt(e.target.value)
-                      setSelectedSemester(id)
-                      setFormState((prev) => ({ ...prev!, semester_id: id, enrollment_id: 0 }))
-                    }}
-                    required
-                    style={{ color: "black" }}
-                  >
-                    <option value="" style={{ color: "black", backgroundColor: "white" }}>
-                      Select semester
-                    </option>
-                    {semesters.map((s) => (
-                      <option
-                        key={s.id}
-                        value={s.id}
-                        style={{ color: "black", backgroundColor: "white", padding: "8px" }}
-                      >
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
+              {modalType === "view" && selectedTimetable && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4">View Exam Timetable</h2>
+                  <p><strong>Day:</strong> {selectedTimetable.day}</p>
+                  <p><strong>Date:</strong> {selectedTimetable.date}</p>
+                  <p><strong>Unit:</strong> {selectedTimetable.unit_name}</p>
+                  <p><strong>Semester:</strong> {semesters.find((s) => s.id === selectedTimetable.semester_id)?.name}</p>
+                  <p><strong>Time:</strong> {selectedTimetable.start_time} - {selectedTimetable.end_time}</p>
+                  <p><strong>Venue:</strong> {selectedTimetable.venue}</p>
+                  <Button onClick={handleCloseModal} className="mt-4 bg-gray-400 text-white">Close</Button>
+                </>
+              )}
+
+              {modalType === "edit" && formState && (
+                <form onSubmit={handleEditSubmit}>
+                  <h2 className="text-xl font-semibold mb-4">Edit Exam Timetable</h2>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
+                  <input
+                    type="text"
+                    value={formState.day}
+                    onChange={(e) => setFormState({ ...formState, day: e.target.value })}
+                    className="w-full border rounded p-2 mb-3"
+                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={formState.date}
+                    onChange={(e) => setFormState({ ...formState, date: e.target.value })}
+                    className="w-full border rounded p-2 mb-3"
+                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                  <input
+                    type="text"
+                    value={formState.venue}
+                    onChange={(e) => setFormState({ ...formState, venue: e.target.value })}
+                    className="w-full border rounded p-2 mb-3"
+                  />
+                  <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white">Save</Button>
+                  <Button onClick={handleCloseModal} className="ml-2 bg-gray-400 text-white">Cancel</Button>
+                </form>
+              )}
+
+              {modalType === "delete" && selectedTimetable && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4">Delete Exam Timetable</h2>
+                  <p>Are you sure you want to delete this timetable?</p>
+                  <div className="mt-4 flex justify-end space-x-2">
+                    <Button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white">Delete</Button>
+                    <Button onClick={handleCloseModal} className="bg-gray-400 text-white">Cancel</Button>
                   </div>
-                </div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment</label>
-                <div className="relative">
-                  <select
-                    className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
-                    value={formState?.enrollment_id || ""}
-                    onChange={(e) => handleEnrollmentSelect(Number.parseInt(e.target.value))}
-                    required
-                    disabled={!selectedSemester}
-                    style={{ color: "black" }}
-                  >
-                    <option value="" style={{ color: "black", backgroundColor: "white" }}>
-                      Select enrollment
-                    </option>
-                    {filteredEnrollments.length > 0 ? (
-                      filteredEnrollments.map((enrollment) => (
-                        <option
-                          key={enrollment.id}
-                          value={enrollment.id}
-                          style={{ color: "black", backgroundColor: "white", padding: "8px" }}
-                        >
-                          {enrollment.unit_name}
-                        </option>
-                      ))
-                    ) : (
-                      <option disabled style={{ color: "gray", backgroundColor: "white" }}>
-                        No units available for this semester
-                      </option>
-                    )}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
-                  </div>
-                </div>
-                {selectedSemester && (
-                  <div className="text-xs text-blue-600 -mt-2 mb-2">
-                    {filteredEnrollments.length} unit(s) found for this semester
-                  </div>
-                )}
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Name</label>
-                <input
-                  type="text"
-                  value={enrollments.find((e) => e.id === formState?.enrollment_id)?.unit_name || ""}
-                  className="w-full border rounded p-2 mb-3 bg-gray-100"
-                  readOnly
-                />
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot</label>
-                <div className="relative">
-                  <select
-                    className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
-                    value={selectedTimeSlotId || ""}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTimeSlotSelect(Number.parseInt(e.target.value))}
-                    style={{ color: "black" }}
-                  >
-                    <option value="" style={{ color: "black", backgroundColor: "white" }}>
-                      Select time slot
-                    </option>
-                    {timeSlots.map((slot) => (
-                      <option
-                        key={slot.id}
-                        value={slot.id}
-                        style={{ color: "black", backgroundColor: "white", padding: "8px" }}
-                      >
-                        {formatDate(slot.date)} ({slot.day}) - {formatTimeToHi(slot.start_time)} to{" "}
-                        {formatTimeToHi(slot.end_time)}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                    <input
-                      type="text"
-                      placeholder="Day"
-                      value={formState?.day || ""}
-                      onChange={(e) => setFormState((prev) => ({ ...prev!, day: e.target.value }))}
-                      className="w-full border rounded p-2 mb-3 bg-gray-100"
-                      required
-                      readOnly
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={formState?.date || ""}
-                      onChange={(e) => setFormState((prev) => ({ ...prev!, date: e.target.value }))}
-                      className="w-full border rounded p-2 mb-3 bg-gray-100"
-                      required
-                      readOnly
-                    />
-                  </div>
-                </div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">No of Students/Unit</label>
-                <input
-                  type="number"
-                  placeholder="No"
-                  value={formState?.no || ""}
-                  onChange={(e) => setFormState((prev) => ({ ...prev!, no: Number.parseInt(e.target.value) }))}
-                  className="w-full border rounded p-2 mb-3 bg-gray-100"
-                  readOnly
-                />
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Venue & Capacity</label>
-                <div className="relative">
-                  <select
-                    className="w-full border rounded p-2 mb-3 text-gray-800 bg-white appearance-none"
-                    value={selectedClassroom || ""}
-                    onChange={(e) => handleClassroomSelect(Number.parseInt(e.target.value))}
-                    style={{ color: "black" }}
-                  >
-                    <option value="">Select venue</option>
-                    {classrooms.map((classroom) => {
-                      const existingStudents = scheduledStudents[classroom.name] || 0
-                      const remainingCapacity = classroom.capacity - existingStudents
-                      const isSuitable = formState && formState.no > 0 ? remainingCapacity >= formState.no : true
-
-                      return (
-                        <option
-                          key={classroom.id}
-                          value={classroom.id}
-                          style={{
-                            color: isSuitable ? "black" : "red",
-                            backgroundColor: "white",
-                            padding: "8px",
-                          }}
-                        >
-                          {classroom.name} - Capacity: {classroom.capacity} (Available: {remainingCapacity})
-                          {!isSuitable && formState?.no > 0 ? " - INSUFFICIENT CAPACITY" : ""}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </div>
-
-                {remainingCapacity !== null && (
-                  <div
-                    className={`text-xs mb-2 ${remainingCapacity > 0 ? "text-green-600" : "text-red-600 font-bold"}`}
-                  >
-                    {scheduledStudents[formState?.venue || ""] > 0 && (
-                      <>
-                        <span>Currently scheduled: {scheduledStudents[formState?.venue || ""]} students</span>
-                        <br />
-                      </>
-                    )}
-                    {remainingCapacity >= 0
-                      ? `Remaining space: ${remainingCapacity} student${remainingCapacity !== 1 ? "s" : ""}`
-                      : `OVER CAPACITY by ${Math.abs(remainingCapacity)} student${Math.abs(remainingCapacity) !== 1 ? "s" : ""}!`}
-                  </div>
-                )}
-                {formState?.no > 0 &&
-                  !classrooms.some((c) => {
-                    const existingStudents = scheduledStudents[c.name] || 0
-                    return c.capacity - existingStudents >= formState.no
-                  }) && (
-                    <div className="text-xs text-red-600 -mt-2 mb-2">
-                      Warning: No classrooms have sufficient capacity for {formState.no} students at this time slot. You
-                      can still select a venue, but it will exceed capacity.
-                    </div>
-                  )}
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
-                <input
-                  type="text"
-                  placeholder="Chief Invigilator"
-                  value={formState?.chief_invigilator || ""}
-                  onChange={(e) => setFormState((prev) => ({ ...prev!, chief_invigilator: e.target.value }))}
-                  className="w-full border rounded p-2 mb-3"
-                />
-                <button
-                  type="submit"
-                  className={`px-4 py-2 rounded ${
-                    selectedClassroom &&
-                    formState &&
-                    formState.no > 0 &&
-                    (scheduledStudents[classrooms.find((c) => c.id === selectedClassroom)?.name || ""] || 0) +
-                      formState.no >
-                      (classrooms.find((c) => c.id === selectedClassroom)?.capacity || 0)
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  } text-white`}
-                  disabled={
-                    selectedClassroom &&
-                    formState &&
-                    formState.no > 0 &&
-                    (scheduledStudents[classrooms.find((c) => c.id === selectedClassroom)?.name || ""] || 0) +
-                      formState.no >
-                      (classrooms.find((c) => c.id === selectedClassroom)?.capacity || 0)
-                  }
-                >
-                  {selectedClassroom &&
-                  formState &&
-                  formState.no > 0 &&
-                  (scheduledStudents[classrooms.find((c) => c.id === selectedClassroom)?.name || ""] || 0) +
-                    formState.no >
-                    (classrooms.find((c) => c.id === selectedClassroom)?.capacity || 0)
-                    ? "Capacity Exceeded"
-                    : "Submit"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="ml-2 bg-gray-400 text-white px-4 py-2 rounded"
-                >
-                  Cancel
-                </button>
-              </form>
+                </>
+              )}
             </div>
           </div>
         )}

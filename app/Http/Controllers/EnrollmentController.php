@@ -15,6 +15,13 @@ class EnrollmentController extends Controller
 {
     public function index(Request $request)
     {
+        $user = auth()->user();
+        Log::info('Accessing Enrollments', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
         $search = $request->input('search');
 
         $enrollments = Enrollment::with(['student', 'unit', 'semester'])

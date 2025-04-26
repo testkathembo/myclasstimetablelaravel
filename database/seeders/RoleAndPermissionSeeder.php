@@ -47,10 +47,8 @@ class RoleAndPermissionSeeder extends Seeder
             'manage-time-slots',
 
             // Timetable Management
-            'create-timetable',
-            'view-timetable',
-            'edit-timetable',
-            'delete-timetable',
+            'manage-timetable',
+           
 
             // Settings Management
             'manage-settings',
@@ -65,6 +63,12 @@ class RoleAndPermissionSeeder extends Seeder
             // Lecturer and Student-Specific Permissions
             'view-own-timetable',
             'download-own-timetable',
+
+            // Actions
+            'view',
+            'create',
+            'edit',
+            'delete',
         ];
 
         // Create permissions
@@ -78,16 +82,13 @@ class RoleAndPermissionSeeder extends Seeder
 
             'Exam office' => [
                 'view-dashboard',
-                'create-timetable',
-                'view-timetable',
-                'edit-timetable',
+                'manage-timetable',
                 'manage-time-slots',
                 'manage-classrooms',
                 'manage-units',
                 'manage-semesters', // Ensure this permission is included
                 'manage-enrollments',
-                'download-timetable',
-                'process-timetable',
+                
                 'solve-conflicts',
             ],
 

@@ -5,11 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\Faculty;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
 
 class FacultyController extends Controller
 {
     public function index()
     {
+        $user = auth()->user();
+        Log::info('Accessing Faculties', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
         $faculties = Faculty::all();
         return Inertia::render('Faculties/index', ['faculties' => $faculties]);
     }
