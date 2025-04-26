@@ -669,7 +669,7 @@ const ExamTimetable = () => {
                         >
                           Delete
                         </Button>
-                      
+                    
                     </td>
                   </tr>
                 ))}
