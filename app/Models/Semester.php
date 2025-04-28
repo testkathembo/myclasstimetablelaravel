@@ -9,12 +9,23 @@ class Semester extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'group_id'];
+    protected $fillable = ['name'];
 
     public $timestamps = true;
-
-    public function groups()
+    /**
+     * Define the relationship with the Unit model.
+     */
+    public function units()
     {
-        return $this->hasMany(Group::class); // Define relationship with Group
+        return $this->hasMany(Unit::class);
     }
+    public function enrollments()
+    {
+        return $this->hasMany(Enrollment::class);
+    }
+    public function examTimetables()
+    {
+        return $this->hasMany(ExamTimetable::class);
+    }
+      
 }

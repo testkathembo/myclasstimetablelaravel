@@ -19,4 +19,11 @@ class TimeSlot extends Model
         'start_time',
         'end_time',
     ];
+
+    // Define relationships
+    public function examTimetables()
+    {
+        return $this->hasMany(ExamTimetable::class);
+    }
 }
+

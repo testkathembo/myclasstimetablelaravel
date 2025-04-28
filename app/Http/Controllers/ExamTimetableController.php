@@ -10,6 +10,7 @@ use App\Models\Semester;
 use App\Models\Enrollment;
 use App\Models\TimeSlot;
 use App\Models\Classroom;
+use App\Models\Unit;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\TimetableExport;
@@ -50,7 +51,8 @@ class ExamTimetableController extends Controller
                 'exam_timetables.chief_invigilator',
                 'units.name as unit_name',
                 'units.code as unit_code', // Include unit_code
-                'semesters.name as semester_name'
+                'semesters.name as semester_name',
+                'exam_timetables.semester_id'
             )
             ->when($search, function ($query, $search) {
                 return $query->where('exam_timetables.day', 'like', "%{$search}%")
@@ -60,13 +62,30 @@ class ExamTimetableController extends Controller
             })
             ->paginate($perPage);
 
+        // Get all necessary data for the form
         $semesters = Semester::all();
+        $enrollments = Enrollment::all();
+        $classrooms = Classroom::all();
+        $timeSlots = TimeSlot::all();
+        
+        // Fetch units with semester_id
+        $units = Unit::select('id', 'code', 'name', 'semester_id')->get();
+        
+        // Log units for debugging
+        Log::info('Units data for exam timetable', [
+            'units_count' => $units->count(),
+            'units' => $units->toArray(),
+        ]);
 
         return Inertia::render('ExamTimetable/index', [
             'examTimetables' => $examTimetables,
             'perPage' => $perPage,
             'search' => $search,
             'semesters' => $semesters,
+            'enrollments' => $enrollments,
+            'classrooms' => $classrooms,
+            'timeSlots' => $timeSlots,
+            'units' => $units,
             'can' => [
                 'create' => auth()->user()->can('create-timetable'),
                 'edit' => auth()->user()->can('edit-timetable'),
@@ -86,22 +105,17 @@ class ExamTimetableController extends Controller
         }
 
         $validated = $request->validate([
-            'enrollment_id' => 'required|exists:enrollments,id',
             'semester_id' => 'required|exists:semesters,id',
+            'unit_id' => 'required|exists:units,id',
             'day' => 'required|string',
             'date' => 'required|date',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
-            'group' => 'nullable|string',
             'venue' => 'required|string',
             'location' => 'nullable|string',
             'no' => 'required|integer',
             'chief_invigilator' => 'required|string',
         ]);
-
-        // Rest of your store method remains the same...
-        // Get the unit_id from the enrollment
-        $enrollment = Enrollment::find($validated['enrollment_id']);
         
         // Get the classroom capacity
         $classroom = Classroom::where('name', $validated['venue'])->first();
@@ -130,9 +144,6 @@ class ExamTimetableController extends Controller
         // Calculate total students already scheduled
         $totalStudents = $conflictingExams->sum('no');
         
-        // Add this right before the capacity check
-        \Log::debug("Exam scheduling validation: Venue: {$validated['venue']}, Capacity: {$classroom->capacity}, Current students: {$totalStudents}, New students: {$validated['no']}, Total: " . ($totalStudents + $validated['no']));
-
         // Check if adding this exam would exceed classroom capacity
         if ($totalStudents + $validated['no'] > $classroom->capacity) {
             return redirect()->back()->with('error', 
@@ -142,26 +153,31 @@ class ExamTimetableController extends Controller
             )->withInput();
         }
         
-        // Create the data to be stored
-        $data = [
-            'semester_id' => $validated['semester_id'],
-            'unit_id' => $enrollment->unit_id,
-            'day' => $validated['day'],
-            'date' => $validated['date'],
-            'start_time' => $validated['start_time'],
-            'end_time' => $validated['end_time'],
-            'group' => $validated['group'] ?? '',
-            'venue' => $validated['venue'],
-            'no' => $validated['no'],
-            'chief_invigilator' => $validated['chief_invigilator'],
-        ];
-
-        // Add location if it exists in the request
-        if (isset($validated['location'])) {
-            $data['location'] = $validated['location'];
+        // Check for unit conflicts (same unit scheduled at the same time)
+        $unitConflicts = ExamTimetable::where('unit_id', $validated['unit_id'])
+            ->where('date', $validated['date'])
+            ->where(function($query) use ($validated) {
+                $query->where(function($q) use ($validated) {
+                    $q->where('start_time', '<=', $validated['start_time'])
+                      ->where('end_time', '>', $validated['start_time']);
+                })->orWhere(function($q) use ($validated) {
+                    $q->where('start_time', '<', $validated['end_time'])
+                      ->where('end_time', '>=', $validated['end_time']);
+                })->orWhere(function($q) use ($validated) {
+                    $q->where('start_time', '>=', $validated['start_time'])
+                      ->where('end_time', '<=', $validated['end_time']);
+                });
+            })
+            ->get();
+            
+        if ($unitConflicts->count() > 0) {
+            return redirect()->back()->with('error', 
+                "Cannot schedule this exam. This unit already has an exam scheduled at this time."
+            )->withInput();
         }
-
-        ExamTimetable::create($data);
+        
+        // Create the exam timetable
+        ExamTimetable::create($validated);
 
         return redirect()->back()->with('success', 'Exam timetable created successfully.');
     }
@@ -173,23 +189,18 @@ class ExamTimetableController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        // Rest of your update method remains the same...
         $validated = $request->validate([
-            'enrollment_id' => 'required|exists:enrollments,id',
             'semester_id' => 'required|exists:semesters,id',
+            'unit_id' => 'required|exists:units,id',
             'day' => 'required|string',
             'date' => 'required|date',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
-            'group' => 'nullable|string',
             'venue' => 'required|string',
             'location' => 'nullable|string',
             'no' => 'required|integer',
             'chief_invigilator' => 'required|string',
         ]);
-
-        // Get the unit_id from the enrollment
-        $enrollment = Enrollment::find($validated['enrollment_id']);
         
         // Get the classroom capacity
         $classroom = Classroom::where('name', $validated['venue'])->first();
@@ -219,9 +230,6 @@ class ExamTimetableController extends Controller
         // Calculate total students already scheduled
         $totalStudents = $conflictingExams->sum('no');
         
-        // Add this right before the capacity check
-        \Log::debug("Exam scheduling validation: Venue: {$validated['venue']}, Capacity: {$classroom->capacity}, Current students: {$totalStudents}, New students: {$validated['no']}, Total: " . ($totalStudents + $validated['no']));
-
         // Check if updating this exam would exceed classroom capacity
         if ($totalStudents + $validated['no'] > $classroom->capacity) {
             return redirect()->back()->with('error', 
@@ -231,27 +239,33 @@ class ExamTimetableController extends Controller
             )->withInput();
         }
         
-        // Create the data to be updated
-        $data = [
-            'semester_id' => $validated['semester_id'],
-            'unit_id' => $enrollment->unit_id,
-            'day' => $validated['day'],
-            'date' => $validated['date'],
-            'start_time' => $validated['start_time'],
-            'end_time' => $validated['end_time'],
-            'group' => $validated['group'] ?? '',
-            'venue' => $validated['venue'],
-            'no' => $validated['no'],
-            'chief_invigilator' => $validated['chief_invigilator'],
-        ];
-
-        // Add location if it exists in the request
-        if (isset($validated['location'])) {
-            $data['location'] = $validated['location'];
+        // Check for unit conflicts (same unit scheduled at the same time), excluding the current exam
+        $unitConflicts = ExamTimetable::where('id', '!=', $id)
+            ->where('unit_id', $validated['unit_id'])
+            ->where('date', $validated['date'])
+            ->where(function($query) use ($validated) {
+                $query->where(function($q) use ($validated) {
+                    $q->where('start_time', '<=', $validated['start_time'])
+                      ->where('end_time', '>', $validated['start_time']);
+                })->orWhere(function($q) use ($validated) {
+                    $q->where('start_time', '<', $validated['end_time'])
+                      ->where('end_time', '>=', $validated['end_time']);
+                })->orWhere(function($q) use ($validated) {
+                    $q->where('start_time', '>=', $validated['start_time'])
+                      ->where('end_time', '<=', $validated['end_time']);
+                });
+            })
+            ->get();
+            
+        if ($unitConflicts->count() > 0) {
+            return redirect()->back()->with('error', 
+                "Cannot schedule this exam. This unit already has an exam scheduled at this time."
+            )->withInput();
         }
-
+        
+        // Update the exam timetable
         $timetable = ExamTimetable::findOrFail($id);
-        $timetable->update($data);
+        $timetable->update($validated);
 
         return redirect()->back()->with('success', 'Exam timetable updated successfully.');
     }
@@ -269,129 +283,95 @@ class ExamTimetableController extends Controller
         return redirect()->route('exam-timetable.index')->with('success', 'Exam timetable deleted successfully.');
     }
     
-    // Add methods for role-specific views
+    // API endpoints for the frontend
     
-    // For all authenticated users with proper permissions
-    public function view(Request $request)
+    public function getTimeSlots()
     {
-        // Check if user has permission to view timetables
-        if (!auth()->user()->can('view-timetable') && 
-            !auth()->user()->can('view-own-timetable')) {
-            abort(403, 'Unauthorized action.');
-        }
+        return response()->json(TimeSlot::all());
+    }
+    
+    public function getUnitsBySemester($semesterId)
+    {
+        // Log the request for debugging
+        Log::info('Fetching units for semester', ['semester_id' => $semesterId]);
         
-        $semester_id = $request->input('semester_id');
-        $query = ExamTimetable::query()
-            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
-            ->select('exam_timetables.*', 'units.name as unit_name');
+        // Get units for this semester
+        $units = Unit::where('semester_id', $semesterId)->get();
+        
+        // Log the results
+        Log::info('Units found for semester', [
+            'semester_id' => $semesterId,
+            'count' => $units->count(),
+            'units' => $units->toArray()
+        ]);
+        
+        return response()->json($units);
+    }
+    
+    public function getEnrollmentCount($unitId, $semesterId)
+    {
+        $enrollment = Enrollment::where('unit_id', $unitId)
+            ->where('semester_id', $semesterId)
+            ->first();
             
-        if ($semester_id) {
-            $query->where('exam_timetables.semester_id', $semester_id);
-        }
-        
-        // Filter based on user role
-        $user = auth()->user();
-        if ($user->hasRole('Faculty Admin')) {
-            $faculty = $user->faculty;
-            $query->whereHas('unit', function($q) use ($faculty) {
-                $q->where('faculty', $faculty);
-            });
-        } elseif ($user->hasRole('Lecturer')) {
-            $lecturerId = $user->id;
-            $query->whereHas('unit.enrollments', function($q) use ($lecturerId) {
-                $q->where('lecturer_id', $lecturerId);
-            });
-        } elseif ($user->hasRole('Student')) {
-            $studentId = $user->id;
-            $query->whereHas('unit.enrollments', function($q) use ($studentId) {
-                $q->where('student_id', $studentId);
-            });
-        }
-        
-        $timetables = $query->get();
-        $semesters = Semester::all();
-        
-        return Inertia::render('ExamTimetable/View', [
-            'timetables' => $timetables,
-            'semesters' => $semesters,
-            'current_semester' => $semester_id,
-            'can' => [
-                'download' => $user->can('download-timetable') || 
-                              $user->can('download-own-timetable') || 
-                              $user->can('download-faculty-timetable'),
-            ]
+        return response()->json([
+            'count' => $enrollment ? $enrollment->student_count : 0
         ]);
     }
     
-    // For lecturers
-    public function viewLecturerTimetable(Request $request)
+    public function checkVenueCapacity(Request $request)
     {
-        // Check role and permission
-        if (!auth()->user()->hasRole('Lecturer') || 
-            !auth()->user()->can('view-own-timetable')) {
-            abort(403, 'Unauthorized action.');
-        }
-        
-        $lecturerId = auth()->id();
-        $semester_id = $request->input('semester_id');
-        
-        $query = ExamTimetable::query()
-            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
-            ->select('exam_timetables.*', 'units.name as unit_name')
-            ->whereHas('unit.enrollments', function($q) use ($lecturerId) {
-                $q->where('lecturer_id', $lecturerId);
-            });
-            
-        if ($semester_id) {
-            $query->where('exam_timetables.semester_id', $semester_id);
-        }
-        
-        $timetables = $query->get();
-        $semesters = Semester::all();
-        
-        return Inertia::render('Lecturer/Timetable', [
-            'timetables' => $timetables,
-            'semesters' => $semesters,
-            'current_semester' => $semester_id,
-            'can' => [
-                'download' => auth()->user()->can('download-own-timetable'),
-            ]
+        $validated = $request->validate([
+            'venue' => 'required|string',
+            'date' => 'required|date',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i',
+            'student_count' => 'required|integer',
+            'exam_id' => 'nullable|integer' // For excluding current exam when editing
         ]);
-    }
-    
-    // For students
-    public function viewStudentTimetable(Request $request)
-    {
-        // Check role and permission
-        if (!auth()->user()->hasRole('Student') || 
-            !auth()->user()->can('view-own-timetable')) {
-            abort(403, 'Unauthorized action.');
+        
+        $classroom = Classroom::where('name', $validated['venue'])->first();
+        
+        if (!$classroom) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Classroom not found.'
+            ], 404);
         }
         
-        $studentId = auth()->id();
-        $semester_id = $request->input('semester_id');
-        
-        $query = ExamTimetable::query()
-            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
-            ->select('exam_timetables.*', 'units.name as unit_name')
-            ->whereHas('unit.enrollments', function($q) use ($studentId) {
-                $q->where('student_id', $studentId);
+        // Check for time conflicts in the same venue
+        $query = ExamTimetable::where('venue', $validated['venue'])
+            ->where('date', $validated['date'])
+            ->where(function($q) use ($validated) {
+                $q->where(function($subq) use ($validated) {
+                    $subq->where('start_time', '<=', $validated['start_time'])
+                        ->where('end_time', '>', $validated['start_time']);
+                })->orWhere(function($subq) use ($validated) {
+                    $subq->where('start_time', '<', $validated['end_time'])
+                        ->where('end_time', '>=', $validated['end_time']);
+                })->orWhere(function($subq) use ($validated) {
+                    $subq->where('start_time', '>=', $validated['start_time'])
+                        ->where('end_time', '<=', $validated['end_time']);
+                });
             });
             
-        if ($semester_id) {
-            $query->where('exam_timetables.semester_id', $semester_id);
+        // Exclude current exam if editing
+        if (isset($validated['exam_id'])) {
+            $query->where('id', '!=', $validated['exam_id']);
         }
         
-        $timetables = $query->get();
-        $semesters = Semester::all();
+        $conflictingExams = $query->get();
+        $totalStudents = $conflictingExams->sum('no');
         
-        return Inertia::render('Student/Timetable', [
-            'timetables' => $timetables,
-            'semesters' => $semesters,
-            'current_semester' => $semester_id,
-            'can' => [
-                'download' => auth()->user()->can('download-own-timetable'),
-            ]
+        $hasCapacity = ($totalStudents + $validated['student_count']) <= $classroom->capacity;
+        
+        return response()->json([
+            'success' => true,
+            'has_capacity' => $hasCapacity,
+            'classroom_capacity' => $classroom->capacity,
+            'current_students' => $totalStudents,
+            'total_students' => $totalStudents + $validated['student_count'],
+            'exceeding_by' => $hasCapacity ? 0 : ($totalStudents + $validated['student_count'] - $classroom->capacity)
         ]);
     }
     
@@ -423,57 +403,6 @@ class ExamTimetableController extends Controller
         return redirect()->back()->with('success', 'Conflicts resolved successfully.');
     }
     
-    // Download methods for different roles
-    
-    public function downloadLecturerTimetable(Request $request)
-    {
-        // Check role and permission
-        if (!auth()->user()->hasRole('Lecturer') || 
-            !auth()->user()->can('download-own-timetable')) {
-            abort(403, 'Unauthorized action.');
-        }
-        
-        // Download logic for lecturer timetable
-        // TODO: Implement PDF generation or Excel export
-        
-        return response()->download($pathToFile, 'lecturer-timetable.pdf');
-    }
-    
-    public function downloadStudentTimetable(Request $request)
-    {
-        $user = auth()->user();
-        Log::info('Downloading Student Timetable', [
-            'user_id' => $user->id,
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
-
-        // Check role and permission
-        if (!auth()->user()->hasRole('Student') || 
-            !auth()->user()->can('download-own-timetable')) {
-            abort(403, 'Unauthorized action.');
-        }
-        
-        // Download logic for student timetable
-        // TODO: Implement PDF generation or Excel export
-        
-        return response()->download($pathToFile, 'student-timetable.pdf');
-    }
-    
-    public function downloadFacultyTimetable(Request $request)
-    {
-        // Check role and permission
-        if (!auth()->user()->hasRole('Faculty Admin') || 
-            !auth()->user()->can('download-faculty-timetable')) {
-            abort(403, 'Unauthorized action.');
-        }
-        
-        // Download logic for faculty timetable
-        // TODO: Implement PDF generation or Excel export
-        
-        return response()->download($pathToFile, 'faculty-timetable.pdf');
-    }
-    
     public function downloadTimetable(Request $request)
     {
         $timetables = ExamTimetable::with(['unit', 'semester'])->get(); // Eager-load unit and semester relationships
@@ -496,33 +425,5 @@ class ExamTimetableController extends Controller
         ]);
 
         return $pdf->download('exam-timetable.pdf');
-    }
-
-    // Helper function to check for time overlap
-    private function checkTimeOverlap($exam1, $exam2)
-    {
-        // Convert times to minutes for easier comparison
-        $start1 = $this->timeToMinutes($exam1['start_time']);
-        $end1 = $this->timeToMinutes($exam1['end_time']);
-        $start2 = $this->timeToMinutes($exam2['start_time']);
-        $end2 = $this->timeToMinutes($exam2['end_time']);
-        
-        // Check for overlap
-        return ($start1 < $end2 && $start2 < $end1);
-    }
-
-    private function timeToMinutes($time)
-    {
-        list($hours, $minutes) = explode(':', $time);
-        return ($hours * 60) + $minutes;
-    }
-
-    public function show($id)
-    {
-        $timetable = ExamTimetable::with(['unit', 'semester'])->findOrFail($id);
-
-        return Inertia::render('ExamTimetable/View', [
-            'timetable' => $timetable,
-        ]);
     }
 }

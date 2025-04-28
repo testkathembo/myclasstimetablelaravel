@@ -223,6 +223,9 @@ Route::post('/assign-lecturers', [App\Http\Controllers\EnrollmentController::cla
 Route::delete('/assign-lecturers/{unitId}', [App\Http\Controllers\EnrollmentController::class, 'destroyLecturerAssignment'])->name('destroy-lecturer-assignment');
 Route::get('/lecturer-units/{lecturerId}', [App\Http\Controllers\EnrollmentController::class, 'getLecturerUnits'])->name('lecturer-units');
 
+ // API routes that should be accessible without API middleware
+ Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySemester'])->name('units.by-semester');
+
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');

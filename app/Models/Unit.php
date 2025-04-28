@@ -9,16 +9,34 @@ class Unit extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['code', 'name', 'semester_id', 'lecturer_id'];
+    // Make sure the Unit model has the correct table name and fillable fields
+    protected $table = 'units';
 
+    protected $fillable = [
+        'code',
+        'name',
+        'semester_id',
+        // Add other fields as needed
+    ];
+
+    // Make sure the casts are defined correctly
+    protected $casts = [
+        'semester_id' => 'integer', // Ensure semester_id is cast to integer
+    ];
+
+    // Define relationships
     public function semester()
     {
         return $this->belongsTo(Semester::class);
     }
 
-    public function lecturer()
+    public function enrollments()
     {
-        return $this->belongsTo(User::class, 'lecturer_id')->where('user_role', 'lecturer');
+        return $this->hasMany(Enrollment::class);
+    }
+
+    public function examTimetables()
+    {
+        return $this->hasMany(ExamTimetable::class);
     }
 }
-
