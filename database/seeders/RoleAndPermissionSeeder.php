@@ -65,10 +65,24 @@ class RoleAndPermissionSeeder extends Seeder
             'download-own-timetable',
 
             // Actions
-            'view',
-            'create',
-            'edit',
-            'delete',
+            'create-timetable',
+            'edit-timetable',
+            'delete-timetable',
+
+            // Enrollment Actions
+            'enroll-students',
+            'unenroll-students',
+
+            // Timetable Actions
+            'generate-timetable',
+            'export-timetable',
+            'import-timetable',
+
+            // Notification Management
+            'manage-notifications',
+
+            // Report Management
+            'generate-reports',
         ];
 
         // Create permissions
