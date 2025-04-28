@@ -32,11 +32,10 @@ interface Enrollment {
   lecturer_id: number | null
   created_at: string
   updated_at: string
-  // These fields might not exist in your actual data structure
-  unit_name?: string
-  unit_code?: string
-  student_count?: number
   lecturer_name?: string | null
+  lecturer_user_id?: number | null
+  unit_code?: string
+  unit_name?: string
 }
 
 interface Classroom {
@@ -64,6 +63,11 @@ interface Unit {
   code: string
   name: string
   semester_id: number
+}
+
+interface Lecturer {
+  id: number
+  name: string
 }
 
 interface PaginationLinks {
@@ -96,6 +100,8 @@ interface FormState {
   unit_code?: string
   unit_name?: string
   timeslot_id?: number
+  lecturer_id?: number | null
+  lecturer_name?: string | null
 }
 
 // Helper function to ensure time is in H:i format
@@ -147,6 +153,7 @@ const ExamTimetable = () => {
     classrooms = [],
     timeSlots = [],
     units = [],
+    lecturers = [],
   } = usePage().props as unknown as {
     examTimetables: PaginatedExamTimetables
     perPage: number
@@ -156,6 +163,7 @@ const ExamTimetable = () => {
     classrooms: Classroom[]
     timeSlots: TimeSlot[]
     units: Unit[]
+    lecturers: Lecturer[]
     can: {
       create: boolean
       edit: boolean
@@ -178,6 +186,7 @@ const ExamTimetable = () => {
   const [conflictWarning, setConflictWarning] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
 
   // Initialize available timeslots
   useEffect(() => {
@@ -189,7 +198,8 @@ const ExamTimetable = () => {
   // Debug enrollments data structure
   useEffect(() => {
     console.log("Enrollments data structure:", enrollments.slice(0, 3))
-  }, [enrollments])
+    console.log("Lecturers:", lecturers)
+  }, [enrollments, lecturers])
 
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", timetable: ExamTimetable | null) => {
     setModalType(type)
@@ -197,6 +207,7 @@ const ExamTimetable = () => {
     setCapacityWarning(null)
     setConflictWarning(null)
     setErrorMessage(null)
+    setUnitLecturers([])
 
     if (type === "create") {
       setFormState({
@@ -215,6 +226,8 @@ const ExamTimetable = () => {
         unit_code: "",
         unit_name: "",
         timeslot_id: 0,
+        lecturer_id: null,
+        lecturer_name: "",
       })
       // Reset filtered units
       setFilteredUnits([])
@@ -231,17 +244,29 @@ const ExamTimetable = () => {
           ts.end_time === timetable.end_time,
       )
 
+      // Find lecturer for this unit
+      const unitEnrollment = enrollments.find(
+        (e) => e.unit_code === timetable.unit_code && Number(e.semester_id) === Number(timetable.semester_id),
+      )
+
       setFormState({
         ...timetable,
-        enrollment_id: 0,
+        enrollment_id: unitEnrollment?.id || 0,
         unit_id: unit?.id || 0,
         timeslot_id: timeSlot?.id || 0,
+        lecturer_id: unitEnrollment?.lecturer_id || null,
+        lecturer_name: unitEnrollment?.lecturer_name || "",
       })
 
       // Filter units for the selected semester
       if (timetable.semester_id) {
         const semesterUnits = units.filter((unit) => unit.semester_id === timetable.semester_id)
         setFilteredUnits(semesterUnits)
+
+        // Find lecturers for this unit
+        if (unit) {
+          findLecturersForUnit(unit.id, timetable.semester_id)
+        }
       }
     }
 
@@ -256,6 +281,7 @@ const ExamTimetable = () => {
     setCapacityWarning(null)
     setConflictWarning(null)
     setErrorMessage(null)
+    setUnitLecturers([])
   }
 
   const handleDelete = () => {
@@ -353,11 +379,35 @@ const ExamTimetable = () => {
     }
   }
 
+  const findLecturersForUnit = (unitId: number, semesterId: number) => {
+    // Find all enrollments for this unit in the selected semester
+    const unitEnrollments = enrollments.filter(
+      (e) => e.unit_id === unitId && Number(e.semester_id) === Number(semesterId) && e.lecturer_id,
+    )
+
+    // Extract unique lecturers
+    const uniqueLecturerIds = Array.from(new Set(unitEnrollments.map((e) => e.lecturer_id).filter(Boolean)))
+
+    // Find lecturer details
+    const unitLecturersList = lecturers.filter((l) => uniqueLecturerIds.includes(l.id))
+
+    console.log(
+      `Found ${unitLecturersList.length} lecturers for unit ID ${unitId} in semester ${semesterId}:`,
+      unitLecturersList,
+    )
+
+    setUnitLecturers(unitLecturersList)
+
+    // Return the first lecturer if available
+    return unitLecturersList.length > 0 ? unitLecturersList[0] : null
+  }
+
   const handleSemesterChange = (semesterId: number | string) => {
     if (!formState) return
 
     setIsLoading(true)
     setErrorMessage(null)
+    setUnitLecturers([])
 
     // Ensure semesterId is a number
     const numericSemesterId = Number(semesterId)
@@ -377,6 +427,9 @@ const ExamTimetable = () => {
       unit_code: "",
       unit_name: "",
       no: 0,
+      lecturer_id: null,
+      lecturer_name: "",
+      chief_invigilator: "",
     }))
 
     console.log(`Selected semester ID: ${numericSemesterId}`)
@@ -459,32 +512,59 @@ const ExamTimetable = () => {
   }, [units])
 
   const handleUnitChange = (unitId: number) => {
-    if (!formState) return
+    if (!formState) return;
 
-    const selectedUnit = units.find((u) => u.id === Number(unitId))
+    const selectedUnit = units.find((u) => u.id === Number(unitId));
     if (selectedUnit) {
-      // Find enrollment for this unit to get student count
-      const unitEnrollment = enrollments.find(
-        (e) => e.unit_id === selectedUnit.id && e.semester_id === formState.semester_id,
-      )
+      // Find enrollments for this unit in the selected semester
+      const unitEnrollments = enrollments.filter(
+        (e) => e.unit_id === selectedUnit.id && Number(e.semester_id) === Number(formState.semester_id),
+      );
+
+      // Count unique students enrolled in this unit
+      const studentCount = unitEnrollments.length;
+
+      // Find the lecturer for this unit
+      const lecturerEnrollment = unitEnrollments.find((e) => e.lecturer_name);
+      const lecturerName = lecturerEnrollment?.lecturer_name || "";
+
+      console.log(
+        `Found ${studentCount} students enrolled in unit ${selectedUnit.code} for semester ${formState.semester_id}`,
+      );
+      console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`);
 
       setFormState((prev) => ({
         ...prev!,
         unit_id: Number(unitId),
         unit_code: selectedUnit.code,
         unit_name: selectedUnit.name,
-        no: unitEnrollment ? 1 : 0, // Default to 1 student if enrollment exists
-      }))
+        no: studentCount, // Set the actual count of enrolled students
+        chief_invigilator: lecturerName || prev!.chief_invigilator, // Set lecturer as chief invigilator if available
+      }));
 
       // Check venue capacity if venue is already selected
       if (formState.venue) {
-        checkVenueCapacity(formState.venue, unitEnrollment ? 1 : 0)
+        checkVenueCapacity(formState.venue, studentCount);
       }
 
       // Check for conflicts if we have enough data
       if (formState.date && formState.start_time && formState.end_time && formState.venue) {
-        checkForConflicts(formState.date, formState.start_time, formState.end_time, Number(unitId), formState.venue)
+        checkForConflicts(formState.date, formState.start_time, formState.end_time, Number(unitId), formState.venue);
       }
+    }
+  };
+
+  const handleLecturerChange = (lecturerId: number) => {
+    if (!formState) return
+
+    const selectedLecturer = lecturers.find((l) => l.id === Number(lecturerId))
+    if (selectedLecturer) {
+      setFormState((prev) => ({
+        ...prev!,
+        lecturer_id: Number(lecturerId),
+        lecturer_name: selectedLecturer.name,
+        chief_invigilator: selectedLecturer.name, // Update chief invigilator with lecturer name
+      }))
     }
   }
 
@@ -594,6 +674,10 @@ const ExamTimetable = () => {
       return
     }
 
+    // Ensure time fields are in H:i format
+    const formattedStartTime = formatTimeToHi(formState.start_time)
+    const formattedEndTime = formatTimeToHi(formState.end_time)
+
     // Prepare data for submission
     const submissionData = {
       enrollment_id: formState.enrollment_id,
@@ -601,12 +685,13 @@ const ExamTimetable = () => {
       unit_id: formState.unit_id,
       day: formState.day,
       date: formState.date,
-      start_time: formState.start_time,
-      end_time: formState.end_time,
+      start_time: formattedStartTime, // Use formatted time
+      end_time: formattedEndTime,     // Use formatted time
       venue: formState.venue,
       location: formState.location,
       no: formState.no,
       chief_invigilator: formState.chief_invigilator,
+      lecturer_id: formState.lecturer_id,
     }
 
     if (modalType === "create") {
@@ -961,6 +1046,24 @@ const ExamTimetable = () => {
                       </div>
                     </div>
 
+                    {unitLecturers.length > 0 && (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
+                        <select
+                          value={formState.lecturer_id || ""}
+                          onChange={(e) => handleLecturerChange(Number(e.target.value))}
+                          className="w-full border rounded p-2 mb-3"
+                        >
+                          <option value="">Select Lecturer</option>
+                          {unitLecturers.map((lecturer) => (
+                            <option key={lecturer.id} value={lecturer.id}>
+                              {lecturer.name}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+
                     <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
                     <select
                       value={formState.venue}
@@ -1165,6 +1268,24 @@ const ExamTimetable = () => {
                         />
                       </div>
                     </div>
+
+                    {unitLecturers.length > 0 && (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
+                        <select
+                          value={formState.lecturer_id || ""}
+                          onChange={(e) => handleLecturerChange(Number(e.target.value))}
+                          className="w-full border rounded p-2 mb-3"
+                        >
+                          <option value="">Select Lecturer</option>
+                          {unitLecturers.map((lecturer) => (
+                            <option key={lecturer.id} value={lecturer.id}>
+                              {lecturer.name}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
                     <select

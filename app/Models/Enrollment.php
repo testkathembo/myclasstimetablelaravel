@@ -28,6 +28,6 @@ class Enrollment extends Model
 
     public function lecturer()
     {
-        return $this->belongsTo(User::class); // Filter by user_role
+        return $this->belongsTo(User::class, 'lecturer_id'); // Define relationship with User model
     }
 }

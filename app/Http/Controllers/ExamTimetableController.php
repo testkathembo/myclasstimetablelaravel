@@ -64,13 +64,27 @@ class ExamTimetableController extends Controller
 
         // Get all necessary data for the form
         $semesters = Semester::all();
-        $enrollments = Enrollment::all();
         $classrooms = Classroom::all();
         $timeSlots = TimeSlot::all();
         
         // Fetch units with semester_id
         $units = Unit::select('id', 'code', 'name', 'semester_id')->get();
         
+        // Fetch enrollments with lecturer's full name
+        $enrollments = Enrollment::query()
+            ->leftJoin('users as lecturers', 'enrollments.lecturer_id', '=', 'lecturers.id')
+            ->select(
+                'enrollments.*',
+                DB::raw("CONCAT(lecturers.first_name, ' ', lecturers.last_name) as lecturer_name") // Construct lecturer's full name
+            )
+            ->get();
+
+        // Log enrollments for debugging
+        Log::info('Enrollments data for exam timetable', [
+            'enrollments_count' => $enrollments->count(),
+            'sample_enrollments' => $enrollments->take(5)->toArray(),
+        ]);
+
         // Log units for debugging
         Log::info('Units data for exam timetable', [
             'units_count' => $units->count(),
@@ -109,8 +123,8 @@ class ExamTimetableController extends Controller
             'unit_id' => 'required|exists:units,id',
             'day' => 'required|string',
             'date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'start_time' => 'required|date_format:H:i', // Validate H:i format
+            'end_time' => 'required|date_format:H:i|after:start_time', // Validate H:i format and ensure end_time is after start_time
             'venue' => 'required|string',
             'location' => 'nullable|string',
             'no' => 'required|integer',
@@ -194,8 +208,8 @@ class ExamTimetableController extends Controller
             'unit_id' => 'required|exists:units,id',
             'day' => 'required|string',
             'date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'start_time' => 'required|date_format:H:i', // Validate H:i format
+            'end_time' => 'required|date_format:H:i|after:start_time', // Validate H:i format and ensure end_time is after start_time
             'venue' => 'required|string',
             'location' => 'nullable|string',
             'no' => 'required|integer',
@@ -280,7 +294,8 @@ class ExamTimetableController extends Controller
         $timetable = ExamTimetable::findOrFail($id);
         $timetable->delete();
 
-        return redirect()->route('exam-timetable.index')->with('success', 'Exam timetable deleted successfully.');
+        // Redirect to the correct route after deletion
+        return redirect()->route('exam-timetables.index')->with('success', 'Exam timetable deleted successfully.');
     }
     
     // API endpoints for the frontend

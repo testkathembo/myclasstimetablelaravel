@@ -18,8 +18,7 @@ return new class extends Migration
             $table->date('date');
             $table->string('day');
             $table->time('start_time');
-            $table->time('end_time');
-            $table->string('group')->nullable();
+            $table->time('end_time');         
             $table->string('venue')->nullable();
             $table->integer('no')->nullable();
             $table->string('chief_invigilator')->nullable();

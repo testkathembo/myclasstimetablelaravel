@@ -147,13 +147,8 @@ Route::middleware(['auth', 'role:Admin|Exam office'])->group(function () {
     Route::get('/exam-office', fn() => Inertia::render('ExamOffice/Dashboard'))->name('exam-office.dashboard');
 
     // Timetable management
-    Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetables.index');
-    Route::post('/exam-timetables', [ExamTimetableController::class, 'store'])->name('examtimetables.store');
-    Route::get('/exam-timetables/{id}', [ExamTimetableController::class, 'show'])->name('exam-timetables.show'); // View
-    Route::put('/exam-timetables/{id}', [ExamTimetableController::class, 'update'])->name('exam-timetables.update'); // Edit
-    Route::delete('/exam-timetables/{id}', [ExamTimetableController::class, 'destroy'])->name('exam-timetables.destroy'); // Delete
+    Route::resource('exam-timetables', ExamTimetableController::class);
 
-    // Process timetable and solve conflicts
     Route::get('/process-timetable', [ExamTimetableController::class, 'processForm'])->name('timetables.process-form');
     Route::post('/process-timetable', [ExamTimetableController::class, 'process'])->name('timetables.process');
     Route::get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('timetables.conflicts');
