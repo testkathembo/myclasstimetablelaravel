@@ -14,7 +14,7 @@ class ExamTimetable extends Model
         'semester_id',
         'unit_id',
         'day',
-        'date',
+        'date', // Use 'date' for the exam date
         'start_time',
         'end_time',
         'venue',

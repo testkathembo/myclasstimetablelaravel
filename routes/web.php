@@ -18,6 +18,8 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\LecturerController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExamOfficeController;
 
 // ✅ Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -26,15 +28,17 @@ require __DIR__.'/auth.php';
 
 // ✅ Authenticated routes
 Route::middleware(['auth'])->group(function () {
+    // Add a unified dashboard route that will render a single dashboard with role-based content
+    Route::get('/unified-dashboard', [DashboardController::class, 'index'])->name('unified-dashboard');
 
-     // Semesters management
-     Route::get('/all-semesters', [SemesterController::class, 'index'])->name('semesters.index');
-     Route::get('/all-semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
-     Route::post('/all-semesters', [SemesterController::class, 'store'])->name('semesters.store');
-     Route::get('/all-semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
-     Route::match(['PUT', 'PATCH'], '/all-semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
-     Route::delete('/all-semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
- 
+    // Semesters management
+    Route::get('/all-semesters', [SemesterController::class, 'index'])->name('semesters.index');
+    Route::get('/all-semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
+    Route::post('/all-semesters', [SemesterController::class, 'store'])->name('semesters.store');
+    Route::get('/all-semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
+    Route::match(['PUT', 'PATCH'], '/all-semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
+    Route::delete('/all-semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
+
     Route::get('/user/roles-permissions', [UserController::class, 'getUserRolesAndPermissions'])->name('user.roles-permissions');
     // Profile routes (accessible to all authenticated users)
     Route::prefix('profile')->group(function () {
@@ -78,8 +82,11 @@ Route::middleware(['auth'])->group(function () {
 
 // ✅ Admin Routes - Admin role bypasses permission checks
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-
+    // Option 1: Keep the original dashboard
     Route::get('/admin', fn() => Inertia::render('Admin/Dashboard'))->name('admin.dashboard');
+    
+    // Option 2: Use the unified dashboard (uncomment to use)
+    // Route::get('/admin', [DashboardController::class, 'index'])->name('admin.dashboard');
 
     // Users management
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -144,7 +151,11 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
 
 // ✅ Exam Office and Admin Routes
 Route::middleware(['auth', 'role:Admin|Exam office'])->group(function () {
+    // Option 1: Keep the original dashboard
     Route::get('/exam-office', fn() => Inertia::render('ExamOffice/Dashboard'))->name('exam-office.dashboard');
+    
+    // Option 2: Use the unified dashboard (uncomment to use)
+    // Route::get('/exam-office', [DashboardController::class, 'index'])->name('exam-office.dashboard');
 
     // Timetable management
     Route::resource('exam-timetables', ExamTimetableController::class);
@@ -157,9 +168,18 @@ Route::middleware(['auth', 'role:Admin|Exam office'])->group(function () {
     Route::get('/download-timetable', [ExamTimetableController::class, 'downloadTimetable'])->name('timetable.download');
 });
 
+// ✅ Exam Office Routes
+Route::middleware(['auth', 'role:Exam office'])->group(function () {
+    Route::get('/exam-office/dashboard', [ExamOfficeController::class, 'dashboard'])->name('exam-office.dashboard');
+});
+
 // ✅ Faculty Admin Routes
 Route::middleware(['auth', 'role:Faculty Admin', 'permission:view-dashboard'])->group(function () {
+    // Option 1: Keep the original dashboard
     Route::get('/faculty-admin', fn() => Inertia::render('FacultyAdmin/Dashboard'))->name('faculty-admin.dashboard');
+    
+    // Option 2: Use the unified dashboard (uncomment to use)
+    // Route::get('/faculty-admin', [DashboardController::class, 'index'])->name('faculty-admin.dashboard');
     
     // Faculty user management
     Route::middleware(['permission:manage-faculty-users'])->group(function () {
@@ -179,7 +199,11 @@ Route::middleware(['auth', 'role:Faculty Admin', 'permission:view-dashboard'])->
 
 // ✅ Lecturer Routes
 Route::middleware(['auth', 'role:Lecturer', 'permission:view-dashboard'])->group(function () {
+    // Option 1: Keep the original dashboard
     Route::get('/lecturer', fn() => Inertia::render('Lecturer/Dashboard'))->name('lecturer.dashboard');
+    
+    // Option 2: Use the unified dashboard (uncomment to use)
+    // Route::get('/lecturer', [DashboardController::class, 'index'])->name('lecturer.dashboard');
     
     // View own timetable
     Route::middleware(['permission:view-own-timetable'])->get('/lecturer/timetable', [ExamTimetableController::class, 'viewLecturerTimetable'])->name('lecturer.timetable');
@@ -191,20 +215,13 @@ Route::middleware(['auth', 'role:Lecturer', 'permission:view-dashboard'])->group
     Route::middleware(['permission:download-own-timetable'])->get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('lecturer.timetable.download');
 });
 
+Route::middleware(['auth', 'role:Lecturer'])->group(function () {
+    Route::get('/lecturer/dashboard', fn() => Inertia::render('Lecturer/Dashboard'))->name('lecturer.dashboard');
+});
+
 // ✅ Student Routes
-Route::middleware(['auth', 'role:Student', 'permission:view-dashboard'])->group(function () {
-    Route::get('/student', fn() => Inertia::render('Student/Dashboard'))->name('student.dashboard');
-    
-    // View own timetable
-    Route::middleware(['permission:view-own-timetable'])->get('/student/timetable', [ExamTimetableController::class, 'viewStudentTimetable'])->name('student.timetable');
-    
-    // View own units
-    Route::middleware(['permission:view-own-units'])->get('/student/units', [UnitController::class, 'studentUnits'])->name('student.units');
-    
-    // Download own timetable
-    Route::middleware(['auth', 'role:Student', 'permission:download-own-timetable'])->group(function () {
-        Route::get('/student/timetable/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.timetable.download');
-    });
+Route::middleware(['auth', 'role:Student'])->group(function () {
+    Route::get('/student', [DashboardController::class, 'index'])->name('student.dashboard');
 });
 
 // Settings routes - accessible to users with manage-settings permission
@@ -218,8 +235,8 @@ Route::post('/assign-lecturers', [App\Http\Controllers\EnrollmentController::cla
 Route::delete('/assign-lecturers/{unitId}', [App\Http\Controllers\EnrollmentController::class, 'destroyLecturerAssignment'])->name('destroy-lecturer-assignment');
 Route::get('/lecturer-units/{lecturerId}', [App\Http\Controllers\EnrollmentController::class, 'getLecturerUnits'])->name('lecturer-units');
 
- // API routes that should be accessible without API middleware
- Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySemester'])->name('units.by-semester');
+// API routes that should be accessible without API middleware
+Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySemester'])->name('units.by-semester');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

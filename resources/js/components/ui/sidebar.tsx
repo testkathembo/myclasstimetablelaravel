@@ -1,212 +1,232 @@
-"use client"
+import React from 'react';
+import { Link } from '@inertiajs/react';
+import RoleAwareComponent from '@/Components/RoleAwareComponent';
+import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, Download, BarChart2, Shield, User } from 'lucide-react';
 
-import { useEffect, useState } from "react"
-import { Link, usePage } from "@inertiajs/react"
-import {
-  LayoutDashboard,
-  Users,
-  Settings,
-  Book,
-  Building,
-  MapPin,
-  Layers,
-  Calendar,
-  FileSpreadsheet,
-  BookOpen,
-  DownloadCloud,
-  Puzzle,
-  Briefcase,
-  Shield,
-} from "lucide-react"
-
-const Sidebar = () => {
-  const { auth } = usePage().props as any
-  const roles: string[] = auth?.user?.roles?.map((r: any) => r.name) ?? []
-  const permissions: string[] = auth?.user?.permissions ?? []
-
-  const hasRole = (role: string) => roles.includes(role)
-  const can = (permission: string) => permissions.includes(permission)
-
-  // Special case for Admin
-  const [userPermissions, setUserPermissions] = useState<string[]>([])
-  const [userRoles, setUserRoles] = useState<string[]>([])
-
-  useEffect(() => {
-    console.log("Current user permissions:", userPermissions)
-    console.log("Current user roles:", userRoles)
-
-    // Check specific permissions
-    console.log("Has manage-create:", userPermissions.includes("manage-create"))
-    console.log("Has create-actions:", userPermissions.includes("create-actions"))
-    console.log("Has view-update:", userPermissions.includes("view-update"))
-    console.log("Has update-actions:", userPermissions.includes("update-actions"))
-    console.log("Has manage-delete:", userPermissions.includes("manage-delete"))
-    console.log("Has delete-actions:", userPermissions.includes("delete-actions"))
-  }, [userPermissions, userRoles])
-
-  useEffect(() => {
-    fetch("/user/roles-permissions", { credentials: "include" }) // Ensure session cookies are included
-      .then((res) => res.json())
-      .then((data) => {
-        setUserRoles(data.roles || [])
-        setUserPermissions(data.permissions || [])
-      })
-      .catch((error) => console.error("Error fetching roles & permissions:", error))
-  }, [])
+export default function Sidebar() {
   return (
-    <div className="bg-blue-800 text-white w-64 h-full flex flex-col">
-      <div className="p-4 text-lg font-bold border-b border-blue-700">
-        <h2 className="text-lg font-bold">Timetable Management</h2>
+    <div className="w-64 bg-gray-800 text-white h-full flex flex-col">
+      <div className="p-4 border-b border-gray-700">
+        <h1 className="text-xl font-bold">Class Timetable</h1>
       </div>
-
-      <nav className="flex-1 p-4 space-y-2">
-        {/* Dashboard - available to all authenticated users */}
-
-        {userPermissions.includes("view-dashboard") && (
-          <Link href="/dashboard" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <LayoutDashboard className="h-5 w-5" />
-            <span>Dashboard</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-users") && (
-          <Link href="/users" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Users className="h-5 w-5" />
-            <span>Users</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-roles") && (
-          <Link href="/roles" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Shield className="h-5 w-5" />
-            <span>Roles</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-faculties") && (
-          <Link href="/faculties" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Building className="h-5 w-5" />
-            <span>Faculties</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-units") && (
-          <Link
-            href={can("manage-units") ? "/units" : can("manage-faculty-units") ? "/faculty/units" : "/units"}
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
+      
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav className="px-2 space-y-1">
+          {/* Dashboard - Available to all */}
+          <Link 
+            href="/dashboard" 
+            className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
           >
-            <Book className="h-5 w-5" />
-            <span>Units</span>
+            <Home className="mr-3 h-5 w-5" />
+            Dashboard
           </Link>
-        )}
-
-        {userPermissions.includes("manage-classrooms") && (
-          <Link href="/classrooms" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <MapPin className="h-5 w-5" />
-            <span>Exam Rooms</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-semesters") && (
-          <Link href="/all-semesters" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Calendar className="h-5 w-5" />
-            <span>Semesters</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-enrollments") && (
-          <Link href="/enrollments" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Book className="h-5 w-5" />
-            <span>Enrollment</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-time-slots") && (
-          <Link href="/timeslots" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Layers className="h-5 w-5" />
-            <span>Time Slots</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("manage-timetable") && (
-          <Link href="/examtimetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <FileSpreadsheet className="h-5 w-5" />
-            <span>Exam Timetable</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("process-timetable") && (
-          <Link href="/process-timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Puzzle className="h-5 w-5" />
-            <span>Process Timetable</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("solve-conflicts") && (
-          <Link href="/solve-conflicts" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Briefcase className="h-5 w-5" />
-            <span>Solve Conflicts</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("view-own-timetable") && (
-          <Link href="/lecturer/timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Calendar className="h-5 w-5" />
-            <span>My Timetable</span>
-          </Link>
-        )}
-
-        {userPermissions.includes("download-timetable") && (
-          <Link
-            href={
-              can("download-timetable")
-                ? "/download-timetable"
-                : can("download-faculty-timetable")
-                  ? "/faculty/timetable/download"
-                  : hasRole("Lecturer")
-                    ? "/lecturer/timetable/download"
-                    : "/student/timetable/download"
-            }
-            className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded"
+          
+          {/* My Timetable - Available to all */}
+          <Link 
+            href="/timetable" 
+            className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
           >
-            <DownloadCloud className="h-5 w-5" />
-            <span>Download Timetable</span>
+            <Calendar className="mr-3 h-5 w-5" />
+            My Timetable
           </Link>
-        )}
-
-        {userPermissions.includes("manage-settings") && (
-          <Link href="/settings" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
-          </Link>
-        )}
-
-        {/* Lecturer View Own Units */}
-        {hasRole("Lecturer") && can("view-own-units") && (
-          <Link href="/lecturer/units" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <BookOpen className="h-5 w-5" />
-            <span>My Units</span>
-          </Link>
-        )}
-
-        {/* Student View Own Timetable */}
-        {hasRole("Student") && can("view-own-timetable") && (
-          <Link href="/student/timetable" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <Calendar className="h-5 w-5" />
-            <span>My Exam Schedule</span>
-          </Link>
-        )}
-
-        {/* Student View Own Units */}
-        {hasRole("Student") && can("view-own-units") && (
-          <Link href="/student/units" className="flex items-center space-x-2 hover:bg-blue-700 p-2 rounded">
-            <BookOpen className="h-5 w-5" />
-            <span>My Units</span>
-          </Link>
-        )}
-      </nav>
+          
+          {/* Admin Section */}
+          <RoleAwareComponent requiredRoles={['Admin']}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Administration
+              </p>
+              
+              <Link 
+                href="/users" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Users className="mr-3 h-5 w-5" />
+                Users
+              </Link>
+              
+              <Link 
+                href="/roles" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Shield className="mr-3 h-5 w-5" />
+                Roles & Permissions
+              </Link>
+              
+              <Link 
+                href="/settings" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Settings className="mr-3 h-5 w-5" />
+                Settings
+              </Link>
+            </div>
+          </RoleAwareComponent>
+          
+          {/* Exam Office Section */}
+          <RoleAwareComponent requiredRoles={['Exam office']}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Exam Office
+              </p>
+              
+              <Link 
+                href="/manage-timetable" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                Manage Timetable
+              </Link>
+              
+              <Link 
+                href="/classrooms" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Building className="mr-3 h-5 w-5" />
+                Classrooms
+              </Link>
+              
+              <Link 
+                href="/time-slots" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Clock className="mr-3 h-5 w-5" />
+                Time Slots
+              </Link>
+              
+              <Link 
+                href="/conflicts" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Shield className="mr-3 h-5 w-5" />
+                Resolve Conflicts
+              </Link>
+            </div>
+          </RoleAwareComponent>
+          
+          {/* Faculty Admin Section */}
+          <RoleAwareComponent requiredRoles={['Faculty Admin']}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Faculty Admin
+              </p>
+              
+              <Link 
+                href="/units" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookOpen className="mr-3 h-5 w-5" />
+                Units
+              </Link>
+              
+              <Link 
+                href="/enrollments" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Users className="mr-3 h-5 w-5" />
+                Enrollments
+              </Link>
+              
+              <Link 
+                href="/semesters" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                Semesters
+              </Link>
+            </div>
+          </RoleAwareComponent>
+          
+          {/* Lecturer Section */}
+          <RoleAwareComponent requiredRoles={['Lecturer']}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Teaching
+              </p>
+              
+              <Link 
+                href="/my-classes" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookOpen className="mr-3 h-5 w-5" />
+                My Classes
+              </Link>
+              
+              <Link 
+                href="/exam-supervision" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                Exam Supervision
+              </Link>
+            </div>
+          </RoleAwareComponent>
+          
+          {/* Student Section */}
+          <RoleAwareComponent requiredRoles={['Student']}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                My Studies
+              </p>
+              
+              <Link 
+                href="/my-enrollments" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookOpen className="mr-3 h-5 w-5" />
+                My Enrollments
+              </Link>
+              
+              <Link 
+                href="/my-exams" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                My Exams
+              </Link>
+            </div>
+          </RoleAwareComponent>
+          
+          {/* Reports - Permission-based */}
+          <RoleAwareComponent requiredPermissions={['generate-reports']}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Reports
+              </p>
+              
+              <Link 
+                href="/reports" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BarChart2 className="mr-3 h-5 w-5" />
+                Generate Reports
+              </Link>
+            </div>
+          </RoleAwareComponent>
+          
+          {/* Profile - Available to all */}
+          <div className="pt-4">
+            <Link 
+              href="/profile" 
+              className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+            >
+              <User className="mr-3 h-5 w-5" />
+              My Profile
+            </Link>
+            
+            {/* Download Timetable - Permission-based */}
+            <RoleAwareComponent requiredPermissions={['download-own-timetable']}>
+              <Link 
+                href="/download-timetable" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Download className="mr-3 h-5 w-5" />
+                Download Timetable
+              </Link>
+            </RoleAwareComponent>
+          </div>
+        </nav>
+      </div>
     </div>
-  )
+  );
 }
-
-export default Sidebar

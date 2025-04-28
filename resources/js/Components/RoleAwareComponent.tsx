@@ -1,37 +1,51 @@
-import type React from "react"
-import { usePage } from "@inertiajs/react"
+import React from 'react';
+import { usePage } from '@inertiajs/react';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  // Add other user properties as needed
+}
+
+interface Auth {
+  user: User;
+  roles: string[];
+  permissions: string[];
+}
 
 interface PageProps {
-  role: string
-  permissions: string[]
+  auth: Auth;
 }
 
 interface RoleAwareComponentProps {
-  requiredRole?: string
-  requiredPermission?: string
-  children: React.ReactNode
-  fallback?: React.ReactNode
+  children: React.ReactNode;
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
+  fallback?: React.ReactNode;
 }
 
 export default function RoleAwareComponent({
-  requiredRole,
-  requiredPermission,
   children,
+  requiredRoles = [],
+  requiredPermissions = [],
   fallback = null,
 }: RoleAwareComponentProps) {
-  const { role = "", permissions = [] } = usePage().props as PageProps
-
-  // For debugging
-  console.log("Current user role:", role)
-  console.log("Required role:", requiredRole)
-  console.log("User permissions:", permissions)
-
-  const hasRequiredRole = !requiredRole || role === requiredRole
-  const hasRequiredPermission = !requiredPermission || permissions.includes(requiredPermission)
-
+  const { auth } = usePage<PageProps>().props;
+  
+  // Check if user has any of the required roles
+  const hasRequiredRole = requiredRoles.length === 0 || 
+    requiredRoles.some(role => auth.roles.includes(role));
+  
+  // Check if user has any of the required permissions
+  const hasRequiredPermission = requiredPermissions.length === 0 || 
+    requiredPermissions.some(permission => auth.permissions.includes(permission));
+  
+  // Render children only if user has required role and permission
   if (hasRequiredRole && hasRequiredPermission) {
-    return <>{children}</>
+    return <>{children}</>;
   }
-
-  return <>{fallback}</>
+  
+  // Otherwise render fallback (if provided)
+  return <>{fallback}</>;
 }

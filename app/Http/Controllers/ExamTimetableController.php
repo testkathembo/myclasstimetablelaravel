@@ -54,13 +54,13 @@ class ExamTimetableController extends Controller
                 'semesters.name as semester_name',
                 'exam_timetables.semester_id'
             )
-            ->when($search, function ($query, $search) {
-                return $query->where('exam_timetables.day', 'like', "%{$search}%")
-                             ->orWhere('exam_timetables.venue', 'like', "%{$search}%")
-                             ->orWhere('units.name', 'like', "%{$search}%")
-                             ->orWhere('units.code', 'like', "%{$search}%"); // Allow search by unit_code
+            ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
+                $search = $request->search;
+                $query->where('day', 'like', "%{$search}%")
+                      ->orWhere('date', 'like', "%{$search}%"); // Use 'date' instead of 'exam_date'
             })
-            ->paginate($perPage);
+            ->orderBy('date') // Use 'date' instead of 'exam_date'
+            ->paginate($request->get('per_page', 10));
 
         // Get all necessary data for the form
         $semesters = Semester::all();
@@ -420,7 +420,33 @@ class ExamTimetableController extends Controller
     
     public function downloadTimetable(Request $request)
     {
-        $timetables = ExamTimetable::with(['unit', 'semester'])->get(); // Eager-load unit and semester relationships
+        // Check if user has permission to download timetables
+        if (!auth()->user()->can('download-timetable') && !auth()->user()->can('download-own-timetable')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $user = auth()->user();
+        $timetables = null;
+
+        // If user is a student or lecturer with download-own-timetable permission
+        if ($user->can('download-own-timetable')) {
+            if ($user->hasRole('Student')) {
+                // Get student's enrolled units
+                $enrolledUnitIds = $user->enrolledUnits()->pluck('units.id')->toArray();
+                $timetables = ExamTimetable::whereIn('unit_id', $enrolledUnitIds)
+                    ->with(['unit', 'semester'])
+                    ->get();
+            } elseif ($user->hasRole('Lecturer')) {
+                // Get lecturer's assigned units
+                $assignedUnitIds = $user->assignedUnits()->pluck('units.id')->toArray();
+                $timetables = ExamTimetable::whereIn('unit_id', $assignedUnitIds)
+                    ->with(['unit', 'semester'])
+                    ->get();
+            }
+        } else {
+            // Admin or other role with download-timetable permission
+            $timetables = ExamTimetable::with(['unit', 'semester'])->get();
+        }
 
         $pdf = Pdf::loadView('timetables.pdf', [
             'timetables' => $timetables->map(function ($timetable) {
@@ -428,8 +454,8 @@ class ExamTimetableController extends Controller
                     'id' => $timetable->id,
                     'day' => $timetable->day,
                     'date' => $timetable->date,
-                    'unit_code' => $timetable->unit->code ?? 'N/A', // Ensure unit_code is fetched
-                    'unit_name' => $timetable->unit->name ?? 'N/A', // Ensure unit_name is fetched
+                    'unit_code' => $timetable->unit->code ?? 'N/A',
+                    'unit_name' => $timetable->unit->name ?? 'N/A',
                     'semester_name' => $timetable->semester->name ?? 'N/A',
                     'start_time' => $timetable->start_time,
                     'end_time' => $timetable->end_time,
@@ -440,5 +466,188 @@ class ExamTimetableController extends Controller
         ]);
 
         return $pdf->download('exam-timetable.pdf');
+    }
+
+    /**
+     * View student timetable
+     */
+    public function viewStudentTimetable(Request $request)
+    {
+        $user = $request->user();
+        
+        // Log the request for debugging
+        Log::info('Student viewing timetable', [
+            'user_id' => $user->id,
+            'name' => $user->name,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+        
+        // Check if user has the Student role
+        if (!$user->hasRole('Student')) {
+            Log::warning('Non-student attempting to access student timetable', [
+                'user_id' => $user->id,
+                'roles' => $user->getRoleNames(),
+            ]);
+            abort(403, 'You must be a student to access this page.');
+        }
+        
+        // Get current semester (you might want to implement logic to determine the current semester)
+        $currentSemester = Semester::where('is_active', true)->first();
+        if (!$currentSemester) {
+            $currentSemester = Semester::latest()->first();
+        }
+        
+        // Get student's enrolled units
+        $enrolledUnits = $user->enrolledUnits()
+            ->when($currentSemester, function($query) use ($currentSemester) {
+                return $query->where('semester_id', $currentSemester->id);
+            })
+            ->get();
+            
+        // Get exam timetables for these units
+        $unitIds = $enrolledUnits->pluck('id')->toArray();
+        $examTimetables = ExamTimetable::whereIn('unit_id', $unitIds)
+            ->with(['unit', 'semester'])
+            ->orderBy('date')
+            ->orderBy('start_time')
+            ->get();
+            
+        // Log the results for debugging
+        Log::info('Student timetable data', [
+            'user_id' => $user->id,
+            'enrolled_units_count' => count($enrolledUnits),
+            'enrolled_unit_ids' => $unitIds,
+            'exam_timetables_count' => count($examTimetables),
+        ]);
+            
+        return Inertia::render('Student/Timetable', [
+            'examTimetables' => $examTimetables,
+            'currentSemester' => $currentSemester,
+            'enrolledUnits' => $enrolledUnits,
+        ]);
+    }
+    
+    /**
+     * View lecturer timetable
+     */
+    public function viewLecturerTimetable(Request $request)
+    {
+        $user = $request->user();
+        
+        // Check if user has permission to view their own timetable
+        if (!$user->can('view-own-timetable') || !$user->hasRole('Lecturer')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        Log::info('Lecturer viewing timetable', [
+            'user_id' => $user->id,
+            'name' => $user->name,
+        ]);
+        
+        // Get current semester
+        $currentSemester = Semester::where('is_active', true)->first();
+        if (!$currentSemester) {
+            $currentSemester = Semester::latest()->first();
+        }
+        
+        // Get lecturer's assigned units
+        $assignedUnits = $user->assignedUnits()
+            ->where('semester_id', $currentSemester->id)
+            ->get();
+            
+        // Get exam timetables for these units
+        $unitIds = $assignedUnits->pluck('id')->toArray();
+        $examTimetables = ExamTimetable::whereIn('unit_id', $unitIds)
+            ->with(['unit', 'semester'])
+            ->orderBy('date')
+            ->orderBy('start_time')
+            ->get();
+            
+        return Inertia::render('Lecturer/Timetable', [
+            'examTimetables' => $examTimetables,
+            'currentSemester' => $currentSemester,
+            'assignedUnits' => $assignedUnits,
+        ]);
+    }
+    
+    /**
+     * Download student timetable
+     */
+    public function downloadStudentTimetable(Request $request)
+    {
+        $user = $request->user();
+        
+        // Check if user has permission to download their own timetable
+        if (!$user->can('download-own-timetable') || !$user->hasRole('Student')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Get current semester
+        $currentSemester = Semester::where('is_active', true)->first();
+        if (!$currentSemester) {
+            $currentSemester = Semester::latest()->first();
+        }
+        
+        // Get student's enrolled units
+        $enrolledUnitIds = $user->enrolledUnits()
+            ->where('semester_id', $currentSemester->id)
+            ->pluck('units.id')
+            ->toArray();
+            
+        // Get exam timetables for these units
+        $examTimetables = ExamTimetable::whereIn('unit_id', $enrolledUnitIds)
+            ->with(['unit', 'semester'])
+            ->orderBy('date')
+            ->orderBy('start_time')
+            ->get();
+            
+        $pdf = Pdf::loadView('timetables.student-pdf', [
+            'timetables' => $examTimetables,
+            'student' => $user,
+            'semester' => $currentSemester,
+        ]);
+
+        return $pdf->download('my-exam-timetable.pdf');
+    }
+    
+    /**
+     * Download lecturer timetable
+     */
+    public function downloadLecturerTimetable(Request $request)
+    {
+        $user = $request->user();
+        
+        // Check if user has permission to download their own timetable
+        if (!$user->can('download-own-timetable') || !$user->hasRole('Lecturer')) {
+            abort(403, 'Unauthorized action.');
+        }
+        
+        // Get current semester
+        $currentSemester = Semester::where('is_active', true)->first();
+        if (!$currentSemester) {
+            $currentSemester = Semester::latest()->first();
+        }
+        
+        // Get lecturer's assigned units
+        $assignedUnitIds = $user->assignedUnits()
+            ->where('semester_id', $currentSemester->id)
+            ->pluck('units.id')
+            ->toArray();
+            
+        // Get exam timetables for these units
+        $examTimetables = ExamTimetable::whereIn('unit_id', $assignedUnitIds)
+            ->with(['unit', 'semester'])
+            ->orderBy('date')
+            ->orderBy('start_time')
+            ->get();
+            
+        $pdf = Pdf::loadView('timetables.lecturer-pdf', [
+            'timetables' => $examTimetables,
+            'lecturer' => $user,
+            'semester' => $currentSemester,
+        ]);
+
+        return $pdf->download('my-teaching-timetable.pdf');
     }
 }
