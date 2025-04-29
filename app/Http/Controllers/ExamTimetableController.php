@@ -426,7 +426,7 @@ class ExamTimetableController extends Controller
         }
 
         $user = auth()->user();
-        $timetables = null;
+        $timetables = collect(); // Initialize as an empty collection
 
         // If user is a student or lecturer with download-own-timetable permission
         if ($user->can('download-own-timetable')) {
@@ -448,6 +448,10 @@ class ExamTimetableController extends Controller
             $timetables = ExamTimetable::with(['unit', 'semester'])->get();
         }
 
+        // Ensure $timetables is not null
+        $timetables = $timetables ?? collect();
+
+        // Generate the PDF
         $pdf = Pdf::loadView('timetables.pdf', [
             'timetables' => $timetables->map(function ($timetable) {
                 return [
@@ -465,6 +469,7 @@ class ExamTimetableController extends Controller
             }),
         ]);
 
+        // Return the PDF as a download
         return $pdf->download('exam-timetable.pdf');
     }
 

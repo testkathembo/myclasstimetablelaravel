@@ -1,7 +1,12 @@
 import React from 'react';
 import { Link } from '@inertiajs/react';
 import RoleAwareComponent from '@/Components/RoleAwareComponent';
-import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, Download, BarChart2, Shield, User } from 'lucide-react';
+import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, Download, BarChart2, Shield, User, HouseIcon, BookA } from 'lucide-react';
+import TimeSlots from '@/Pages/TimeSlots';
+import Enrollments from '@/Pages/Enrollments/Index';
+import ExamTimetable from '@/Pages/ExamTimetable';
+import EnrollmentGroups from '@/Pages/EnrollmentGroups';
+import Units from '@/Pages/Units';
 
 export default function Sidebar() {
   return (
@@ -52,6 +57,62 @@ export default function Sidebar() {
                 <Shield className="mr-3 h-5 w-5" />
                 Roles & Permissions
               </Link>
+
+              <Link 
+                href="/faculties" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Building className="mr-3 h-5 w-5" />
+                Faculties
+              </Link>
+
+              <Link 
+                href="/units" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookA className="mr-3 h-5 w-5" />
+                Units
+              </Link>
+
+              <Link 
+                href="/semesters" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookA className="mr-3 h-5 w-5" />
+                Semesters
+              </Link>
+
+              <Link 
+                href="/enrollments" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookA className="mr-3 h-5 w-5" />
+                Enrollments
+              </Link>
+
+              <Link 
+                href="/classrooms" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <HouseIcon className="mr-3 h-5 w-5" />
+                Exam rooms
+              </Link>
+
+              <Link 
+                href="/timeslots" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookOpen className="mr-3 h-5 w-5" />
+                Exam Time Slots
+              </Link>              
+
+              <Link 
+                href="/examtimetable" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <BookOpen className="mr-3 h-5 w-5" />
+                Exam Timetable
+              </Link> 
               
               <Link 
                 href="/settings" 
@@ -214,7 +275,7 @@ export default function Sidebar() {
               My Profile
             </Link>
             
-            {/* Download Timetable - Permission-based */}
+            {/* Download Timetable - Permission-based
             <RoleAwareComponent requiredPermissions={['download-own-timetable']}>
               <Link 
                 href="/download-timetable" 
@@ -223,7 +284,7 @@ export default function Sidebar() {
                 <Download className="mr-3 h-5 w-5" />
                 Download Timetable
               </Link>
-            </RoleAwareComponent>
+            </RoleAwareComponent> */}
           </div>
         </nav>
       </div>

@@ -1,8 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Exam Timetable</title>
     <style>
         body {
@@ -12,7 +10,6 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
         }
         th, td {
             border: 1px solid #ddd;
@@ -22,25 +19,21 @@
         th {
             background-color: #f4f4f4;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Exam Timetable</h1>
-    </div>
+    <h1>Exam Timetable</h1>
     <table>
         <thead>
             <tr>
+                <th>ID</th>
                 <th>Day</th>
                 <th>Date</th>
                 <th>Unit Code</th>
                 <th>Unit Name</th>
                 <th>Semester</th>
-                <th>Time</th>
+                <th>Start Time</th>
+                <th>End Time</th>
                 <th>Venue</th>
                 <th>Chief Invigilator</th>
             </tr>
@@ -48,12 +41,14 @@
         <tbody>
             @foreach ($timetables as $timetable)
                 <tr>
+                    <td>{{ $timetable['id'] }}</td>
                     <td>{{ $timetable['day'] }}</td>
                     <td>{{ $timetable['date'] }}</td>
                     <td>{{ $timetable['unit_code'] }}</td>
                     <td>{{ $timetable['unit_name'] }}</td>
                     <td>{{ $timetable['semester_name'] }}</td>
-                    <td>{{ $timetable['start_time'] }} - {{ $timetable['end_time'] }}</td>
+                    <td>{{ $timetable['start_time'] }}</td>
+                    <td>{{ $timetable['end_time'] }}</td>
                     <td>{{ $timetable['venue'] }}</td>
                     <td>{{ $timetable['chief_invigilator'] }}</td>
                 </tr>
