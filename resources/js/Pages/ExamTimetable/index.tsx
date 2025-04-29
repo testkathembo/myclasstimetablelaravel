@@ -202,8 +202,8 @@ const ExamTimetable = () => {
   }, [enrollments, lecturers])
 
   useEffect(() => {
-    console.log('Lecturers:', lecturers); // Debug lecturers array
-  }, [lecturers]);
+    console.log("Lecturers:", lecturers) // Debug lecturers array
+  }, [lecturers])
 
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", timetable: ExamTimetable | null) => {
     setModalType(type)
@@ -516,26 +516,26 @@ const ExamTimetable = () => {
   }, [units])
 
   const handleUnitChange = (unitId: number) => {
-    if (!formState) return;
+    if (!formState) return
 
-    const selectedUnit = units.find((u) => u.id === Number(unitId));
+    const selectedUnit = units.find((u) => u.id === Number(unitId))
     if (selectedUnit) {
       // Find enrollments for this unit in the selected semester
       const unitEnrollments = enrollments.filter(
         (e) => e.unit_id === selectedUnit.id && Number(e.semester_id) === Number(formState.semester_id),
-      );
+      )
 
       // Count unique students enrolled in this unit
-      const studentCount = unitEnrollments.length;
+      const studentCount = unitEnrollments.length
 
       // Find the lecturer for this unit
-      const lecturerEnrollment = unitEnrollments.find((e) => e.lecturer_name);
-      const lecturerName = lecturerEnrollment?.lecturer_name || "";
+      const lecturerEnrollment = unitEnrollments.find((e) => e.lecturer_name)
+      const lecturerName = lecturerEnrollment?.lecturer_name || ""
 
       console.log(
         `Found ${studentCount} students enrolled in unit ${selectedUnit.code} for semester ${formState.semester_id}`,
-      );
-      console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`);
+      )
+      console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`)
 
       setFormState((prev) => ({
         ...prev!,
@@ -544,19 +544,19 @@ const ExamTimetable = () => {
         unit_name: selectedUnit.name,
         no: studentCount, // Set the actual count of enrolled students
         chief_invigilator: lecturerName || prev!.chief_invigilator, // Set lecturer as chief invigilator if available
-      }));
+      }))
 
       // Check venue capacity if venue is already selected
       if (formState.venue) {
-        checkVenueCapacity(formState.venue, studentCount);
+        checkVenueCapacity(formState.venue, studentCount)
       }
 
       // Check for conflicts if we have enough data
       if (formState.date && formState.start_time && formState.end_time && formState.venue) {
-        checkForConflicts(formState.date, formState.start_time, formState.end_time, Number(unitId), formState.venue);
+        checkForConflicts(formState.date, formState.start_time, formState.end_time, Number(unitId), formState.venue)
       }
     }
-  };
+  }
 
   const handleLecturerChange = (lecturerId: number) => {
     if (!formState) return
@@ -674,18 +674,28 @@ const ExamTimetable = () => {
       ...data,
       start_time: formatTimeToHi(data.start_time),
       end_time: formatTimeToHi(data.end_time),
-    };
+    }
 
-    console.log('Submitting form data:', formattedData); // Debug the data being sent
+    console.log("Submitting form data:", formattedData) // Debug the data being sent
+
     router.put(`/examtimetable/${data.id}`, formattedData, {
       onError: (errors) => {
-        console.error('Update failed:', errors); // Debug errors
+        console.error("Update failed:", errors) // Debug errors
       },
       onSuccess: () => {
-        console.log('Update successful');
+        console.log("Update successful")
+        handleCloseModal() // Close the modal after successful update
+
+        // Reload the page to refresh the data
+        router.reload({
+          only: ["examTimetables"],
+          onSuccess: () => {
+            console.log("Page data refreshed successfully")
+          },
+        })
       },
-    });
-  };
+    })
+  }
 
   // Debug effect to monitor filtered units
   useEffect(() => {
@@ -889,7 +899,12 @@ const ExamTimetable = () => {
               {modalType === "edit" && formState && (
                 <>
                   <h2 className="text-xl font-semibold mb-4">Edit Exam Timetable</h2>
-                  <form onSubmit={(e) => { e.preventDefault(); handleSubmitForm(formState); }}>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleSubmitForm(formState)
+                    }}
+                  >
                     <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot</label>
                     <select
                       value={formState.timeslot_id || ""}
@@ -1112,7 +1127,12 @@ const ExamTimetable = () => {
               {modalType === "create" && formState && (
                 <>
                   <h2 className="text-xl font-semibold mb-4">Create Exam Timetable</h2>
-                  <form onSubmit={(e) => { e.preventDefault(); handleSubmitForm(formState); }}>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleSubmitForm(formState)
+                    }}
+                  >
                     <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot</label>
                     <select
                       value={formState.timeslot_id || ""}
