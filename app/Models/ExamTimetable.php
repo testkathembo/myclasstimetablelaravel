@@ -28,9 +28,9 @@ class ExamTimetable extends Model
         return $this->belongsTo(Enrollment::class); // Reference the enrollments table
     }
 
-    public function classroom()
+    public function examroom()
     {
-        return $this->belongsTo(Classroom::class);
+        return $this->belongsTo(Examroom::class);
     }
 
     public function lecturer()

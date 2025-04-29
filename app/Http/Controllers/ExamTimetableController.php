@@ -9,7 +9,7 @@ use App\Models\ExamTimetable;
 use App\Models\Semester;
 use App\Models\Enrollment;
 use App\Models\TimeSlot;
-use App\Models\Classroom;
+use App\Models\Examroom;
 use App\Models\Unit;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -21,14 +21,15 @@ class ExamTimetableController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        Log::info('Accessing Exam Timetable', [
+
+        // Log user roles and permissions for debugging
+        \Log::info('User accessing /examtimetable', [
             'user_id' => $user->id,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
         ]);
 
-        // Check if user has permission to view timetables
-        if (!auth()->user()->can('manage-timetable')) {
+        if (!$user->can('manage-examtimetables')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -64,7 +65,7 @@ class ExamTimetableController extends Controller
 
         // Get all necessary data for the form
         $semesters = Semester::all();
-        $classrooms = Classroom::all();
+        $examrooms = Examroom::all();
         $timeSlots = TimeSlot::all();
         
         // Fetch units with semester_id
@@ -97,7 +98,7 @@ class ExamTimetableController extends Controller
             'search' => $search,
             'semesters' => $semesters,
             'enrollments' => $enrollments,
-            'classrooms' => $classrooms,
+            'examrooms' => $examrooms,
             'timeSlots' => $timeSlots,
             'units' => $units,
             'can' => [

@@ -12,7 +12,7 @@ export default function Sidebar() {
   return (
     <div className="w-64 bg-gray-800 text-white h-full flex flex-col">
       <div className="p-4 border-b border-gray-700">
-        <h1 className="text-xl font-bold">Class Timetable</h1>
+        <h1 className="text-xl font-bold">Timetabling System Management</h1>
       </div>
       
       <div className="flex-1 overflow-y-auto py-4">
@@ -92,6 +92,14 @@ export default function Sidebar() {
 
               <Link 
                 href="/classrooms" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <HouseIcon className="mr-3 h-5 w-5" />
+                Classrooms
+              </Link>
+
+              <Link 
+                href="/examrooms" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <HouseIcon className="mr-3 h-5 w-5" />

@@ -34,6 +34,9 @@ class RoleAndPermissionSeeder extends Seeder
             // Classroom Management
             'manage-classrooms',
 
+            // Exam Room Management
+            'manage-examrooms',
+
             // Unit Management
             'manage-units',
 
@@ -46,37 +49,20 @@ class RoleAndPermissionSeeder extends Seeder
             // Time Slot Management
             'manage-time-slots',
 
-            // Timetable Management
-            'manage-timetable',
-           
+            // Class Timetable Management
+            'manage-classtimetables',
+            'process-classtimetables',
+            'solve-class-conflicts',
+            'download-classtimetables',
+            'download-own-classtimetables',
 
-            // Settings Management
-            'manage-settings',
-
-            // Timetable Download
-            'download-timetable',
-
-            // Conflict Resolution
-            'process-timetable',
-            'solve-conflicts',
-
-            // Lecturer and Student-Specific Permissions
-            'view-own-timetable',
-            'download-own-timetable',
-
-            // Actions
-            'create-timetable',
-            'edit-timetable',
-            'delete-timetable',
-
-            // Enrollment Actions
-            'enroll-students',
-            'unenroll-students',
-
-            // Timetable Actions
-            'generate-timetable',
-            'export-timetable',
-            'import-timetable',
+            // Exam Timetable Management
+            'manage-examtimetables',
+            'process-examtimetables',
+            'solve-exam-conflicts',
+            'download-examtimetables',
+            'download-own-examtimetables',
+            'view-faculty-examtimetables', // Faculty-specific exam timetable viewing
 
             // Notification Management
             'manage-notifications',
@@ -92,39 +78,64 @@ class RoleAndPermissionSeeder extends Seeder
 
         // Define roles and assign permissions
         $roles = [
-            'Admin' => $permissions, // Full access to all permissions
+            'Admin' => [
+                'view-dashboard',
+                'manage-users',
+                'manage-roles',
+                'manage-permissions',
+                'manage-faculties',
+                'manage-classrooms',
+                'manage-units',
+                'manage-semesters',
+                'manage-enrollments',
+                'manage-time-slots',
+                'manage-classtimetables',
+                'process-classtimetables',
+                'solve-class-conflicts',
+                'download-classtimetables',
+                'manage-examtimetables',
+                'process-examtimetables',
+                'solve-exam-conflicts',
+                'download-examtimetables',
+                'manage-notifications',
+                'generate-reports',
+            ],
 
             'Exam office' => [
                 'view-dashboard',
-                'manage-timetable',
+                'manage-examtimetables',
+                'process-examtimetables',
+                'solve-exam-conflicts',
                 'manage-time-slots',
-                'manage-classrooms',
-                'manage-units',
-                'manage-semesters', // Ensure this permission is included
-                'manage-enrollments',
-                
-                'solve-conflicts',
+                'manage-examrooms', // Manages exam rooms, not classrooms
+                'download-examtimetables',
             ],
 
             'Faculty Admin' => [
                 'view-dashboard',
                 'manage-faculties',
                 'manage-units',
-                'manage-semesters', // Ensure this permission is included
+                'manage-semesters',
                 'manage-enrollments',
-                'download-timetable',
+                'manage-classrooms', // Manages classrooms
+                'manage-classtimetables',
+                'process-classtimetables',
+                'solve-class-conflicts',
+                'download-classtimetables',
+                'view-faculty-examtimetables', // Can view faculty-specific exam timetables
+                'download-examtimetables', // Can download faculty-specific exam timetables
             ],
 
             'Lecturer' => [
                 'view-dashboard',
-                'view-own-timetable',
-                'download-own-timetable',
+                'download-own-classtimetables',
+                'download-own-examtimetables',
             ],
 
             'Student' => [
                 'view-dashboard',
-                'view-own-timetable',
-                'download-own-timetable',
+                'download-own-classtimetables',
+                'download-own-examtimetables',
             ],
         ];
 

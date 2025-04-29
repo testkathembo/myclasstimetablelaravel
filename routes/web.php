@@ -20,6 +20,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamOfficeController;
+use App\Http\Controllers\ExamroomController;
 
 // ✅ Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -78,6 +79,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+
+    Route::get('/examrooms', [ExamroomController::class, 'index'])->name('examrooms.index');
+    Route::get('/examrooms/create', [ExamroomController::class, 'create'])->name('examrooms.create');
+    Route::post('/examrooms', [ExamroomController::class, 'store'])->name('examrooms.store');
+    Route::get('/examrooms/{examroom}', [ExamroomController::class, 'show'])->name('examrooms.show');
+    Route::get('/examrooms/{examroom}/edit', [ExamroomController::class, 'edit'])->name('examrooms.edit');
+    Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
+    Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
 });
 
 // ✅ Admin Routes - Admin role bypasses permission checks
@@ -124,12 +133,30 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
     Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
 
+    // Examrooms management
+    Route::get('/examrooms', [ExamroomController::class, 'index'])->name('examrooms.index');
+    Route::get('/examrooms/create', [ExamroomController::class, 'create'])->name('examrooms.create');
+    Route::post('/examrooms', [ExamroomController::class, 'store'])->name('examrooms.store');
+    Route::get('/examrooms/{examroom}', [ExamroomController::class, 'show'])->name('examrooms.show');
+    Route::get('/examrooms/{examroom}/edit', [ExamroomController::class, 'edit'])->name('examrooms.edit');
+    Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
+    Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
+
     // Enrollments management
     Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
     Route::post('/enrollments', [EnrollmentController::class, 'store'])->name('enrollments.store');
     Route::put('/enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
     Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
 
+    // // Timetable management
+    // Route::middleware(['auth', 'permission:manage-classtimetables'])->group(function () {
+    //     Route::get('/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index');
+    //     Route::post('/classtimetable', [ClassTimetableController::class, 'store'])->name('classtimetable.store');
+    //     Route::put('/classtimetable/{classtimetables}', [ClassTimetableController::class, 'update'])->name('classtimetable.update');
+    //     Route::delete('/classtimetable/{classtimetables}', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy');
+    // });
+    
+    
     // Time Slots management
     Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
@@ -137,10 +164,13 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
 
     // Timetable management
-    Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
-    Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
-    Route::put('/examtimetable/{timetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
-    Route::delete('/examtimetable/{timetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+    Route::middleware(['auth', 'permission:manage-examtimetables'])->group(function () {
+        Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
+        Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
+        Route::put('/examtimetable/{timetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+        Route::delete('/examtimetable/{timetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+    });
+
     Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
     Route::get('/examtimetable/{timetable}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
     Route::get('/examtimetable/{timetable}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
