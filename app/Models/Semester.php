@@ -9,7 +9,7 @@ class Semester extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'is_active'];
+    protected $fillable = ['name'];
 
     public $timestamps = true;
     /**
@@ -23,9 +23,15 @@ class Semester extends Model
     {
         return $this->hasMany(Enrollment::class);
     }
+
+    public function classTimetables()
+    {
+        return $this->hasMany(classTimetable::class);
+    }
     public function examTimetables()
     {
         return $this->hasMany(ExamTimetable::class);
     }
+
       
 }

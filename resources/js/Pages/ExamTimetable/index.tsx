@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, type FormEvent } from "react"
-import { Head, usePage, router } from "@inertiajs/react"
+import { Head, usePage, router } from "@inertiajs/react" // Removed 'Inertia' import
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -201,6 +201,10 @@ const ExamTimetable = () => {
     console.log("Lecturers:", lecturers)
   }, [enrollments, lecturers])
 
+  useEffect(() => {
+    console.log('Lecturers:', lecturers); // Debug lecturers array
+  }, [lecturers]);
+
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", timetable: ExamTimetable | null) => {
     setModalType(type)
     setSelectedTimetable(timetable)
@@ -287,7 +291,7 @@ const ExamTimetable = () => {
   const handleDelete = () => {
     if (!selectedTimetable) return
 
-    router.delete(`/exam-timetables/${selectedTimetable.id}`, {
+    router.delete(`/examtimetable/${selectedTimetable.id}`, {
       onSuccess: () => {
         setIsModalOpen(false)
         setSelectedTimetable(null)
@@ -655,67 +659,33 @@ const ExamTimetable = () => {
 
   const handleSearchSubmit = (e: FormEvent) => {
     e.preventDefault()
-    router.get("/exam-timetables", { search: searchValue, perPage: rowsPerPage })
+    router.get("/examtimetable", { search: searchValue, perPage: rowsPerPage })
   }
 
   const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newPerPage = Number.parseInt(e.target.value)
     setRowsPerPage(newPerPage)
-    router.get("/exam-timetables", { search: searchValue, perPage: newPerPage })
+    router.get("/examtimetable", { search: searchValue, perPage: newPerPage })
   }
 
-  const handleSubmitForm = (e: FormEvent) => {
-    e.preventDefault()
-    if (!formState) return
+  const handleSubmitForm = (data: FormState) => {
+    // Format start_time and end_time to H:i
+    const formattedData = {
+      ...data,
+      start_time: formatTimeToHi(data.start_time),
+      end_time: formatTimeToHi(data.end_time),
+    };
 
-    // Check for conflicts or capacity issues before submitting
-    if (capacityWarning || conflictWarning) {
-      alert("Please resolve all warnings before submitting.")
-      return
-    }
-
-    // Ensure time fields are in H:i format
-    const formattedStartTime = formatTimeToHi(formState.start_time)
-    const formattedEndTime = formatTimeToHi(formState.end_time)
-
-    // Prepare data for submission
-    const submissionData = {
-      enrollment_id: formState.enrollment_id,
-      semester_id: formState.semester_id,
-      unit_id: formState.unit_id,
-      day: formState.day,
-      date: formState.date,
-      start_time: formattedStartTime, // Use formatted time
-      end_time: formattedEndTime,     // Use formatted time
-      venue: formState.venue,
-      location: formState.location,
-      no: formState.no,
-      chief_invigilator: formState.chief_invigilator,
-      lecturer_id: formState.lecturer_id,
-    }
-
-    if (modalType === "create") {
-      router.post("/exam-timetables", submissionData, {
-        onSuccess: () => {
-          handleCloseModal()
-        },
-        onError: (errors) => {
-          console.error(errors)
-          alert("Failed to create exam timetable. Please check the form for errors.")
-        },
-      })
-    } else if (modalType === "edit" && selectedTimetable) {
-      router.put(`/exam-timetables/${selectedTimetable.id}`, submissionData, {
-        onSuccess: () => {
-          handleCloseModal()
-        },
-        onError: (errors) => {
-          console.error(errors)
-          alert("Failed to update exam timetable. Please check the form for errors.")
-        },
-      })
-    }
-  }
+    console.log('Submitting form data:', formattedData); // Debug the data being sent
+    router.put(`/examtimetable/${data.id}`, formattedData, {
+      onError: (errors) => {
+        console.error('Update failed:', errors); // Debug errors
+      },
+      onSuccess: () => {
+        console.log('Update successful');
+      },
+    });
+  };
 
   // Debug effect to monitor filtered units
   useEffect(() => {
@@ -741,19 +711,19 @@ const ExamTimetable = () => {
 
             {can.process && (
               <Button onClick={handleProcessTimetable} className="bg-blue-500 hover:bg-blue-600">
-                Process Timetable
+                Process Exam Timetable
               </Button>
             )}
 
             {can.solve_conflicts && (
               <Button onClick={handleSolveConflicts} className="bg-purple-500 hover:bg-purple-600">
-                Solve Conflicts
+                Solve Exam Conflicts
               </Button>
             )}
 
             {can.download && (
               <Button onClick={handleDownloadTimetable} className="bg-indigo-500 hover:bg-indigo-600">
-                Download
+                Download Exam Timetable
               </Button>
             )}
           </div>
@@ -919,7 +889,7 @@ const ExamTimetable = () => {
               {modalType === "edit" && formState && (
                 <>
                   <h2 className="text-xl font-semibold mb-4">Edit Exam Timetable</h2>
-                  <form onSubmit={handleSubmitForm}>
+                  <form onSubmit={(e) => { e.preventDefault(); handleSubmitForm(formState); }}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot</label>
                     <select
                       value={formState.timeslot_id || ""}
@@ -1142,7 +1112,7 @@ const ExamTimetable = () => {
               {modalType === "create" && formState && (
                 <>
                   <h2 className="text-xl font-semibold mb-4">Create Exam Timetable</h2>
-                  <form onSubmit={handleSubmitForm}>
+                  <form onSubmit={(e) => { e.preventDefault(); handleSubmitForm(formState); }}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot</label>
                     <select
                       value={formState.timeslot_id || ""}

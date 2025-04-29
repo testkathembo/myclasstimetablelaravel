@@ -21,6 +21,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamOfficeController;
 use App\Http\Controllers\ExamroomController;
+use App\Http\Controllers\ClassTimetableController;
 
 // ✅ Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -87,6 +88,32 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/examrooms/{examroom}/edit', [ExamroomController::class, 'edit'])->name('examrooms.edit');
     Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
     Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
+
+    Route::resource('classtimetables', ClassTimetableController::class);
+
+    // ClassTimetable routes
+    Route::middleware(['permission:manage-classtimetables'])->group(function () {
+        Route::get('/classtimetables', [ClassTimetableController::class, 'index'])->name('classtimetables.index');
+        Route::get('/classtimetables/create', [ClassTimetableController::class, 'create'])->name('classtimetables.create');
+        Route::post('/classtimetables', [ClassTimetableController::class, 'store'])->name('classtimetables.store');
+        Route::get('/classtimetables/{classtimetable}', [ClassTimetableController::class, 'show'])->name('classtimetables.show');
+        Route::get('/classtimetables/{classtimetable}/edit', [ClassTimetableController::class, 'edit'])->name('classtimetables.edit');
+        Route::put('/classtimetables/{classtimetable}', [ClassTimetableController::class, 'update'])->name('classtimetables.update');
+        Route::delete('/classtimetables/{classtimetable}', [ClassTimetableController::class, 'destroy'])->name('classtimetables.destroy');
+        Route::get('/classtimetables/download', [ClassTimetableController::class, 'downloadTimetable'])->name('classtimetables.download');
+    });
+
+    // ExamTimetable routes
+    Route::middleware(['permission:manage-examtimetables'])->group(function () {
+        Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
+        Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
+        Route::put('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+        Route::delete('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+        Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
+        Route::get('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
+        Route::get('/examtimetable/{examtimetable}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
+        Route::get('/examtimetable/{examtimetable}/download', [ExamTimetableController::class, 'download'])->name('examtimetable.download');
+    });
 });
 
 // ✅ Admin Routes - Admin role bypasses permission checks
@@ -123,6 +150,16 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::post('/units', [UnitController::class, 'store'])->name('units.store');
     Route::put('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
+
+    // Semesters management
+    Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
+    Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
+    Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
+    Route::get('/semesters/{semester}', [SemesterController::class, 'show'])->name('semesters.show');
+    Route::get('/semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
+    Route::put('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
+    Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
+
 
     // Classrooms management
     Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
@@ -167,16 +204,16 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::middleware(['auth', 'permission:manage-examtimetables'])->group(function () {
         Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
         Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
-        Route::put('/examtimetable/{timetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
-        Route::delete('/examtimetable/{timetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+        Route::put('/examtimetable/{examtimetables}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+        Route::delete('/examtimetable/{examtimetables}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
     });
 
     Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
-    Route::get('/examtimetable/{timetable}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
-    Route::get('/examtimetable/{timetable}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
-    Route::get('/examtimetable/{timetable}/download', [ExamTimetableController::class, 'download'])->name('examtimetable.download');
-    Route::get('/examtimetable/{timetable}/generate', [ExamTimetableController::class, 'generate'])->name('examtimetable.generate');
-    Route::get('/download-timetable', [ExamTimetableController::class, 'downloadTimetable'])->name('timetable.download');
+    Route::get('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
+    Route::get('/examtimetable/{examtimetables}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
+    Route::get('/examtimetable/{examtimetables}/download', [ExamTimetableController::class, 'download'])->name('examtimetable.download');
+    Route::get('/examtimetable/{examtimetables}/generate', [ExamTimetableController::class, 'generate'])->name('examtimetable.generate');
+    Route::get('/download-ExamTimetable', [ExamTimetableController::class, 'downloadExamTimetable'])->name('ExamTimetable.download');
 });
 
 // ✅ Exam Office and Admin Routes
@@ -190,12 +227,12 @@ Route::middleware(['auth', 'role:Admin|Exam office'])->group(function () {
     // Timetable management
     Route::resource('exam-timetables', ExamTimetableController::class);
 
-    Route::get('/process-timetable', [ExamTimetableController::class, 'processForm'])->name('timetables.process-form');
-    Route::post('/process-timetable', [ExamTimetableController::class, 'process'])->name('timetables.process');
-    Route::get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('timetables.conflicts');
+    Route::get('/process-examtimetable', [ExamTimetableController::class, 'processForm'])->name('examtimetables.process-form');
+    Route::post('/process-examtimetable', [ExamTimetableController::class, 'process'])->name('examtimetables.process');
+    Route::get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('examtimetables.conflicts');
 
     // Timetable download
-    Route::get('/download-timetable', [ExamTimetableController::class, 'downloadTimetable'])->name('timetable.download');
+    Route::get('/download-ExamTimetable', [ExamTimetableController::class, 'downloadExamTimetable'])->name('examtimetable.download');
 });
 
 // ✅ Exam Office Routes
@@ -272,3 +309,12 @@ Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySem
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');
 })->where('any', '.*')->name('not-found');
+
+// ✅ Process Timetable Route
+Route::middleware(['auth', 'permission:process-timetable'])->group(function () {
+    Route::post('/process-timetable', [ExamTimetableController::class, 'process'])->name('process-timetable');
+});
+
+Route::middleware(['auth', 'permission:update-examtimetables'])->group(function () {
+    Route::put('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+});
