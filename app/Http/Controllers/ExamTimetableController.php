@@ -23,8 +23,8 @@ class ExamTimetableController extends Controller
     {
         $user = auth()->user();
 
-        // Log user roles and permissions for debugging
-        \Log::info('User accessing /examtimetable', [
+        // Log user roles and permissions
+        \Log::info('Accessing /examtimetable', [
             'user_id' => $user->id,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
@@ -302,15 +302,23 @@ class ExamTimetableController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        // Check if user has permission to delete timetables
-        if (!auth()->user()->can('delete-timetable')) {
+        $user = auth()->user();
+
+        // Log user roles and permissions for debugging
+        \Log::info('ExamTimetable delete attempt', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
+        // Check if the user has the required permission
+        if (!$user->can('delete-examtimetables')) {
             abort(403, 'Unauthorized action.');
         }
 
         $timetable = ExamTimetable::findOrFail($id);
         $timetable->delete();
 
-        // Redirect to the correct route after deletion
         return redirect()->route('examtimetable.index', $request->only(['page', 'search', 'per_page']))
             ->with('success', 'Exam timetable deleted successfully.');
     }

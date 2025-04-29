@@ -33,5 +33,5 @@ class Semester extends Model
         return $this->hasMany(ExamTimetable::class);
     }
 
-      
+    
 }

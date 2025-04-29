@@ -2,7 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect, type FormEvent } from "react"
-import { Head, usePage, router } from "@inertiajs/react" // Removed 'Inertia' import
+import { Head, usePage, router } from "@inertiajs/react"
+// Remove the problematic import
+// import { Inertia } from "@inertiajs/inertia"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -288,18 +290,14 @@ const ExamTimetable = () => {
     setUnitLecturers([])
   }
 
-  const handleDelete = () => {
-    if (!selectedTimetable) return
-
-    router.delete(`/examtimetable/${selectedTimetable.id}`, {
-      onSuccess: () => {
-        setIsModalOpen(false)
-        setSelectedTimetable(null)
-      },
-      onError: () => {
-        alert("Failed to delete the exam timetable.")
-      },
-    })
+  const handleDelete = (id: number) => {
+    if (confirm("Are you sure you want to delete this exam timetable?")) {
+      // Use router.delete instead of Inertia.delete
+      router.delete(`/examtimetable/${id}`, {
+        onSuccess: () => alert("Exam timetable deleted successfully."),
+        onError: () => alert("Failed to delete the exam timetable."),
+      })
+    }
   }
 
   const checkForConflicts = (
@@ -811,7 +809,7 @@ const ExamTimetable = () => {
                         )}
                         {can.delete && (
                           <Button
-                            onClick={() => handleOpenModal("delete", exam)}
+                            onClick={() => handleDelete(exam.id)}
                             className="bg-red-500 hover:bg-red-600 text-white"
                           >
                             Delete
@@ -1114,7 +1112,10 @@ const ExamTimetable = () => {
                   <h2 className="text-xl font-semibold mb-4">Delete Exam Timetable</h2>
                   <p>Are you sure you want to delete this timetable?</p>
                   <div className="mt-4 flex justify-end space-x-2">
-                    <Button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white">
+                    <Button
+                      onClick={() => handleDelete(selectedTimetable.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white"
+                    >
                       Delete
                     </Button>
                     <Button onClick={handleCloseModal} className="bg-gray-400 text-white">
