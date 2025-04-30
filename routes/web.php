@@ -118,7 +118,6 @@ Route::middleware(['auth'])->group(function () {
     });
     
     // Exams Rooms
-
     Route::get('/examrooms', [ExamroomController::class, 'index'])->name('examrooms.index');
     Route::get('/examrooms/create', [ExamroomController::class, 'create'])->name('examrooms.create');
     Route::post('/examrooms', [ExamroomController::class, 'store'])->name('examrooms.store');
@@ -127,7 +126,6 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
     Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
      
-
     Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
@@ -142,9 +140,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/examtimetable/{examtimetable}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
         Route::put('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
         Route::delete('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
-        Route::get('/examtimetable/download', [ExamTimetableController::class, 'downloadTimetable'])->name('examtimetable.download');
-        
     });
+
+    // Download exam timetable route - MAIN ROUTE FOR PDF DOWNLOAD
+    Route::get('/download-examtimetables', [ExamTimetableController::class, 'downloadPDF'])
+        ->middleware(['permission:download-examtimetables'])
+        ->name('examtimetable.download');
 });
 
 // Admin Routes - Admin role bypasses permission checks
@@ -159,8 +160,6 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::resource('roles', RoleController::class)->except(['show']);
     Route::resource('permissions', PermissionController::class)->except(['show']);
 
-    
-
     // Semesters management
     Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
     Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
@@ -170,8 +169,6 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::put('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
     Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
 
-
-   
     // Examrooms management
     Route::get('/examrooms', [ExamroomController::class, 'index'])->name('examrooms.index');
     Route::get('/examrooms/create', [ExamroomController::class, 'create'])->name('examrooms.create');
@@ -180,7 +177,6 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::get('/examrooms/{examroom}/edit', [ExamroomController::class, 'edit'])->name('examrooms.edit');
     Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
     Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
-
         
     // Enrollments management
     Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
@@ -193,8 +189,6 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
-
-   
 });
 
 // ✅ Exam Office and Admin Routes
@@ -206,11 +200,8 @@ Route::middleware(['auth', 'role:Admin|Exam office'])->group(function () {
     //Route::get('/exam-office', [DashboardController::class, 'index'])->name('exam-office.dashboard');
 
     Route::get('/process-examtimetable', [ExamTimetableController::class, 'processForm'])->name('examtimetables.process-form');
-    Route::post('/process-examtimetable', [ExamTimetableController::class, 'process'])->name('examtimetables.process');
-    Route::get('/solve-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('examtimetables.conflicts');
-
-    // Timetable download
-    Route::get('/download-ExamTimetable', [ExamTimetableController::class, 'downloadExamTimetable'])->name('examtimetable.download');
+    Route::post('/process-examtimetables', [ExamTimetableController::class, 'process'])->name('examtimetables.process');
+    Route::get('/solve-exam-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('examtimetables.conflicts');
 });
 
 // ✅ Exam Office Routes
@@ -232,7 +223,6 @@ Route::middleware(['auth', 'role:Faculty Admin', 'permission:view-dashboard'])->
         Route::get('/faculty/students', [StudentController::class, 'index'])->name('faculty.students');
     });   
    
-    
     // Faculty enrollments management
     Route::middleware(['permission:manage-faculty-enrollments'])->group(function () {
         Route::get('/faculty/enrollments', [EnrollmentController::class, 'facultyEnrollments'])->name('faculty.enrollments');
@@ -283,20 +273,26 @@ Route::get('/lecturer-units/{lecturerId}', [App\Http\Controllers\EnrollmentContr
 // API routes that should be accessible without API middleware
 Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySemester'])->name('units.by-semester');
 
+// Faculty-specific exam timetable downloads
+Route::middleware(['auth', 'permission:download-faculty-examtimetables'])->group(function () {
+    Route::get('/examtimetable/faculty/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])->name('examtimetable.faculty.download');
+});
+
+// Lecturer-specific exam timetable routes
+Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(function () {
+    Route::get('/examtimetable/lecturer', [ExamTimetableController::class, 'viewLecturerTimetable'])->name('examtimetable.lecturer');
+});
+
+Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
+    Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
+});
+
+// Process Timetable Route
+Route::middleware(['auth', 'permission:process-examtimetables'])->group(function () {
+    Route::post('/process-timetable', [ExamTimetableController::class, 'process'])->name('process-timetable');
+});
+
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');
 })->where('any', '.*')->name('not-found');
-
-// ✅ Process Timetable Route
-Route::middleware(['auth', 'permission:process-timetable'])->group(function () {
-    Route::post('/process-timetable', [ExamTimetableController::class, 'process'])->name('process-timetable');
-});
-
-Route::middleware(['auth', 'permission:update-examtimetables'])->group(function () {
-    Route::put('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
-});
-
-Route::middleware(['auth', 'permission:delete-examtimetables'])->group(function () {
-    Route::delete('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
-});

@@ -40,7 +40,7 @@ interface Enrollment {
   unit_name?: string
 }
 
-interface Classroom {
+interface Examroom {
   id: number
   name: string
   capacity: number
@@ -134,13 +134,13 @@ const formatTimeToHi = (timeStr: string) => {
 }
 
 // Helper function to check for time overlap
-const checkTimeOverlap = (exam: ExamTimetable, date: string, startTime: string, endTime: string) => {
-  if (exam.date !== date) return false
+const checkTimeOverlap = (examtimetable: ExamTimetable, date: string, startTime: string, endTime: string) => {
+  if (examtimetable.date !== date) return false
 
   return (
-    (exam.start_time <= startTime && exam.end_time > startTime) ||
-    (exam.start_time < endTime && exam.end_time >= endTime) ||
-    (exam.start_time >= startTime && exam.end_time <= endTime)
+    (examtimetable.start_time <= startTime && examtimetable.end_time > startTime) ||
+    (examtimetable.start_time < endTime && examtimetable.end_time >= endTime) ||
+    (examtimetable.start_time >= startTime && examtimetable.end_time <= endTime)
   )
 }
 
@@ -152,7 +152,7 @@ const ExamTimetable = () => {
     semesters = [],
     can = { create: false, edit: false, delete: false, process: false, solve_conflicts: false, download: false },
     enrollments = [],
-    classrooms = [],
+    examrooms = [],
     timeSlots = [],
     units = [],
     lecturers = [],
@@ -162,7 +162,7 @@ const ExamTimetable = () => {
     search: string
     semesters: Semester[]
     enrollments: Enrollment[]
-    classrooms: Classroom[]
+    examrooms: Examroom[]
     timeSlots: TimeSlot[]
     units: Unit[]
     lecturers: Lecturer[]
@@ -207,9 +207,9 @@ const ExamTimetable = () => {
     console.log("Lecturers:", lecturers) // Debug lecturers array
   }, [lecturers])
 
-  const handleOpenModal = (type: "view" | "edit" | "delete" | "create", timetable: ExamTimetable | null) => {
+  const handleOpenModal = (type: "view" | "edit" | "delete" | "create", examtimetable: ExamTimetable | null) => {
     setModalType(type)
-    setSelectedTimetable(timetable)
+    setSelectedTimetable(examtimetable)
     setCapacityWarning(null)
     setConflictWarning(null)
     setErrorMessage(null)
@@ -237,26 +237,26 @@ const ExamTimetable = () => {
       })
       // Reset filtered units
       setFilteredUnits([])
-    } else if (timetable) {
+    } else if (examtimetable) {
       // For edit/view, find the matching unit
-      const unit = units.find((u) => u.code === timetable.unit_code)
+      const unit = units.find((u) => u.code === examtimetable.unit_code)
 
       // Find matching timeslot
       const timeSlot = timeSlots.find(
         (ts) =>
-          ts.day === timetable.day &&
-          ts.date === timetable.date &&
-          ts.start_time === timetable.start_time &&
-          ts.end_time === timetable.end_time,
+          ts.day === examtimetable.day &&
+          ts.date === examtimetable.date &&
+          ts.start_time === examtimetable.start_time &&
+          ts.end_time === examtimetable.end_time,
       )
 
       // Find lecturer for this unit
       const unitEnrollment = enrollments.find(
-        (e) => e.unit_code === timetable.unit_code && Number(e.semester_id) === Number(timetable.semester_id),
+        (e) => e.unit_code === examtimetable.unit_code && Number(e.semester_id) === Number(examtimetable.semester_id),
       )
 
       setFormState({
-        ...timetable,
+        ...examtimetable,
         enrollment_id: unitEnrollment?.id || 0,
         unit_id: unit?.id || 0,
         timeslot_id: timeSlot?.id || 0,
@@ -265,13 +265,13 @@ const ExamTimetable = () => {
       })
 
       // Filter units for the selected semester
-      if (timetable.semester_id) {
-        const semesterUnits = units.filter((unit) => unit.semester_id === timetable.semester_id)
+      if (examtimetable.semester_id) {
+        const semesterUnits = units.filter((unit) => unit.semester_id === examtimetable.semester_id)
         setFilteredUnits(semesterUnits)
 
         // Find lecturers for this unit
         if (unit) {
-          findLecturersForUnit(unit.id, timetable.semester_id)
+          findLecturersForUnit(unit.id, examtimetable.semester_id)
         }
       }
     }
@@ -314,18 +314,18 @@ const ExamTimetable = () => {
     }
 
     // Check for conflicts with existing exams
-    const conflicts = examTimetables.data.filter((exam) => {
+    const conflicts = examTimetables.data.filter((examtimetable) => {
       // Skip the current exam when editing
-      if (selectedTimetable && exam.id === selectedTimetable.id) return false
+      if (selectedTimetable && examtimetable.id === selectedTimetable.id) return false
 
       // Check for time overlap on the same date
-      const hasTimeOverlap = exam.date === date && checkTimeOverlap(exam, date, startTime, endTime)
+      const hasTimeOverlap = examtimetable.date === date && checkTimeOverlap(examtimetable, date, startTime, endTime)
 
       // Check if it's the same unit (unit conflict)
-      const isSameUnit = exam.unit_code === units.find((u) => u.id === unitId)?.code
+      const isSameUnit = examtimetable.unit_code === units.find((u) => u.id === unitId)?.code
 
       // Check if it's the same venue (venue conflict)
-      const isSameVenue = exam.venue === venueId
+      const isSameVenue = examtimetable.venue === venueId
 
       // Return true if there's a time overlap AND (same unit OR same venue)
       return hasTimeOverlap && (isSameUnit || isSameVenue)
@@ -333,8 +333,8 @@ const ExamTimetable = () => {
 
     if (conflicts.length > 0) {
       // Create conflict warning message
-      const unitConflicts = conflicts.filter((exam) => exam.unit_code === units.find((u) => u.id === unitId)?.code)
-      const venueConflicts = conflicts.filter((exam) => exam.venue === venueId)
+      const unitConflicts = conflicts.filter((examtimetable) => examtimetable.unit_code === units.find((u) => u.id === unitId)?.code)
+      const venueConflicts = conflicts.filter((examtimetable) => examtimetable.venue === venueId)
 
       let warningMsg = "Scheduling conflicts detected: "
 
@@ -571,19 +571,19 @@ const ExamTimetable = () => {
   }
 
   const checkVenueCapacity = (venueName: string, studentCount: number) => {
-    const selectedClassroom = classrooms.find((c) => c.name === venueName)
+    const selectedExamroom = examrooms.find((e) => e.name === venueName)
 
-    if (selectedClassroom) {
-      if (studentCount > selectedClassroom.capacity) {
+    if (selectedExamroom) {
+      if (studentCount > selectedExamroom.capacity) {
         setCapacityWarning(
-          `Warning: Not enough space! The venue ${venueName} has a capacity of ${selectedClassroom.capacity}, ` +
-            `but there are ${studentCount} students enrolled (exceeding by ${studentCount - selectedClassroom.capacity} students).`,
+          `Warning: Not enough space! The venue ${venueName} has a capacity of ${selectedExamroom.capacity}, ` +
+            `but there are ${studentCount} students enrolled (exceeding by ${studentCount - selectedExamroom.capacity} students).`,
         )
       } else {
         setCapacityWarning(null)
       }
 
-      return selectedClassroom
+      return selectedExamroom
     }
 
     return null
@@ -592,13 +592,13 @@ const ExamTimetable = () => {
   const handleVenueChange = (venueName: string) => {
     if (!formState) return
 
-    const selectedClassroom = checkVenueCapacity(venueName, formState.no)
+    const selectedExamroom = checkVenueCapacity(venueName, formState.no)
 
-    if (selectedClassroom) {
+    if (selectedExamroom) {
       setFormState((prev) => ({
         ...prev!,
         venue: venueName,
-        location: selectedClassroom.location,
+        location: selectedExamroom.location,
       }))
 
       // Check for conflicts if we have enough data
@@ -627,18 +627,18 @@ const ExamTimetable = () => {
 
   const handleProcessTimetable = () => {
     router.post(
-      "/process-timetable",
-      {},
-      {
-        onSuccess: () => alert("Timetable processed successfully."),
-        onError: () => alert("Failed to process timetable."),
-      },
+        "/process-examtimetables",
+        {},
+        {
+            onSuccess: () => alert("Timetable processed successfully."),
+            onError: () => alert("Failed to process timetable."),
+        },
     )
-  }
+}
 
   const handleSolveConflicts = () => {
     router.get(
-      "/solve-conflicts",
+      "/solve-exam-conflicts",
       {},
       {
         onSuccess: () => alert("Conflicts resolved successfully."),
@@ -648,7 +648,7 @@ const ExamTimetable = () => {
   }
 
   const handleDownloadTimetable = () => {
-    window.open("/download-timetable", "_blank")
+    window.open("/download-examtimetables", "_blank")
   }
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -676,23 +676,45 @@ const ExamTimetable = () => {
 
     console.log("Submitting form data:", formattedData) // Debug the data being sent
 
-    router.put(`/examtimetable/${data.id}`, formattedData, {
-      onError: (errors) => {
-        console.error("Update failed:", errors) // Debug errors
-      },
-      onSuccess: () => {
-        console.log("Update successful")
-        handleCloseModal() // Close the modal after successful update
+    if (data.id === 0) {
+      // Create a new exam timetable
+      router.post(`/examtimetable`, formattedData, {
+        onError: (errors) => {
+          console.error("Creation failed:", errors) // Debug errors
+        },
+        onSuccess: () => {
+          console.log("Creation successful")
+          handleCloseModal() // Close the modal after successful creation
 
-        // Reload the page to refresh the data
-        router.reload({
-          only: ["examTimetables"],
-          onSuccess: () => {
-            console.log("Page data refreshed successfully")
-          },
-        })
-      },
-    })
+          // Reload the page to refresh the data
+          router.reload({
+            only: ["examTimetables"],
+            onSuccess: () => {
+              console.log("Page data refreshed successfully")
+            },
+          })
+        },
+      })
+    } else {
+      // Update an existing exam timetable
+      router.put(`/examtimetable/${data.id}`, formattedData, {
+        onError: (errors) => {
+          console.error("Update failed:", errors) // Debug errors
+        },
+        onSuccess: () => {
+          console.log("Update successful")
+          handleCloseModal() // Close the modal after successful update
+
+          // Reload the page to refresh the data
+          router.reload({
+            only: ["examTimetables"],
+            onSuccess: () => {
+              console.log("Page data refreshed successfully")
+            },
+          })
+        },
+      })
+    }
   }
 
   // Debug effect to monitor filtered units
@@ -779,29 +801,29 @@ const ExamTimetable = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {examTimetables.data.map((exam) => (
-                    <tr key={exam.id} className="border-b hover:bg-gray-50">
-                      <td className="px-3 py-2">{exam.id}</td>
-                      <td className="px-3 py-2">{exam.day}</td>
-                      <td className="px-3 py-2">{exam.date}</td>
-                      <td className="px-3 py-2">{exam.unit_code}</td>
-                      <td className="px-3 py-2">{exam.unit_name}</td>
-                      <td className="px-3 py-2">{exam.semester_name}</td>
-                      <td className="px-3 py-2">{exam.venue}</td>
+                  {examTimetables.data.map((examtimetable) => (
+                    <tr key={examtimetable.id} className="border-b hover:bg-gray-50">
+                      <td className="px-3 py-2">{examtimetable.id}</td>
+                      <td className="px-3 py-2">{examtimetable.day}</td>
+                      <td className="px-3 py-2">{examtimetable.date}</td>
+                      <td className="px-3 py-2">{examtimetable.unit_code}</td>
+                      <td className="px-3 py-2">{examtimetable.unit_name}</td>
+                      <td className="px-3 py-2">{examtimetable.semester_name}</td>
+                      <td className="px-3 py-2">{examtimetable.venue}</td>
                       <td className="px-3 py-2">
-                        {exam.start_time} - {exam.end_time}
+                        {examtimetable.start_time} - {examtimetable.end_time}
                       </td>
-                      <td className="px-3 py-2">{exam.chief_invigilator}</td>
+                      <td className="px-3 py-2">{examtimetable.chief_invigilator}</td>
                       <td className="px-3 py-2 flex space-x-2">
                         <Button
-                          onClick={() => handleOpenModal("view", exam)}
+                          onClick={() => handleOpenModal("view", examtimetable)}
                           className="bg-blue-500 hover:bg-blue-600 text-white"
                         >
                           View
                         </Button>
                         {can.edit && (
                           <Button
-                            onClick={() => handleOpenModal("edit", exam)}
+                            onClick={() => handleOpenModal("edit", examtimetable)}
                             className="bg-yellow-500 hover:bg-yellow-600 text-white"
                           >
                             Edit
@@ -809,7 +831,7 @@ const ExamTimetable = () => {
                         )}
                         {can.delete && (
                           <Button
-                            onClick={() => handleDelete(exam.id)}
+                            onClick={() => handleDelete(examtimetable.id)}
                             className="bg-red-500 hover:bg-red-600 text-white"
                           >
                             Delete
@@ -1054,9 +1076,9 @@ const ExamTimetable = () => {
                       className="w-full border rounded p-2 mb-3"
                     >
                       <option value="">Select Venue</option>
-                      {classrooms?.map((classroom) => (
-                        <option key={classroom.id} value={classroom.name}>
-                          {classroom.name} (Capacity: {classroom.capacity})
+                      {examrooms?.map((examroom) => (
+                        <option key={examroom.id} value={examroom.name}>
+                          {examroom.name} (Capacity: {examroom.capacity})
                         </option>
                       )) || null}
                     </select>
@@ -1285,9 +1307,9 @@ const ExamTimetable = () => {
                       className="w-full border rounded p-2 mb-3"
                     >
                       <option value="">Select Venue</option>
-                      {classrooms?.map((classroom) => (
-                        <option key={classroom.id} value={classroom.name}>
-                          {classroom.name} (Capacity: {classroom.capacity})
+                      {examrooms?.map((examroom) => (
+                        <option key={examroom.id} value={examroom.name}>
+                          {examroom.name} (Capacity: {examroom.capacity})
                         </option>
                       )) || null}
                     </select>

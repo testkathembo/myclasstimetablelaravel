@@ -115,7 +115,7 @@ class ExamTimetableController extends Controller
 
     public function store(Request $request)
     {
-        // Check if user has permission to create timetables
+        // Check if user has permission to create examtimetables
         if (!auth()->user()->can('create-examtimetables')) {
             abort(403, 'Unauthorized action.');
         }
@@ -293,8 +293,8 @@ class ExamTimetableController extends Controller
         }
         
         // Update the exam timetable
-        $timetable = ExamTimetable::findOrFail($id);
-        $timetable->update($validated);
+        $examtimetable = ExamTimetable::findOrFail($id);
+        $examtimetable->update($validated);
 
         return redirect()->route('examtimetable.index', $request->only(['page', 'search', 'per_page']))
             ->with('success', 'Exam timetable updated successfully.');
@@ -316,8 +316,8 @@ class ExamTimetableController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $timetable = ExamTimetable::findOrFail($id);
-        $timetable->delete();
+        $examtimetable = ExamTimetable::findOrFail($id);
+        $examtimetable->delete();
 
         return redirect()->route('examtimetable.index', $request->only(['page', 'search', 'per_page']))
             ->with('success', 'Exam timetable deleted successfully.');
@@ -419,13 +419,11 @@ class ExamTimetableController extends Controller
     public function process(Request $request)
     {
         // Check permission
-        if (!auth()->user()->can('process-timetable')) {
+        if (!auth()->user()->can('process-examtimetables')) {
             abort(403, 'Unauthorized action.');
         }
 
-        // Process logic here...
-        // This is where you would implement your algorithm to generate timetables
-
+        // Add your processing logic here
         return redirect()->back()->with('success', 'Timetable processing completed.');
     }
     
@@ -433,7 +431,7 @@ class ExamTimetableController extends Controller
     public function solveConflicts(Request $request)
     {
         // Check permission
-        if (!auth()->user()->can('solve-conflicts')) {
+        if (!auth()->user()->can('solve-exam-conflicts')) {
             abort(403, 'Unauthorized action.');
         }
         
@@ -445,57 +443,57 @@ class ExamTimetableController extends Controller
     
     public function downloadTimetable(Request $request)
     {
-        // Check if user has permission to download timetables
-        if (!auth()->user()->can('download-timetable') && !auth()->user()->can('download-own-timetable')) {
+        // Check if user has permission to download examtimetables
+        if (!auth()->user()->can('download-examtimetables') && !auth()->user()->can('download-own-examtimetables')) {
             abort(403, 'Unauthorized action.');
         }
 
         $user = auth()->user();
-        $timetables = collect(); // Initialize as an empty collection
+        $examtimetables = collect(); // Initialize as an empty collection
 
-        // If user is a student or lecturer with download-own-timetable permission
-        if ($user->can('download-own-timetable')) {
+        // If user is a student or lecturer with download-own-examtimetables permission
+        if ($user->can('download-own-examtimetables')) {
             if ($user->hasRole('Student')) {
                 // Get student's enrolled units
                 $enrolledUnitIds = $user->enrolledUnits()->pluck('units.id')->toArray();
-                $timetables = ExamTimetable::whereIn('unit_id', $enrolledUnitIds)
+                $examtimetables = ExamTimetable::whereIn('unit_id', $enrolledUnitIds)
                     ->with(['unit', 'semester'])
                     ->get();
             } elseif ($user->hasRole('Lecturer')) {
                 // Get lecturer's assigned units
                 $assignedUnitIds = $user->assignedUnits()->pluck('units.id')->toArray();
-                $timetables = ExamTimetable::whereIn('unit_id', $assignedUnitIds)
+                $examtimetables = ExamTimetable::whereIn('unit_id', $assignedUnitIds)
                     ->with(['unit', 'semester'])
                     ->get();
             }
         } else {
-            // Admin or other role with download-timetable permission
-            $timetables = ExamTimetable::with(['unit', 'semester'])->get();
+            // Admin or other role with download-examtimetables permission
+            $examtimetables = ExamTimetable::with(['unit', 'semester'])->get();
         }
 
-        // Ensure $timetables is not null
-        $timetables = $timetables ?? collect();
+        // Ensure $examtimetables is not null
+        $examtimetables = $examtimetables ?? collect();
 
         // Generate the PDF
         $pdf = Pdf::loadView('timetables.pdf', [
-            'timetables' => $timetables->map(function ($timetable) {
+            'examtimetables' => $examtimetables->map(function ($examtimetable) {
                 return [
-                    'id' => $timetable->id,
-                    'day' => $timetable->day,
-                    'date' => $timetable->date,
-                    'unit_code' => $timetable->unit->code ?? 'N/A',
-                    'unit_name' => $timetable->unit->name ?? 'N/A',
-                    'semester_name' => $timetable->semester->name ?? 'N/A',
-                    'start_time' => $timetable->start_time,
-                    'end_time' => $timetable->end_time,
-                    'venue' => $timetable->venue,
-                    'chief_invigilator' => $timetable->chief_invigilator,
+                    'id' => $examtimetable->id,
+                    'day' => $examtimetable->day,
+                    'date' => $examtimetable->date,
+                    'unit_code' => $examtimetable->unit->code ?? 'N/A',
+                    'unit_name' => $examtimetable->unit->name ?? 'N/A',
+                    'semester_name' => $examtimetable->semester->name ?? 'N/A',
+                    'start_time' => $examtimetable->start_time,
+                    'end_time' => $examtimetable->end_time,
+                    'venue' => $examtimetable->venue,
+                    'chief_invigilator' => $examtimetable->chief_invigilator,
                 ];
             }),
         ]);
 
         // Return the PDF as a download
-        return $pdf->download('examtimetable.pdf');
+        return $pdf->download('examtimetables.pdf');
     }
 
     /**
@@ -566,11 +564,11 @@ class ExamTimetableController extends Controller
         $user = $request->user();
         
         // Check if user has permission to view their own timetable
-        if (!$user->can('view-own-timetable') || !$user->hasRole('Lecturer')) {
+        if (!$user->can('view-own-examtimetable') || !$user->hasRole('Lecturer')) {
             abort(403, 'Unauthorized action.');
         }
         
-        Log::info('Lecturer viewing timetable', [
+        Log::info('Lecturer viewing examtimetable', [
             'user_id' => $user->id,
             'name' => $user->name,
         ]);
@@ -609,7 +607,7 @@ class ExamTimetableController extends Controller
         $user = $request->user();
         
         // Check if user has permission to download their own timetable
-        if (!$user->can('download-own-timetable') || !$user->hasRole('Student')) {
+        if (!$user->can('download-own-examtimetable') || !$user->hasRole('Student')) {
             abort(403, 'Unauthorized action.');
         }
         
@@ -688,5 +686,43 @@ class ExamTimetableController extends Controller
         return Inertia::render('ExamTimetable/Show', [
             'examTimetable' => $examTimetable,
         ]);
+    }
+
+  
+    public function downloadPDF()
+    {
+        // Check if user has permission to download examtimetables
+        if (!auth()->user()->can('download-examtimetables')) {
+            abort(403, 'Unauthorized action.');
+        }
+    
+        // Get all exam timetables with related data
+        $examtimetables = ExamTimetable::with(['unit', 'semester'])
+            ->orderBy('date')
+            ->orderBy('start_time')
+            ->get();
+    
+        \Log::info('Generating PDF for exam timetables', ['count' => $examtimetables->count()]);
+    
+        // Generate the PDF
+        $pdf = Pdf::loadView('examtimetables.pdf', [
+            'examtimetables' => $examtimetables->map(function ($examtimetable) {
+                return [
+                    'id' => $examtimetable->id,
+                    'day' => $examtimetable->day,
+                    'date' => $examtimetable->date,
+                    'unit_code' => $examtimetable->unit->code ?? 'N/A',
+                    'unit_name' => $examtimetable->unit->name ?? 'N/A',
+                    'semester_name' => $examtimetable->semester->name ?? 'N/A',
+                    'start_time' => $examtimetable->start_time,
+                    'end_time' => $examtimetable->end_time,
+                    'venue' => $examtimetable->venue,
+                    'chief_invigilator' => $examtimetable->chief_invigilator,
+                ];
+            }),
+        ]);
+    
+        // Return the PDF as a download
+        return $pdf->download('exam_timetable.pdf');
     }
 }

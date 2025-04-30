@@ -39,18 +39,18 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($timetables as $timetable)
+            @foreach ($examtimetables as $examtimetable)
                 <tr>
-                    <td>{{ $timetable['id'] }}</td>
-                    <td>{{ $timetable['day'] }}</td>
-                    <td>{{ $timetable['date'] }}</td>
-                    <td>{{ $timetable['unit_code'] }}</td>
-                    <td>{{ $timetable['unit_name'] }}</td>
-                    <td>{{ $timetable['semester_name'] }}</td>
-                    <td>{{ $timetable['start_time'] }}</td>
-                    <td>{{ $timetable['end_time'] }}</td>
-                    <td>{{ $timetable['venue'] }}</td>
-                    <td>{{ $timetable['chief_invigilator'] }}</td>
+                    <td>{{ $examtimetable['id'] }}</td>
+                    <td>{{ $examtimetable['day'] }}</td>
+                    <td>{{ $examtimetable['date'] }}</td>
+                    <td>{{ $examtimetable['unit_code'] }}</td>
+                    <td>{{ $examtimetable['unit_name'] }}</td>
+                    <td>{{ $examtimetable['semester_name'] }}</td>
+                    <td>{{ $examtimetable['start_time'] }}</td>
+                    <td>{{ $examtimetable['end_time'] }}</td>
+                    <td>{{ $examtimetable['venue'] }}</td>
+                    <td>{{ $examtimetable['chief_invigilator'] }}</td>
                 </tr>
             @endforeach
         </tbody>
