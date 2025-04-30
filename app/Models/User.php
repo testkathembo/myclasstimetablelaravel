@@ -29,5 +29,77 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
-}
+   
+    /**
+     * Get the user's full name.
+     *
+     * @return string
+     */
+    public function getNameAttribute()
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
+   
+    /**
+     * Get the faculty that the user belongs to.
+     */
+    public function faculty()
+    {
+        return $this->belongsTo(Faculty::class);
+    }
+   
+    /**
+     * Get the units that the student is enrolled in.
+     */
+    public function enrolledUnits()
+    {
+        if (!$this->hasRole('Student')) {
+            return collect();
+        }
+       
+        return $this->belongsToMany(Unit::class, 'enrollments', 'student_code', 'unit_id')
+            ->withPivot(['semester_id', 'lecturer_code'])
+            ->withTimestamps();
+    }
+   
+    /**
+     * Get the units that the lecturer is assigned to teach.
+     */
+    public function assignedUnits()
+    {
+        if (!$this->hasRole('Lecturer')) {
+            return collect();
+        }
+       
+        return $this->belongsToMany(Unit::class, 'enrollments', 'lecturer_code', 'unit_id')
+            ->withPivot(['semester_id'])
+            ->withTimestamps();
+    }
+   
+    /**
+     * Get all enrollments for a student.
+     */
+    public function enrollments()
+    {
+        return $this->hasMany(Enrollment::class, 'student_code', 'code');
+    }
 
+    /**
+     * Get all units taught by a lecturer.
+     */
+    public function taughtUnits()
+    {
+        return $this->hasMany(Enrollment::class, 'lecturer_code', 'code');
+    }
+
+    /**
+     * Find a user by their code.
+     *
+     * @param string $code
+     * @return \App\Models\User|null
+     */
+    public static function findByCode($code)
+    {
+        return static::where('code', $code)->first();
+    }
+}

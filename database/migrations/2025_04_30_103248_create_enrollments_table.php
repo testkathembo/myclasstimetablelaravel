@@ -10,10 +10,17 @@ return new class extends Migration
     {
         Schema::create('enrollments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('student_code')->constrained('users')->onDelete('cascade');
+            $table->foreignId('lecturer_code')->constrained('users')->onDelete('cascade');
             $table->foreignId('unit_id')->constrained()->onDelete('cascade');            
+            $table->foreignId('semester_id')
+            ->nullable()
+                ->default(1) // Set default value to 1 (assuming semester 1.1 has ID 1)
+                ->constrained()
+                ->onDelete('cascade')
+                ->change();          
             $table->timestamps();
-        });
+        });        
     }
 
     public function down(): void

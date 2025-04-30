@@ -16,13 +16,13 @@ const Enrollments = () => {
     } = usePage().props;
 
     const enrollmentData = enrollments.data || [];
-    const [form, setForm] = useState({ student_id: '', semester_id: '', unit_ids: [] });
+    const [form, setForm] = useState({ student_code: '', semester_id: '', unit_ids: [] });
     const [search, setSearch] = useState('');
     const [lecturerAssignment, setLecturerAssignment] = useState({ unit_id: '', lecturer_id: '' });
     const [currentPage, setCurrentPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [lecturerUnits, setLecturerUnits] = useState([]);
-    const [lecturerName, setLecturerName] = useState(''); // State for lecturer's name
+    const [lecturerName, setLecturerName] = useState('');
 
     const itemsPerPage = 5;
     const totalPages = Math.ceil(lecturerUnitAssignments.length / itemsPerPage);
@@ -52,7 +52,7 @@ const Enrollments = () => {
 
     const handlePageChange = (url) => {
         if (url) {
-            Inertia.get(url); // Navigate to the selected page
+            Inertia.get(url);
         }
     };
 
@@ -72,7 +72,7 @@ const Enrollments = () => {
             const response = await fetch(`/lecturer-units/${lecturerId}`);
             const data = await response.json();
             setLecturerUnits(data.units || []);
-            setLecturerName(`${data.lecturer.first_name} ${data.lecturer.last_name}`); // Set lecturer's name
+            setLecturerName(`${data.lecturer.first_name} ${data.lecturer.last_name}`);
             setIsModalOpen(true);
         } catch (error) {
             console.error('Failed to fetch lecturer units:', error);
@@ -99,15 +99,15 @@ const Enrollments = () => {
                 <form onSubmit={handleSubmit} className="mb-6">
                     <div className="grid grid-cols-3 gap-4">
                         <select
-                            value={form.student_id}
-                            onChange={(e) => setForm({ ...form, student_id: e.target.value })}
+                            value={form.student_code}
+                            onChange={(e) => setForm({ ...form, student_code: e.target.value })}
                             className="border p-2 rounded"
                             required
                         >
                             <option value="">Select Student</option>
                             {students.map((student) => (
-                                <option key={student.id} value={student.id}>
-                                    {student.first_name} {student.last_name}
+                                <option key={student.id} value={student.code}>
+                                    {student.first_name} {student.last_name} ({student.code})
                                 </option>
                             ))}
                         </select>
@@ -240,7 +240,7 @@ const Enrollments = () => {
                                 <option value="">Select Lecturer</option>
                                 {lecturers.map((lecturer) => (
                                     <option key={lecturer.id} value={lecturer.id}>
-                                        {lecturer.first_name} {lecturer.last_name}
+                                        {lecturer.first_name} {lecturer.last_name} ({lecturer.code})
                                     </option>
                                 ))}
                             </select>

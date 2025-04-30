@@ -35,22 +35,26 @@
                 <th>Start Time</th>
                 <th>End Time</th>
                 <th>Venue</th>
+                <th>Location</th>
+                <th>Number of Students</th>
                 <th>Chief Invigilator</th>
             </tr>
         </thead>
         <tbody>
             @foreach ($examtimetables as $examtimetable)
                 <tr>
-                    <td>{{ $examtimetable['id'] }}</td>
-                    <td>{{ $examtimetable['day'] }}</td>
-                    <td>{{ $examtimetable['date'] }}</td>
-                    <td>{{ $examtimetable['unit_code'] }}</td>
-                    <td>{{ $examtimetable['unit_name'] }}</td>
-                    <td>{{ $examtimetable['semester_name'] }}</td>
-                    <td>{{ $examtimetable['start_time'] }}</td>
-                    <td>{{ $examtimetable['end_time'] }}</td>
-                    <td>{{ $examtimetable['venue'] }}</td>
-                    <td>{{ $examtimetable['chief_invigilator'] }}</td>
+                    <td>{{ $examtimetable->id }}</td>
+                    <td>{{ $examtimetable->day }}</td>
+                    <td>{{ $examtimetable->date }}</td>
+                    <td>{{ $examtimetable->unit->code ?? 'N/A' }}</td>
+                    <td>{{ $examtimetable->unit->name ?? 'N/A' }}</td>
+                    <td>{{ $examtimetable->semester->name ?? 'N/A' }}</td>
+                    <td>{{ $examtimetable->start_time }}</td>
+                    <td>{{ $examtimetable->end_time }}</td>
+                    <td>{{ $examtimetable->venue }}</td>
+                    <td>{{ $examtimetable->location ?? 'N/A' }}</td>
+                    <td>{{ $examtimetable->no }}</td>
+                    <td>{{ $examtimetable->chief_invigilator }}</td>
                 </tr>
             @endforeach
         </tbody>

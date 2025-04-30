@@ -22,6 +22,18 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamOfficeController;
 use App\Http\Controllers\ExamroomController;
 use App\Http\Controllers\ClassTimetableController;
+// Add other controller imports as needed
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| contains the "web" middleware group. Now create something great!
+|
+*/
 
 // ✅ Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -36,6 +48,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Roles and permissions routes
     Route::get('/user/roles-permissions', [UserController::class, 'getUserRolesAndPermissions'])->name('user.roles-permissions');
+    
 
 
     // Dashboard routes based on role
@@ -131,15 +144,25 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
     
-    // ExamTimetable routes
+    // ExamTimetable routes - UPDATED
     Route::middleware(['permission:manage-examtimetables'])->group(function () {
         Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
         Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
         Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
-        Route::get('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
-        Route::get('/examtimetable/{examtimetable}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
-        Route::put('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
-        Route::delete('/examtimetable/{examtimetable}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+        Route::get('/examtimetable/{id}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
+        Route::get('/examtimetable/{id}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
+        Route::put('/examtimetable/{id}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+        Route::delete('/examtimetable/{id}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+        // Add AJAX delete route as fallback
+        Route::post('/examtimetable/{id}/ajax-delete', [ExamTimetableController::class, 'ajaxDestroy'])->name('examtimetable.ajax-destroy');
+        // Add API endpoint for lecturer information
+        Route::get('/lecturer-for-unit/{unitId}/{semesterId}', [ExamTimetableController::class, 'getLecturerForUnit'])->name('api.lecturer-for-unit');
+    });
+
+    // Process Timetable Route - UPDATED
+    Route::middleware(['permission:process-examtimetables'])->group(function () {
+        Route::post('/process-examtimetables', [ExamTimetableController::class, 'process'])->name('examtimetables.process');
+        Route::get('/solve-exam-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('examtimetables.conflicts');
     });
 
     // Download exam timetable route - MAIN ROUTE FOR PDF DOWNLOAD
@@ -147,6 +170,7 @@ Route::middleware(['auth'])->group(function () {
         ->middleware(['permission:download-examtimetables'])
         ->name('examtimetable.download');
 });
+
 
 // Admin Routes - Admin role bypasses permission checks
 Route::middleware(['auth', 'role:Admin'])->group(function () {
@@ -178,12 +202,20 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
     Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
         
-    // Enrollments management
+    // Enrollment routes
+Route::middleware(['auth'])->group(function () {
     Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
+    Route::get('/enrollments/create', [EnrollmentController::class, 'create'])->name('enrollments.create');
     Route::post('/enrollments', [EnrollmentController::class, 'store'])->name('enrollments.store');
+    Route::get('/enrollments/{enrollment}/edit', [EnrollmentController::class, 'edit'])->name('enrollments.edit');
     Route::put('/enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
     Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
-
+    
+    // Lecturer assignment routes
+    Route::post('/assign-lecturers', [EnrollmentController::class, 'assignLecturers'])->name('assign.lecturers');
+    Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign.lecturers.destroy');
+    Route::get('/lecturer-units/{lecturerId}', [EnrollmentController::class, 'getLecturerUnits'])->name('lecturer.units');
+});
     // Time Slots management
     Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
@@ -254,16 +286,35 @@ Route::middleware(['auth', 'role:Lecturer'])->group(function () {
     Route::get('/lecturer/dashboard', fn() => Inertia::render('Lecturer/Dashboard'))->name('lecturer.dashboard');
 });
 
-// ✅ Student Routes
+// Student Routes
 Route::middleware(['auth', 'role:Student'])->group(function () {
-    Route::get('/student', [DashboardController::class, 'index'])->name('student.dashboard');
+    // Student Dashboard
+    Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
+    
+    // My Enrollments
+    Route::get('/my-enrollments', [StudentController::class, 'myEnrollments'])->name('student.enrollments');
+    
+    // My Exams
+    Route::get('/my-exams', [ExamTimetableController::class, 'viewStudentTimetable'])->name('student.exams');
+    
+    // Download My Exam Timetable
+    Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
+        ->name('student.exams.download');
+        
+    // View specific exam details
+    Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])
+        ->name('student.exams.show');
+        
+    // My Class Timetable
+    Route::get('/my-classes', [ClassTimetableController::class, 'viewStudentClassTimetable'])
+        ->name('student.classes');
+        
+    // Download My Class Timetable
+    Route::get('/my-classes/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
+        ->name('student.classes.download');
 });
 
-// Settings routes - accessible to users with manage-settings permission
-Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
-    Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
-    Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
-});
+
 
 // Lecturer assignment routes
 Route::post('/assign-lecturers', [App\Http\Controllers\EnrollmentController::class, 'assignLecturers'])->name('assign-lecturers');
@@ -287,10 +338,13 @@ Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(fun
     Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
 });
 
-// Process Timetable Route
-Route::middleware(['auth', 'permission:process-examtimetables'])->group(function () {
-    Route::post('/process-timetable', [ExamTimetableController::class, 'process'])->name('process-timetable');
+
+// Settings routes - accessible to users with manage-settings permission
+Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
+    Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
+    Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
 });
+
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

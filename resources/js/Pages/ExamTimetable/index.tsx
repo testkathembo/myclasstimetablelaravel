@@ -28,14 +28,13 @@ interface ExamTimetable {
 
 interface Enrollment {
   id: number
-  student_id: number
+  student_code: string // Changed from student_id to student_code
   unit_id: number
   semester_id: number
-  lecturer_id: number | null
+  lecturer_code: string | null // Changed from lecturer_id to lecturer_code
   created_at: string
   updated_at: string
   lecturer_name?: string | null
-  lecturer_user_id?: number | null
   unit_code?: string
   unit_name?: string
 }
@@ -260,7 +259,7 @@ const ExamTimetable = () => {
         enrollment_id: unitEnrollment?.id || 0,
         unit_id: unit?.id || 0,
         timeslot_id: timeSlot?.id || 0,
-        lecturer_id: unitEnrollment?.lecturer_id || null,
+        lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null, // Changed lecturer_id to lecturer_code
         lecturer_name: unitEnrollment?.lecturer_name || "",
       })
 
@@ -290,15 +289,22 @@ const ExamTimetable = () => {
     setUnitLecturers([])
   }
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this exam timetable?")) {
-      // Use router.delete instead of Inertia.delete
-      router.delete(`/examtimetable/${id}`, {
-        onSuccess: () => alert("Exam timetable deleted successfully."),
-        onError: () => alert("Failed to delete the exam timetable."),
-      })
+        try {
+            await router.delete(`/examtimetable/${id}`, {
+                onSuccess: () => alert("Exam timetable deleted successfully."),
+                onError: (errors) => {
+                    console.error("Failed to delete exam timetable:", errors);
+                    alert("An error occurred while deleting the exam timetable.");
+                },
+            });
+        } catch (error) {
+            console.error("Unexpected error:", error);
+            alert("An unexpected error occurred.");
+        }
     }
-  }
+};
 
   const checkForConflicts = (
     date: string,
@@ -384,14 +390,14 @@ const ExamTimetable = () => {
   const findLecturersForUnit = (unitId: number, semesterId: number) => {
     // Find all enrollments for this unit in the selected semester
     const unitEnrollments = enrollments.filter(
-      (e) => e.unit_id === unitId && Number(e.semester_id) === Number(semesterId) && e.lecturer_id,
+      (e) => e.unit_id === unitId && Number(e.semester_id) === Number(semesterId) && e.lecturer_code, // Changed lecturer_id to lecturer_code
     )
 
-    // Extract unique lecturers
-    const uniqueLecturerIds = Array.from(new Set(unitEnrollments.map((e) => e.lecturer_id).filter(Boolean)))
+    // Extract unique lecturer codes
+    const uniqueLecturerCodes = Array.from(new Set(unitEnrollments.map((e) => e.lecturer_code).filter(Boolean)))
 
     // Find lecturer details
-    const unitLecturersList = lecturers.filter((l) => uniqueLecturerIds.includes(l.id))
+    const unitLecturersList = lecturers.filter((l) => uniqueLecturerCodes.includes(l.id.toString())) // Match lecturer_code with lecturer.id
 
     console.log(
       `Found ${unitLecturersList.length} lecturers for unit ID ${unitId} in semester ${semesterId}:`,

@@ -11,7 +11,7 @@ class SemesterController extends Controller
 {
     public function index()
     {
-        $semesters = Semester::all();
+        $semesters = Semester::orderBy('name')->get(); // Removed 'year' from orderBy
 
         return Inertia::render('Semesters/index', [
             'semesters' => $semesters,

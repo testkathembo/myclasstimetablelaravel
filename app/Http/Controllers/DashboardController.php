@@ -144,10 +144,10 @@ class DashboardController extends Controller
     private function getStudentStats($user)
     {
         return [
-            'enrolledUnits' => Enrollment::where('student_id', $user->id)->count(),
+            'enrolledUnits' => Enrollment::where('student_code', $user->code)->count(),
             'upcomingExams' => ExamTimetable::whereHas('unit', function ($query) use ($user) {
                 $query->whereHas('enrollments', function ($q) use ($user) {
-                    $q->where('student_id', $user->id);
+                    $q->where('student_code', $user->code);
                 });
             })
             ->where('date', '>=', now()) // Use 'date' instead of 'exam_date'
@@ -156,4 +156,39 @@ class DashboardController extends Controller
             ->get(),
         ];
     }
+
+    /**
+ * Display the student dashboard
+ */
+public function studentDashboard(Request $request)
+{
+    $user = $request->user();
+    
+    // Get current semester
+    $currentSemester = Semester::where('is_active', true)->first();
+    if (!$currentSemester) {
+        $currentSemester = Semester::latest()->first();
+    }
+    
+    // Get student's enrolled units for the current semester
+    $enrolledUnits = $user->enrolledUnits()
+        ->where('semester_id', $currentSemester->id)
+        ->with(['faculty'])
+        ->get();
+        
+    // Get upcoming exams
+    $upcomingExams = ExamTimetable::whereIn('unit_id', $enrolledUnits->pluck('id')->toArray())
+        ->where('date', '>=', now()->format('Y-m-d'))
+        ->with(['unit', 'semester'])
+        ->orderBy('date')
+        ->orderBy('start_time')
+        ->take(5)
+        ->get();
+        
+    return Inertia::render('Student/Dashboard', [
+        'enrolledUnits' => $enrolledUnits,
+        'upcomingExams' => $upcomingExams,
+        'currentSemester' => $currentSemester,
+    ]);
+}
 }
