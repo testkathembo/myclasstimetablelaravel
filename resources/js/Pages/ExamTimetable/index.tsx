@@ -64,6 +64,9 @@ interface Unit {
   code: string
   name: string
   semester_id: number
+  student_count?: number
+  lecturer_code?: string
+  lecturer_name?: string
 }
 
 interface Lecturer {
@@ -502,21 +505,13 @@ const ExamTimetable = () => {
 
     const selectedUnit = units.find((u) => u.id === Number(unitId))
     if (selectedUnit) {
-      // Find enrollments for this unit in the selected semester
-      const unitEnrollments = enrollments.filter(
-        (e) => e.unit_id === selectedUnit.id && Number(e.semester_id) === Number(formState.semester_id),
-      )
+      console.log("Selected unit:", selectedUnit)
 
-      // Count unique students enrolled in this unit
-      const studentCount = unitEnrollments.length
+      // Get student count and lecturer info directly from the unit object
+      const studentCount = selectedUnit.student_count || 0
+      const lecturerName = selectedUnit.lecturer_name || ""
 
-      // Find the lecturer for this unit
-      const lecturerEnrollment = unitEnrollments.find((e) => e.lecturer_name)
-      const lecturerName = lecturerEnrollment?.lecturer_name || ""
-
-      console.log(
-        `Found ${studentCount} students enrolled in unit ${selectedUnit.code} for semester ${formState.semester_id}`,
-      )
+      console.log(`Student count for unit ${selectedUnit.code}: ${studentCount}`)
       console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`)
 
       setFormState((prev) => ({
@@ -524,7 +519,7 @@ const ExamTimetable = () => {
         unit_id: Number(unitId),
         unit_code: selectedUnit.code,
         unit_name: selectedUnit.name,
-        no: studentCount, // Set the actual count of enrolled students
+        no: studentCount, // Set the student count from the unit object
         chief_invigilator: lecturerName || prev!.chief_invigilator, // Set lecturer as chief invigilator if available
       }))
 
@@ -536,6 +531,17 @@ const ExamTimetable = () => {
       // Check for conflicts if we have enough data
       if (formState.date && formState.start_time && formState.end_time && formState.venue) {
         checkForConflicts(formState.date, formState.start_time, formState.end_time, Number(unitId), formState.venue)
+      }
+
+      // If lecturer info is available, add it to unitLecturers
+      if (selectedUnit.lecturer_name && selectedUnit.lecturer_code) {
+        const lecturer = {
+          id: Number(selectedUnit.lecturer_code),
+          name: selectedUnit.lecturer_name,
+        }
+        setUnitLecturers([lecturer])
+      } else {
+        setUnitLecturers([])
       }
     }
   }

@@ -80,6 +80,20 @@ class ExamTimetableController extends Controller
         // Get all units
         $allUnits = Unit::select('id', 'code', 'name')->get();
         
+        // Get all enrollments with student and lecturer information
+        $allEnrollments = Enrollment::select('id', 'student_code', 'unit_id', 'semester_id', 'lecturer_code')
+            ->get();
+            
+        // Group enrollments by unit_id and semester_id for easy access
+        $enrollmentsByUnitAndSemester = [];
+        foreach ($allEnrollments as $enrollment) {
+            $key = $enrollment->unit_id . '_' . $enrollment->semester_id;
+            if (!isset($enrollmentsByUnitAndSemester[$key])) {
+                $enrollmentsByUnitAndSemester[$key] = [];
+            }
+            $enrollmentsByUnitAndSemester[$key][] = $enrollment;
+        }
+        
         // Get units with their associated semesters through enrollments
         $unitsBySemester = [];
         
@@ -95,9 +109,35 @@ class ExamTimetableController extends Controller
             $unitsInSemester = Unit::whereIn('id', $unitIdsInSemester)
                 ->select('id', 'code', 'name')
                 ->get()
-                ->map(function ($unit) use ($semester) {
+                ->map(function ($unit) use ($semester, $enrollmentsByUnitAndSemester) {
                     // Add semester_id to each unit
                     $unit->semester_id = $semester->id;
+                    
+                    // Find enrollments for this unit in this semester
+                    $key = $unit->id . '_' . $semester->id;
+                    $unitEnrollments = $enrollmentsByUnitAndSemester[$key] ?? [];
+                    
+                    // Count students
+                    $unit->student_count = count($unitEnrollments);
+                    
+                    // Find lecturer
+                    $lecturerCode = null;
+                    foreach ($unitEnrollments as $enrollment) {
+                        if ($enrollment->lecturer_code) {
+                            $lecturerCode = $enrollment->lecturer_code;
+                            break;
+                        }
+                    }
+                    
+                    // Find lecturer details if available
+                    if ($lecturerCode) {
+                        $lecturer = User::where('code', $lecturerCode)->first();
+                        if ($lecturer) {
+                            $unit->lecturer_code = $lecturerCode;
+                            $unit->lecturer_name = $lecturer->first_name . ' ' . $lecturer->last_name;
+                        }
+                    }
+                    
                     return $unit;
                 });
                 
@@ -125,7 +165,7 @@ class ExamTimetableController extends Controller
             'semesters' => $semesters,
             'examrooms' => $examrooms,
             'timeSlots' => $timeSlots,
-            'units' => $unitsWithSemesters, // Pass units with their semester_id
+            'units' => $unitsWithSemesters, // Pass units with their semester_id and enrollment data
             'can' => [
                 'create' => $user->can('create-examtimetables'),
                 'edit' => $user->can('update-examtimetables'),
@@ -136,7 +176,6 @@ class ExamTimetableController extends Controller
             ],
         ]);
     }
-
     /**
      * Show the form for creating a new resource.
      *
