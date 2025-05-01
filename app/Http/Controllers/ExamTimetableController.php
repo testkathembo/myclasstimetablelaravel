@@ -61,10 +61,10 @@ class ExamTimetableController extends Controller
             )
             ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
                 $search = $request->search;
-                $query->where('day', 'like', "%{$search}%")
-                      ->orWhere('date', 'like', "%{$search}%");
+                $query->where('exam_timetables.day', 'like', "%{$search}%")
+                      ->orWhere('exam_timetables.date', 'like', "%{$search}%");
             })
-            ->orderBy('date')
+            ->orderBy('exam_timetables.date')
             ->paginate($request->get('per_page', 10));
 
         // Fetch lecturers with both ID and code
@@ -77,30 +77,6 @@ class ExamTimetableController extends Controller
         $examrooms = Examroom::all();
         $timeSlots = TimeSlot::all();
         $units = Unit::select('id', 'code', 'name', 'semester_id')->get();
-        
-        // Get enrollments with lecturer information
-        $enrollments = Enrollment::query()
-            ->leftJoin('users as lecturers', 'enrollments.lecturer_code', '=', 'lecturers.code')
-            ->leftJoin('units', 'enrollments.unit_id', '=', 'units.id')
-            ->select(
-                'enrollments.*',
-                'units.code as unit_code',
-                'units.name as unit_name',
-                DB::raw("CONCAT(lecturers.first_name, ' ', lecturers.last_name) as lecturer_name")
-            )
-            ->get();
-
-        // Log enrollments for debugging
-        Log::info('Enrollments data for exam timetable', [
-            'enrollments_count' => $enrollments->count(),
-            'sample_enrollments' => $enrollments->take(5)->toArray(),
-        ]);
-
-        // Log lecturers for debugging
-        Log::info('Lecturers data for exam timetable', [
-            'lecturers_count' => $lecturers->count(),
-            'sample_lecturers' => $lecturers->take(5)->toArray(),
-        ]);
 
         return Inertia::render('ExamTimetable/index', [
             'examTimetables' => $examTimetables,
@@ -108,7 +84,6 @@ class ExamTimetableController extends Controller
             'perPage' => $perPage,
             'search' => $search,
             'semesters' => $semesters,
-            'enrollments' => $enrollments,
             'examrooms' => $examrooms,
             'timeSlots' => $timeSlots,
             'units' => $units,

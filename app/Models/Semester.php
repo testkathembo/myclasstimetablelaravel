@@ -9,29 +9,47 @@ class Semester extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name'];
-
-    public $timestamps = true;
     /**
-     * Define the relationship with the Unit model.
+     * The attributes that are mass assignable.
+     *
+     * @var array
      */
-    public function units()
+    protected $fillable = [
+        'name',
+        'is_active',
+        // Add any other fields your semester model has
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
+    /**
+     * Get the timetables for the semester.
+     */
+    public function timetables()
     {
-        return $this->hasMany(Unit::class);
+        return $this->hasMany(Timetable::class);
     }
+
+    /**
+     * Get the enrollments for the semester.
+     */
     public function enrollments()
     {
         return $this->hasMany(Enrollment::class);
     }
 
-    public function classTimetables()
+    /**
+     * Get the units for the semester.
+     */
+    public function units()
     {
-        return $this->hasMany(classTimetable::class);
+        return $this->hasMany(Unit::class);
     }
-    public function examTimetables()
-    {
-        return $this->hasMany(ExamTimetable::class);
-    }
-
-    
 }

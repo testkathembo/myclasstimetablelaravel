@@ -33,20 +33,41 @@ class StudentController extends Controller
         // Get all semesters for filtering
         $semesters = Semester::orderBy('name')->get();
         
-        // Get selected semester (default to current)
-        $selectedSemesterId = $request->input('semester_id', $currentSemester->id);
+        // Find semesters where the student has enrollments
+        $studentSemesterIds = Enrollment::where('student_code', $user->code)
+            ->distinct()
+            ->pluck('semester_id')
+            ->toArray();
+        
+        // If student has enrollments, default to their first enrollment semester
+        // Otherwise use the current semester
+        $defaultSemesterId = !empty($studentSemesterIds) 
+            ? $studentSemesterIds[0] 
+            : $currentSemester->id;
+        
+        // Get selected semester (default to first semester with enrollments)
+        $selectedSemesterId = $request->input('semester_id', $defaultSemesterId);
         
         // Get student's enrolled units for the selected semester using student code
-        $enrolledUnits = Enrollment::byStudentCode($user->code)
+        $enrolledUnits = Enrollment::where('student_code', $user->code)
             ->where('semester_id', $selectedSemesterId)
             ->with(['unit.faculty', 'unit.lecturer'])
             ->get();
-            
+        
+        // For debugging
+        Log::info('Student enrollments', [
+            'student_code' => $user->code,
+            'semester_id' => $selectedSemesterId,
+            'available_semesters' => $studentSemesterIds,
+            'count' => $enrolledUnits->count()
+        ]);
+        
         return Inertia::render('Student/Enrollments', [
             'enrolledUnits' => $enrolledUnits,
             'currentSemester' => $currentSemester,
             'semesters' => $semesters,
             'selectedSemesterId' => (int)$selectedSemesterId,
+            'studentSemesters' => $studentSemesterIds, // Pass this to highlight semesters with enrollments
         ]);
     }
     

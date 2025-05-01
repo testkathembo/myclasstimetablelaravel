@@ -102,9 +102,9 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
 
     // Semesters management
-    Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
-    Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
-    Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
+    Route::resource('semesters', SemesterController::class);
+
+     // Classrooms management
     Route::get('/semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
     Route::match(['PUT', 'PATCH'], '/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
     Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');  

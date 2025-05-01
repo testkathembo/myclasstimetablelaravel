@@ -34,12 +34,12 @@ interface Semester {
 }
 
 interface Props {
-  enrolledUnits: Unit[];
-  upcomingExams: ExamTimetable[];
-  currentSemester: Semester;
+  enrolledUnits?: Unit[];
+  upcomingExams?: ExamTimetable[];
+  currentSemester?: Semester;
 }
 
-export default function Dashboard({ enrolledUnits, upcomingExams, currentSemester }: Props) {
+export default function Dashboard({ enrolledUnits = [], upcomingExams = [], currentSemester }: Props) {
   return (
     <AuthenticatedLayout>
       <Head title="Student Dashboard" />
@@ -57,7 +57,11 @@ export default function Dashboard({ enrolledUnits, upcomingExams, currentSemeste
                   Current Semester
                 </h2>
                 <div className="mt-4">
-                  <p className="text-xl font-bold">{currentSemester.name} {currentSemester.year}</p>
+                  {currentSemester ? (
+                    <p className="text-xl font-bold">{currentSemester.name} {currentSemester.year}</p>
+                  ) : (
+                    <p className="text-gray-500">No active semester found.</p>
+                  )}
                 </div>
               </div>
             </div>
