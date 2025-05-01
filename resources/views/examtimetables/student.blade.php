@@ -37,7 +37,9 @@
                 <th>Day</th>
                 <th>Time</th>
                 <th>Venue</th>
+                <th>Location</th>
                 <th>Unit</th>
+                <th>Chief Invigilator</th>
             </tr>
         </thead>
         <tbody>
@@ -47,7 +49,9 @@
                     <td>{{ $exam->day }}</td>
                     <td>{{ $exam->start_time }} - {{ $exam->end_time }}</td>
                     <td>{{ $exam->venue }}</td>
+                    <td>{{ $exam->location }}</td>
                     <td>{{ $exam->unit->code }} - {{ $exam->unit->name }}</td>
+                    <td>{{ $exam->chief_invigilator }}</td>
                 </tr>
             @endforeach
         </tbody>

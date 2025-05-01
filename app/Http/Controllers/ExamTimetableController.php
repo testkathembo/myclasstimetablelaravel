@@ -807,6 +807,8 @@ class ExamTimetableController extends Controller
             'examTimetables' => $examTimetables,
             'student' => $user,
             'currentSemester' => $semester,
+            'location' => $examTimetables->pluck('location'),
+            'chief_invigilator' => $examTimetables->pluck('chief_invigilator'),
         ]);
 
         // Return the PDF for download
