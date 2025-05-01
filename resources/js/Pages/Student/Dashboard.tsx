@@ -34,12 +34,12 @@ interface Semester {
 }
 
 interface Props {
-  enrolledUnits?: Unit[];
-  upcomingExams?: ExamTimetable[];
-  currentSemester?: Semester;
+  enrolledUnits: Unit[];
+  upcomingExams: ExamTimetable[];
+  currentSemester: Semester;
 }
 
-export default function Dashboard({ enrolledUnits = [], upcomingExams = [], currentSemester }: Props) {
+export default function Dashboard({ enrolledUnits, upcomingExams, currentSemester }: Props) {
   return (
     <AuthenticatedLayout>
       <Head title="Student Dashboard" />
@@ -57,11 +57,7 @@ export default function Dashboard({ enrolledUnits = [], upcomingExams = [], curr
                   Current Semester
                 </h2>
                 <div className="mt-4">
-                  {currentSemester ? (
-                    <p className="text-xl font-bold">{currentSemester.name} {currentSemester.year}</p>
-                  ) : (
-                    <p className="text-gray-500">No active semester found.</p>
-                  )}
+                  <p className="text-xl font-bold">{currentSemester?.name || 'N/A'} {currentSemester?.year || ''}</p>
                 </div>
               </div>
             </div>
@@ -74,7 +70,7 @@ export default function Dashboard({ enrolledUnits = [], upcomingExams = [], curr
                   My Enrollments
                 </h2>
                 <div className="mt-4">
-                  <p className="text-xl font-bold">{enrolledUnits.length} Units</p>
+                  <p className="text-xl font-bold">{enrolledUnits?.length || 0} Units</p>
                   <a href="/my-enrollments" className="text-blue-600 hover:underline mt-2 inline-block">
                     View all enrollments
                   </a>
@@ -97,7 +93,7 @@ export default function Dashboard({ enrolledUnits = [], upcomingExams = [], curr
                 </div>
                 
                 <div className="mt-4">
-                  {upcomingExams.length > 0 ? (
+                  {upcomingExams?.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -118,26 +114,28 @@ export default function Dashboard({ enrolledUnits = [], upcomingExams = [], curr
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {upcomingExams.map((exam) => (
-                            <tr key={exam.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {format(new Date(exam.date), 'MMM d, yyyy')}
-                                </div>
-                                <div className="text-sm text-gray-500">{exam.day}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{exam.unit.code}</div>
-                                <div className="text-sm text-gray-500">{exam.unit.name}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">
-                                  {exam.start_time} - {exam.end_time}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {exam.venue}
-                              </td>
-                            </tr>
+                            exam?.unit && ( // Ensure `exam` and `exam.unit` are defined
+                              <tr key={exam.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {format(new Date(exam.date), 'MMM d, yyyy')}
+                                  </div>
+                                  <div className="text-sm text-gray-500">{exam.day}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{exam.unit.code || 'N/A'}</div>
+                                  <div className="text-sm text-gray-500">{exam.unit.name || 'N/A'}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-900">
+                                    {exam.start_time} - {exam.end_time}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {exam.venue || 'N/A'}
+                                </td>
+                              </tr>
+                            )
                           ))}
                         </tbody>
                       </table>
