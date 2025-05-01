@@ -312,6 +312,10 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     // Download My Class Timetable
     Route::get('/my-classes/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
         ->name('student.classes.download');
+    
+    // Student Exam Timetable
+    Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
+        ->name('student.exam-timetable');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
