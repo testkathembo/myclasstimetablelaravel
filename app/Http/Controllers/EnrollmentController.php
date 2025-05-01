@@ -24,44 +24,73 @@ class EnrollmentController extends Controller
 
         $search = $request->input('search');
 
-        $enrollments = Enrollment::with(['student', 'unit', 'semester', 'lecturer'])
-            ->when($search, function ($query, $search) {
-                $query->whereHas('unit', function ($q) use ($search) {
-                    $q->where('name', 'like', "%$search%");
-                });
-            })
-            ->paginate(10);
-
-        $semesters = Semester::all();
-        // Get all students
-        $students = User::whereHas('roles', function ($query) {
-            $query->where('name', 'Student');
-        })->get();
-        // Get all lecturers
-        $lecturers = User::whereHas('roles', function ($query) {
-            $query->where('name', 'Lecturer');
-        })->get();
-        // Get all units
-        $units = Unit::all();
+        // Get the query builder for enrollments
+        $query = Enrollment::with(['student', 'unit', 'semester', 'lecturer']);
         
-        // Get lecturer unit assignments
-        // This query gets distinct unit_id and lecturer_code combinations
-        $lecturerUnitAssignments = DB::table('enrollments')
-            ->select('unit_id', 'lecturer_code')
-            ->whereNotNull('lecturer_code')
-            ->distinct()
-            ->get()
-            ->map(function ($assignment) {
-                $unit = Unit::find($assignment->unit_id);
-                $lecturer = User::where('code', $assignment->lecturer_code)->first();
-                
-                return [
-                    'unit_id' => $assignment->unit_id,
-                    'lecturer_code' => $assignment->lecturer_code,
-                    'unit' => $unit,
-                    'lecturer' => $lecturer
-                ];
+        // Check if user has Admin role
+        if ($user->hasRole('Admin')) {
+            // Admin sees all enrollments
+            Log::info('User is admin, showing all enrollments');
+        } else {
+            // For any non-admin user, show enrollments where their code matches
+            // This works for both students and lecturers
+            Log::info('User is not admin, filtering by user code', ['user_code' => $user->code]);
+            $query->where(function($q) use ($user) {
+                $q->where('student_code', $user->code)
+                  ->orWhere('lecturer_code', $user->code);
             });
+            
+            // Debug: Check if there are any enrollments with this student code
+            $studentEnrollmentCount = Enrollment::where('student_code', $user->code)->count();
+            $lecturerEnrollmentCount = Enrollment::where('lecturer_code', $user->code)->count();
+            Log::info('Enrollment counts', [
+                'as_student' => $studentEnrollmentCount,
+                'as_lecturer' => $lecturerEnrollmentCount
+            ]);
+        }
+
+        // Apply search filter if provided
+        if ($search) {
+            $query->whereHas('unit', function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%");
+            });
+        }
+
+        $enrollments = $query->paginate(10);
+        
+        // Log the final result count
+        Log::info('Final enrollment query result', ['count' => $enrollments->total()]);
+
+        // Only load these additional resources for admin users
+        $semesters = $user->hasRole('Admin') ? Semester::all() : [];
+        $students = $user->hasRole('Admin') ? User::whereHas('roles', function ($query) {
+            $query->where('name', 'Student');
+        })->get() : [];
+        $lecturers = $user->hasRole('Admin') ? User::whereHas('roles', function ($query) {
+            $query->where('name', 'Lecturer');
+        })->get() : [];
+        $units = $user->hasRole('Admin') ? Unit::all() : [];
+        
+        // Get lecturer unit assignments (only for admins)
+        $lecturerUnitAssignments = [];
+        if ($user->hasRole('Admin')) {
+            $lecturerUnitAssignments = DB::table('enrollments')
+                ->select('unit_id', 'lecturer_code')
+                ->whereNotNull('lecturer_code')
+                ->distinct()
+                ->get()
+                ->map(function ($assignment) {
+                    $unit = Unit::find($assignment->unit_id);
+                    $lecturer = User::where('code', $assignment->lecturer_code)->first();
+                    
+                    return [
+                        'unit_id' => $assignment->unit_id,
+                        'lecturer_code' => $assignment->lecturer_code,
+                        'unit' => $unit,
+                        'lecturer' => $lecturer
+                    ];
+                });
+        }
 
         return Inertia::render('Enrollments/Index', [
             'enrollments' => $enrollments,
@@ -70,11 +99,22 @@ class EnrollmentController extends Controller
             'units' => $units,
             'lecturers' => $lecturers,
             'lecturerUnitAssignments' => $lecturerUnitAssignments,
+            'userRoles' => [
+                'isAdmin' => $user->hasRole('Admin'),
+                'isLecturer' => $user->hasRole('Lecturer'),
+                'isStudent' => $user->hasRole('Student'),
+            ],
         ]);
     }
 
     public function create()
     {
+        // Only admins should access this
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to create enrollments.');
+        }
+
         $students = User::whereHas('roles', function ($query) {
             $query->where('name', 'Student');
         })->get();
@@ -91,12 +131,18 @@ class EnrollmentController extends Controller
 
     public function store(Request $request)
     {
+        // Only admins should be able to store enrollments
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to create enrollments.');
+        }
+
         // Log the incoming request data for debugging
         Log::info('Enrollment request data:', $request->all());
 
         // Validate the request
         $request->validate([
-            'student_code' => 'required|exists:users,code',
+            'student_code' => 'required|exists:users,code', // Validate against the `code` field in `users`
             'semester_id' => 'required|exists:semesters,id',
             'unit_ids' => 'required|array',
             'unit_ids.*' => 'exists:units,id',
@@ -108,7 +154,7 @@ class EnrollmentController extends Controller
         foreach ($request->unit_ids as $unitId) {
             // Check if enrollment already exists to avoid duplicates
             $existingEnrollment = Enrollment::where([
-                'student_code' => $request->student_code,
+                'student_code' => $request->student_code, // Use the `code` directly
                 'unit_id' => $unitId,
                 'semester_id' => $request->semester_id,
             ])->first();
@@ -120,12 +166,17 @@ class EnrollmentController extends Controller
                     ->whereNotNull('lecturer_code')
                     ->value('lecturer_code');
 
+                // If no lecturer is assigned, you can optionally set a default lecturer here
+                if (!$lecturerCode) {
+                    $lecturerCode = Unit::find($unitId)->default_lecturer_code ?? null; // Example logic
+                }
+
                 // Create the enrollment
                 Enrollment::create([
                     'student_code' => $request->student_code,
                     'unit_id' => $unitId,
                     'semester_id' => $request->semester_id,
-                    'lecturer_code' => $lecturerCode ?? null, // Explicitly set to NULL if no lecturer is assigned
+                    'lecturer_code' => $lecturerCode, // Assign the lecturer code
                 ]);
                 $successCount++;
             }
@@ -139,6 +190,12 @@ class EnrollmentController extends Controller
 
     public function edit(Enrollment $enrollment)
     {
+        // Only admins should access this
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to edit enrollments.');
+        }
+
         $students = User::whereHas('roles', function ($query) {
             $query->where('name', 'Student');
         })->get();
@@ -156,6 +213,12 @@ class EnrollmentController extends Controller
 
     public function update(Request $request, Enrollment $enrollment)
     {
+        // Only admins should be able to update enrollments
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to update enrollments.');
+        }
+
         $request->validate([
             'student_code' => 'required|exists:users,code',
             'unit_id' => 'required|exists:units,id',
@@ -170,6 +233,12 @@ class EnrollmentController extends Controller
 
     public function destroy(Enrollment $enrollment)
     {
+        // Only admins should be able to delete enrollments
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to delete enrollments.');
+        }
+
         $enrollment->delete();
 
         return redirect()->route('enrollments.index')->with('success', 'Enrollment deleted successfully.');
@@ -183,6 +252,12 @@ class EnrollmentController extends Controller
      */
     public function assignLecturers(Request $request)
     {
+        // Only admins should be able to assign lecturers
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to assign lecturers.');
+        }
+
         Log::info('Lecturer assignment request data:', $request->all());
 
         $request->validate([
@@ -218,6 +293,12 @@ class EnrollmentController extends Controller
      */
     public function destroyLecturerAssignment($unitId)
     {
+        // Only admins should be able to remove lecturer assignments
+        if (!auth()->user()->hasRole('Admin')) {
+            return redirect()->route('enrollments.index')
+                ->with('error', 'You do not have permission to remove lecturer assignments.');
+        }
+
         // Remove lecturer assignment from all enrollments for this unit
         Enrollment::where('unit_id', $unitId)
             ->update(['lecturer_code' => '']);
@@ -234,6 +315,13 @@ class EnrollmentController extends Controller
      */
     public function getLecturerUnits($lecturerId)
     {
+        $user = auth()->user();
+        
+        // Only admins or the lecturer themselves should access this
+        if (!$user->hasRole('Admin') && $user->id != $lecturerId) {
+            return response()->json(['error' => 'You do not have permission to view this information'], 403);
+        }
+
         $lecturer = User::findOrFail($lecturerId);
         $lecturerCode = $lecturer->code;
         

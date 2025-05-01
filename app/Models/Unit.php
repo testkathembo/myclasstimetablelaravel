@@ -16,6 +16,7 @@ class Unit extends Model
         'code',
         'name',
         'semester_id',
+        'faculty_id', // Assuming the `units` table has a `faculty_id` column
         // Add other fields as needed
     ];
 
@@ -38,5 +39,21 @@ class Unit extends Model
     public function examTimetables()
     {
         return $this->hasMany(ExamTimetable::class);
+    }
+
+    /**
+     * Get the faculty that owns the unit.
+     */
+    public function faculty()
+    {
+        return $this->belongsTo(Faculty::class, 'faculty_id'); // Assuming `faculty_id` is the foreign key
+    }
+
+    /**
+     * Get the lecturer assigned to this unit.
+     */
+    public function lecturer()
+    {
+        return $this->belongsTo(User::class, 'lecturer_code', 'code'); // Assuming `lecturer_code` references `users.code`
     }
 }

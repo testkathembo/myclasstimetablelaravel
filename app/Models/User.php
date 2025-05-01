@@ -41,6 +41,36 @@ class User extends Authenticatable
     }
    
     /**
+     * Check if the user is an admin.
+     *
+     * @return bool
+     */
+    public function isAdmin()
+    {
+        return $this->hasRole('Admin');
+    }
+
+    /**
+     * Check if the user is a student.
+     *
+     * @return bool
+     */
+    public function isStudent()
+    {
+        return $this->hasRole('Student');
+    }
+
+    /**
+     * Check if the user is a lecturer.
+     *
+     * @return bool
+     */
+    public function isLecturer()
+    {
+        return $this->hasRole('Lecturer');
+    }
+   
+    /**
      * Get the faculty that the user belongs to.
      */
     public function faculty()

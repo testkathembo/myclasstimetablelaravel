@@ -314,7 +314,9 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
         ->name('student.classes.download');
 });
 
-
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/my-enrollments', [StudentController::class, 'myEnrollments'])->name('my-enrollments');
+});
 
 // Lecturer assignment routes
 Route::post('/assign-lecturers', [App\Http\Controllers\EnrollmentController::class, 'assignLecturers'])->name('assign-lecturers');

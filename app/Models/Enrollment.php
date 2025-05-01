@@ -13,7 +13,7 @@ class Enrollment extends Model
         'student_code', 
         'unit_id',
         'semester_id',
-        'lecturer_code', 
+        'lecturer_code',
     ];
 
     /**
@@ -21,7 +21,7 @@ class Enrollment extends Model
      */
     public function student()
     {
-        return $this->belongsTo(User::class, 'student_code', 'code');
+        return $this->belongsTo(User::class, 'student_code', 'code'); // Reference `code` in `users`
     }
 
     /**
@@ -45,7 +45,7 @@ class Enrollment extends Model
      */
     public function lecturer()
     {
-        return $this->belongsTo(User::class, 'lecturer_code', 'code');
+        return $this->belongsTo(User::class, 'lecturer_code', 'code'); // Reference `code` in `users`
     }
 
     /**
