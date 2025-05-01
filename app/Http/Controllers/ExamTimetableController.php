@@ -765,54 +765,51 @@ class ExamTimetableController extends Controller
     public function downloadStudentTimetable(Request $request)
     {
         $user = auth()->user();
-        
+
         // Get semester ID from request or use default
         $semesterId = $request->input('semester_id');
-        
         if (!$semesterId) {
-            // Get the current active semester
             $currentSemester = Semester::where('is_active', true)->first();
-            
-            if (!$currentSemester) {
-                // If no active  true)->first();
-            
-            if (!$currentSemester) {
-                // If no active semester, get the latest semester
-                $currentSemester = Semester::latest()->first();
-            }
-            
-            $semesterId = $currentSemester->id;
+            $semesterId = $currentSemester ? $currentSemester->id : null;
         }
-        
+
+        if (!$semesterId) {
+            return redirect()->back()->with('error', 'No active semester found.');
+        }
+
         // Get the semester details
         $semester = Semester::find($semesterId);
-        
+
         // Get the units the student is enrolled in for the selected semester
         $enrolledUnitIds = Enrollment::where('student_code', $user->code)
             ->where('semester_id', $semesterId)
             ->pluck('unit_id')
             ->toArray();
-        
+
+        if (empty($enrolledUnitIds)) {
+            return redirect()->back()->with('error', 'You are not enrolled in any units for this semester.');
+        }
+
         // Get exam timetables for the student's enrolled units in the selected semester
         $examTimetables = ExamTimetable::where('semester_id', $semesterId)
             ->whereIn('unit_id', $enrolledUnitIds)
-            ->orWhereHas('unit', function($query) use ($user, $enrolledUnitIds) {
-                $query->whereIn('id', $enrolledUnitIds);
-            })
             ->with('unit') // Eager load the unit relationship
             ->orderBy('date')
             ->orderBy('start_time')
             ->get();
-        
+
+        if ($examTimetables->isEmpty()) {
+            return redirect()->back()->with('error', 'No exams found for the selected semester.');
+        }
+
         // Generate PDF
-        $pdf = PDF::loadView('pdfs.student-exam-timetable', [
+        $pdf = Pdf::loadView('examtimetables.student', [
             'examTimetables' => $examTimetables,
             'student' => $user,
-            'semester' => $semester
+            'currentSemester' => $semester,
         ]);
-        
+
         // Return the PDF for download
         return $pdf->download('exam-timetable-' . $semester->name . '.pdf');
     }
-}
 }
