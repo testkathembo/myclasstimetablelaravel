@@ -26,22 +26,14 @@ export default function Sidebar() {
             Dashboard
           </Link>
           
-          {/* My Timetable - Available to all */}
-          <Link 
-            href="/timetable" 
-            className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-          >
-            <Calendar className="mr-3 h-5 w-5" />
-            My Timetable
-          </Link>
-
+                    
           {/* Class Timetables */}
           <Link
             href="/classtimetables"
             className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
           >
             <Calendar className="mr-3 h-5 w-5" />
-            Class Timetables
+            My Class Timetable
           </Link>
           
           {/* Admin Section */}

@@ -86,10 +86,6 @@ export default function Dashboard({ enrolledUnits, upcomingExams, currentSemeste
                     <Clock className="mr-2 h-5 w-5 text-blue-500" />
                     Upcoming Exams
                   </h2>
-                  <a href="/my-exams/download" className="text-blue-600 hover:underline flex items-center">
-                    <Download className="mr-1 h-4 w-4" />
-                    Download Timetable
-                  </a>
                 </div>
                 
                 <div className="mt-4">
