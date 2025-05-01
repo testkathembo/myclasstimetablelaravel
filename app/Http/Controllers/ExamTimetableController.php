@@ -442,7 +442,13 @@ class ExamTimetableController extends Controller
     public function downloadPDF(Request $request)
     {
         try {
-            // Get all exam timetables or filter by semester if provided
+            // Check if the PDF template exists
+            if (!view()->exists('examtimetables.pdf')) {
+                \Log::error('PDF template not found: examtimetables.pdf');
+                return redirect()->back()->with('error', 'PDF template not found. Please contact the administrator.');
+            }
+
+            // Fetch exam timetables
             $query = ExamTimetable::query()
                 ->join('units', 'exam_timetables.unit_id', '=', 'units.id')
                 ->join('semesters', 'exam_timetables.semester_id', '=', 'semesters.id')
@@ -452,27 +458,42 @@ class ExamTimetableController extends Controller
                     'units.code as unit_code',
                     'semesters.name as semester_name'
                 );
-            
+
             if ($request->has('semester_id')) {
                 $query->where('exam_timetables.semester_id', $request->semester_id);
             }
-            
+
             $examTimetables = $query->orderBy('exam_timetables.date')
                 ->orderBy('exam_timetables.start_time')
                 ->get();
-            
-            // Generate PDF
-            $pdf = PDF::loadView('pdfs.exam-timetable', [
+
+            // Log the data being passed to the view for debugging
+            \Log::info('Generating PDF with data:', [
+                'count' => $examTimetables->count(),
+                'sample' => $examTimetables->take(2)->toArray()
+            ]);
+
+            // Generate PDF with explicit configuration
+            $pdf = Pdf::loadView('examtimetables.pdf', [
                 'examTimetables' => $examTimetables,
                 'title' => 'Exam Timetable',
-                'generatedAt' => now()->format('Y-m-d H:i:s')
+                'generatedAt' => now()->format('Y-m-d H:i:s'),
             ]);
-            
+
+            // Set paper size and orientation
+            $pdf->setPaper('a4', 'landscape');
+
             // Return the PDF for download
-            return $pdf->download('exam-timetable.pdf');
+            return $pdf->download('examtimetable.pdf');
         } catch (\Exception $e) {
-            \Log::error('Failed to download exam timetable: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to download exam timetable: ' . $e->getMessage());
+            // Log detailed error information
+            \Log::error('Failed to generate PDF: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Return a more informative error response
+            return redirect()->back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
     }
 
@@ -807,11 +828,10 @@ class ExamTimetableController extends Controller
             'examTimetables' => $examTimetables,
             'student' => $user,
             'currentSemester' => $semester,
-            'location' => $examTimetables->pluck('location'),
-            'chief_invigilator' => $examTimetables->pluck('chief_invigilator'),
         ]);
 
         // Return the PDF for download
         return $pdf->download('exam-timetable-' . $semester->name . '.pdf');
     }
+    
 }

@@ -638,7 +638,18 @@ const ExamTimetable = () => {
   }
 
   const handleDownloadTimetable = () => {
-    window.open("/download-examtimetables", "_blank")
+    // Create a temporary anchor element
+    const link = document.createElement("a")
+    link.href = "/download-examtimetables"
+
+    // Set these attributes to force download behavior
+    link.setAttribute("download", "examtimetable.pdf")
+    link.setAttribute("target", "_blank")
+
+    // Append to body, click, and remove
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

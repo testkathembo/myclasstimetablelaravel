@@ -171,6 +171,15 @@ Route::middleware(['auth'])->group(function () {
         ->name('examtimetable.download');
 });
 
+// Student download route
+Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
+    ->name('student.exams.download');
+
+// Lecturer download route
+Route::middleware(['auth', 'permission:download-own-timetable'])->group(function () {
+    Route::get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])
+        ->name('lecturer.timetable.download');
+});
 
 // Admin Routes - Admin role bypasses permission checks
 Route::middleware(['auth', 'role:Admin'])->group(function () {
