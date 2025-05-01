@@ -291,20 +291,20 @@ const ExamTimetable = () => {
 
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this exam timetable?")) {
-        try {
-            await router.delete(`/examtimetable/${id}`, {
-                onSuccess: () => alert("Exam timetable deleted successfully."),
-                onError: (errors) => {
-                    console.error("Failed to delete exam timetable:", errors);
-                    alert("An error occurred while deleting the exam timetable.");
-                },
-            });
-        } catch (error) {
-            console.error("Unexpected error:", error);
-            alert("An unexpected error occurred.");
-        }
+      try {
+        await router.delete(`/examtimetable/${id}`, {
+          onSuccess: () => alert("Exam timetable deleted successfully."),
+          onError: (errors) => {
+            console.error("Failed to delete exam timetable:", errors)
+            alert("An error occurred while deleting the exam timetable.")
+          },
+        })
+      } catch (error) {
+        console.error("Unexpected error:", error)
+        alert("An unexpected error occurred.")
+      }
     }
-};
+  }
 
   const checkForConflicts = (
     date: string,
@@ -339,7 +339,9 @@ const ExamTimetable = () => {
 
     if (conflicts.length > 0) {
       // Create conflict warning message
-      const unitConflicts = conflicts.filter((examtimetable) => examtimetable.unit_code === units.find((u) => u.id === unitId)?.code)
+      const unitConflicts = conflicts.filter(
+        (examtimetable) => examtimetable.unit_code === units.find((u) => u.id === unitId)?.code,
+      )
       const venueConflicts = conflicts.filter((examtimetable) => examtimetable.venue === venueId)
 
       let warningMsg = "Scheduling conflicts detected: "
@@ -441,46 +443,22 @@ const ExamTimetable = () => {
     }))
 
     console.log(`Selected semester ID: ${numericSemesterId}`)
-    console.log("Enrollments data:", enrollments)
+    console.log("All units:", units)
 
-    // Log the structure of a few enrollment objects to understand their properties
-    if (enrollments.length > 0) {
-      console.log("Sample enrollment object:", enrollments[0])
-      console.log("Enrollment properties:", Object.keys(enrollments[0]))
-    }
-
-    // Find all enrollments for the selected semester
-    const semesterEnrollments = enrollments.filter((enrollment) => {
-      const enrollmentSemesterId = Number(enrollment.semester_id)
-      const matches = enrollmentSemesterId === numericSemesterId
-      console.log(
-        `Enrollment ${enrollment.id}: semester_id ${enrollmentSemesterId} matches ${numericSemesterId}? ${matches}`,
-      )
+    // Filter units by semester_id
+    const semesterUnits = units.filter((unit) => {
+      const unitSemesterId = Number(unit.semester_id)
+      const matches = unitSemesterId === numericSemesterId
+      console.log(`Unit ${unit.code} (ID: ${unit.id}): semester_id=${unitSemesterId}, matches=${matches}`)
       return matches
     })
 
-    console.log(
-      `Found ${semesterEnrollments.length} enrollments for semester ${numericSemesterId}:`,
-      semesterEnrollments,
-    )
-
-    // Extract unit_ids from these enrollments
-    const unitIdsInSemester = semesterEnrollments.map((enrollment) => enrollment.unit_id)
-    console.log("Unit IDs with enrollments in this semester:", unitIdsInSemester)
-
-    // Then filter units that match these unit_ids
-    const semesterUnits = units.filter((unit) => {
-      const isUnitInSemester = unitIdsInSemester.includes(unit.id)
-      console.log(`Unit ${unit.code} (ID: ${unit.id}): included in semester ${numericSemesterId}? ${isUnitInSemester}`)
-      return isUnitInSemester
-    })
-
-    console.log(`Found ${semesterUnits.length} units with enrollments in semester ID: ${numericSemesterId}`)
+    console.log(`Found ${semesterUnits.length} units for semester ID: ${numericSemesterId}`, semesterUnits)
 
     if (semesterUnits.length === 0) {
-      console.warn(`No units found with enrollments for semester ID: ${numericSemesterId}`)
+      console.warn(`No units found for semester ID: ${numericSemesterId}`)
       setErrorMessage(
-        `No units found for semester ${semesters.find((s) => s.id === numericSemesterId)?.name || numericSemesterId}`,
+        `No units found for semester ${semesters.find((s) => s.id === numericSemesterId)?.name || numericSemesterId}. Please check if units are assigned to this semester.`,
       )
     } else {
       setErrorMessage(null)
@@ -633,14 +611,14 @@ const ExamTimetable = () => {
 
   const handleProcessTimetable = () => {
     router.post(
-        "/process-examtimetables",
-        {},
-        {
-            onSuccess: () => alert("Timetable processed successfully."),
-            onError: () => alert("Failed to process timetable."),
-        },
+      "/process-examtimetables",
+      {},
+      {
+        onSuccess: () => alert("Timetable processed successfully."),
+        onError: () => alert("Failed to process timetable."),
+      },
     )
-}
+  }
 
   const handleSolveConflicts = () => {
     router.get(

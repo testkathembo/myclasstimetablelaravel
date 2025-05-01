@@ -76,7 +76,46 @@ class ExamTimetableController extends Controller
         $semesters = Semester::all();
         $examrooms = Examroom::all();
         $timeSlots = TimeSlot::all();
-        $units = Unit::select('id', 'code', 'name', 'semester_id')->get();
+        
+        // Get all units
+        $allUnits = Unit::select('id', 'code', 'name')->get();
+        
+        // Get units with their associated semesters through enrollments
+        $unitsBySemester = [];
+        
+        // For each semester, find all units that have enrollments in that semester
+        foreach ($semesters as $semester) {
+            // Find all unit_ids that have enrollments in this semester
+            $unitIdsInSemester = Enrollment::where('semester_id', $semester->id)
+                ->distinct('unit_id')
+                ->pluck('unit_id')
+                ->toArray();
+                
+            // Find the corresponding units
+            $unitsInSemester = Unit::whereIn('id', $unitIdsInSemester)
+                ->select('id', 'code', 'name')
+                ->get()
+                ->map(function ($unit) use ($semester) {
+                    // Add semester_id to each unit
+                    $unit->semester_id = $semester->id;
+                    return $unit;
+                });
+                
+            // Add these units to the array
+            $unitsBySemester[$semester->id] = $unitsInSemester;
+        }
+        
+        // Flatten the array to get all units with their semester_id
+        $unitsWithSemesters = collect();
+        foreach ($unitsBySemester as $semesterId => $units) {
+            $unitsWithSemesters = $unitsWithSemesters->concat($units);
+        }
+        
+        // Log the units with semesters for debugging
+        \Log::info('Units with semesters:', [
+            'count' => $unitsWithSemesters->count(),
+            'sample' => $unitsWithSemesters->take(5),
+        ]);
 
         return Inertia::render('ExamTimetable/index', [
             'examTimetables' => $examTimetables,
@@ -86,7 +125,7 @@ class ExamTimetableController extends Controller
             'semesters' => $semesters,
             'examrooms' => $examrooms,
             'timeSlots' => $timeSlots,
-            'units' => $units,
+            'units' => $unitsWithSemesters, // Pass units with their semester_id
             'can' => [
                 'create' => $user->can('create-examtimetables'),
                 'edit' => $user->can('update-examtimetables'),

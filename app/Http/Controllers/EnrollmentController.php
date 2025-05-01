@@ -16,10 +16,13 @@ class EnrollmentController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
+        $semesterId = $request->input('semester_id', null);
+
         Log::info('Accessing Enrollments', [
             'user_id' => $user->id,
             'user_code' => $user->code,
             'roles' => $user->getRoleNames(),
+            'semester_id' => $semesterId,
         ]);
 
         $search = $request->input('search');
@@ -27,6 +30,11 @@ class EnrollmentController extends Controller
         // Get the query builder for enrollments
         $query = Enrollment::with(['student', 'unit', 'semester', 'lecturer']);
         
+        // Filter by semester if provided
+        if ($semesterId) {
+            $query->where('semester_id', $semesterId);
+        }
+
         // Check if user has Admin role
         if ($user->hasRole('Admin')) {
             // Admin sees all enrollments
@@ -92,6 +100,11 @@ class EnrollmentController extends Controller
                 });
         }
 
+        // Fetch units with enrollments for the selected semester
+        $unitsWithEnrollments = Unit::whereHas('enrollments', function ($query) use ($semesterId) {
+            $query->where('semester_id', $semesterId);
+        })->get();
+
         return Inertia::render('Enrollments/Index', [
             'enrollments' => $enrollments,
             'semesters' => $semesters,
@@ -104,6 +117,8 @@ class EnrollmentController extends Controller
                 'isLecturer' => $user->hasRole('Lecturer'),
                 'isStudent' => $user->hasRole('Student'),
             ],
+            'unitsWithEnrollments' => $unitsWithEnrollments,
+            'selectedSemesterId' => $semesterId,
         ]);
     }
 
