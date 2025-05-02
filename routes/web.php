@@ -22,6 +22,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamOfficeController;
 use App\Http\Controllers\ExamroomController;
 use App\Http\Controllers\ClassTimetableController;
+use App\Http\Controllers\MailController;
 // Add other controller imports as needed
 
 /*
@@ -360,6 +361,7 @@ Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
     Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
 });
 
+Route::get('Notifications', [MailController::class, 'index'])->name('notifications.index');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
