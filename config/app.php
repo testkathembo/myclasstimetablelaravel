@@ -168,6 +168,8 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        App\Providers\NotificationServiceProvider::class,
+
     ])->toArray(),
 
     /*
@@ -185,4 +187,5 @@ return [
         // 'Example' => App\Facades\Example::class,
     ])->toArray(),
 
+    
 ];

@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Run the exam reminder command daily at 10:00 AM
+        $schedule->command('exams:send-reminders')->dailyAt('10:00');
     }
 
     /**

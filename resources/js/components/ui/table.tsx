@@ -1,31 +1,25 @@
-import React from 'react';
+import React from "react";
 
 export const Table = ({ children }: { children: React.ReactNode }) => (
-    <div className="overflow-x-auto">
-        <table className="min-w-full border border-gray-200 bg-white rounded-md shadow-sm">
-            {children}
-        </table>
-    </div>
+  <table className="min-w-full divide-y divide-gray-200">{children}</table>
 );
 
 export const TableHeader = ({ children }: { children: React.ReactNode }) => (
-    <thead className="bg-gray-100">
-        {children}
-    </thead>
-);
-
-export const TableRow = ({ children }: { children: React.ReactNode }) => (
-    <tr className="hover:bg-gray-50">{children}</tr>
-);
-
-export const TableHead = ({ children }: { children: React.ReactNode }) => (
-    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600 border-b">{children}</th>
+  <thead className="bg-gray-50">{children}</thead>
 );
 
 export const TableBody = ({ children }: { children: React.ReactNode }) => (
-    <tbody>{children}</tbody>
+  <tbody className="bg-white divide-y divide-gray-200">{children}</tbody>
+);
+
+export const TableRow = ({ children }: { children: React.ReactNode }) => (
+  <tr>{children}</tr>
+);
+
+export const TableHead = ({ children }: { children: React.ReactNode }) => (
+  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{children}</th>
 );
 
 export const TableCell = ({ children }: { children: React.ReactNode }) => (
-    <td className="px-4 py-2 text-sm text-gray-700 border-b">{children}</td>
+  <td className="px-6 py-4 whitespace-nowrap">{children}</td>
 );

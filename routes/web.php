@@ -23,6 +23,7 @@ use App\Http\Controllers\ExamOfficeController;
 use App\Http\Controllers\ExamroomController;
 use App\Http\Controllers\ClassTimetableController;
 use App\Http\Controllers\MailController;
+use App\Http\Controllers\NotificationController;
 // Add other controller imports as needed
 
 /*
@@ -361,7 +362,14 @@ Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
     Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
 });
 
-Route::get('Notifications', [MailController::class, 'index'])->name('notifications.index');
+// Notification routes (protected by auth middleware)
+
+// Route::get('Notifications', [MailController::class, 'index'])->name('notifications.index');
+Route::middleware(['auth'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/send', [NotificationController::class, 'sendReminders'])->name('notifications.send');
+    Route::get('/notifications/preview/{examId}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
+});
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
