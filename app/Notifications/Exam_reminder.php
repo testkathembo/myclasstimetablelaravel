@@ -5,18 +5,23 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Messages\VonageMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Route;
 
 class Exam_reminder extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    protected $data;
+
     /**
      * Create a new notification instance.
      */
-    public function __construct(public $mailData)
+    public function __construct($data)
     {
-        //
+        $this->data = $data;
     }
 
     /**
@@ -26,36 +31,88 @@ class Exam_reminder extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        $channels = [];
+        
+        // Check user preferences
+        if ($notifiable->notificationPreference) {
+            $prefs = $notifiable->notificationPreference;
+            
+            // Only send notifications if reminders are enabled
+            if ($prefs->reminder_enabled) {
+                if ($prefs->email_enabled) {
+                    $channels[] = 'mail';
+                }
+                
+                if ($prefs->sms_enabled && $notifiable->phone) {
+                    $channels[] = 'vonage';
+                }
+            }
+        } else {
+            // Default to email if no preferences are set
+            $channels[] = 'mail';
+        }
+        
+        return $channels;
     }
 
+   
     /**
-     * Get the mail representation of the notification.
+ * Get the mail representation of the notification.
+ */
+public function toMail(object $notifiable): MailMessage
+{
+    // Use the subject key directly
+    $subject = $this->data['subject'] ?? 'Exam Reminder';
+    
+    // Use the greeting from the data array if provided, otherwise generate it
+    $greeting = $this->data['greeting'] ?? 'Hello ' . $notifiable->first_name;
+    
+    $message = $this->data['message'] ?? 'This is a reminder. You have an exam scheduled as detailed below:';
+    $examDetails = $this->data['exam_details'] ?? [];
+    $closing = $this->data['closing'] ?? 'Good luck with your exam preparation!';
+
+    return (new MailMessage)
+        ->subject($subject)
+        ->markdown('emails.exam-reminder', [
+            'subject' => $subject,
+            'greeting' => $greeting,
+            'message' => $message,
+            'exam_details' => $examDetails,
+            'closing' => $closing,
+            'url' => null // Remove the button by passing null for the URL
+        ]);
+}
+    
+    /**
+     * Get the Vonage / SMS representation of the notification.
      */
-    public function toMail(object $notifiable): MailMessage
+    public function toVonage(object $notifiable): VonageMessage
     {
-        $mailMessage = (new MailMessage)
-            ->subject($this->mailData['Humble reminder'])
-            ->greeting($this->mailData['Hello'])                   
-            ->line($this->mailData['Wish']);
-            
-        // Add exam details if available
-        if (isset($this->mailData['ExamDetails'])) {
-            $examDetails = $this->mailData['ExamDetails'];
-            
-            // Create a more structured and visually appealing exam details section
-            $mailMessage->line('')
-                ->line('**Exam Details:**')
-                ->line('**Unit:** ' . $examDetails['unit'])
-                ->line('**Date:** ' . $examDetails['date'] . ' (' . $examDetails['day'] . ')')
-                ->line('**Time:** ' . $examDetails['time'])
-                ->line('**Venue:** ' . $examDetails['venue'] . ' - ' . $examDetails['location'])
-                ->line('');
-        }
-            
-        $mailMessage->line('We wish all the best in your preparation!');
+        $examInfo = $this->data['exam_details'] ?? [];
         
-        return $mailMessage;
+        $content = "EXAM REMINDER: ";
+        
+        if (!empty($examInfo['unit'])) {
+            $content .= "{$examInfo['unit']} on ";
+        }
+        
+        if (!empty($examInfo['date'])) {
+            $content .= "{$examInfo['date']} at ";
+        }
+        
+        if (!empty($examInfo['time'])) {
+            $content .= "{$examInfo['time']} in ";
+        }
+        
+        if (!empty($examInfo['venue'])) {
+            $content .= "{$examInfo['venue']}. ";
+        }
+        
+        $content .= "Good luck!";
+        
+        return (new VonageMessage)
+            ->content($content)
+            ->unicode();
     }
 
     /**
@@ -66,7 +123,11 @@ class Exam_reminder extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            //
+            'subject' => $this->data['subject'] ?? 'Exam Reminder',
+            'greeting' => $this->data['greeting'] ?? 'Hello',
+            'message' => $this->data['message'] ?? 'We wish to remind you that you will be having an exam tomorrow.',
+            'exam_details' => $this->data['exam_details'] ?? [],
+            'closing' => $this->data['closing'] ?? 'We wish all the best in your preparation!'
         ];
     }
 }

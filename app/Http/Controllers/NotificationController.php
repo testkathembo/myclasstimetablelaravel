@@ -32,8 +32,8 @@ class NotificationController extends Controller
         // Get notification logs (you'll need to create this table)
         // Check if the table exists first to avoid errors
         $recentNotifications = [];
-        if (Schema::hasTable('notification_logs')) {
-            $recentNotifications = DB::table('notification_logs')
+        if (Schema::hasTable('notification_logs')) { // Singular table name
+            $recentNotifications = DB::table('notification_logs') // Singular table name
                 ->orderBy('created_at', 'desc')
                 ->limit(50)
                 ->get();
@@ -58,24 +58,54 @@ class NotificationController extends Controller
         if (!auth()->user()->can('send-notifications')) {
             return redirect()->back()->with('error', 'You do not have permission to send notifications.');
         }
-        
+
         try {
-            // Run the command
+            // Example data for the notification
+            $data = [
+                'subject' => 'Exam Reminder Notification', // Updated key
+                'Hello' => 'Hello ' . auth()->user()->first_name,
+                'Wish' => 'We wish to remind you that you have an exam tomorrow. Please check your exam timetable for details.',
+            ];
+
+            // Notify the user
+            auth()->user()->notify(new Exam_reminder($data));
+
+            // Log the action
             Artisan::call('exams:send-reminders');
             $output = Artisan::output();
-            
-            // Log the action
-            Log::info('Manual notification trigger', [
-                'user_id' => auth()->id(),
-                'output' => $output
+
+            // Insert success log into notification_logs table
+            DB::table('notification_logs')->insert([
+                'notification_type' => 'App\Notifications\Exam_reminder',
+                'notifiable_type' => 'App\Models\User',
+                'notifiable_id' => auth()->id(),
+                'channel' => 'mail',
+                'success' => true,
+                'error_message' => null,
+                'data' => json_encode(['output' => $output]),
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
-            
+
             return redirect()->back()->with('success', 'Exam reminders sent successfully.');
         } catch (\Exception $e) {
             Log::error('Failed to send exam reminders', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
+            // Insert error log into notification_logs table
+            DB::table('notification_logs')->insert([
+                'notification_type' => 'App\Notifications\Exam_reminder',
+                'notifiable_type' => 'App\Models\User',
+                'notifiable_id' => auth()->id(),
+                'channel' => 'mail',
+                'success' => false,
+                'error_message' => $e->getMessage(),
+                'data' => json_encode([]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
             return redirect()->back()->with('error', 'Failed to send exam reminders: ' . $e->getMessage());
         }
     }

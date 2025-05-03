@@ -10,18 +10,24 @@ class MailController extends Controller
 {
     public function index()
     {
-        // Retrieve a user instance (replace 1 with the actual user ID or use Auth::user() for the logged-in user)
-        $user = User::find(1563); // Example: Fetch user with ID 1
+        $user = User::find(1563); // Replace with the actual user ID
 
         if (!$user) {
             return response()->json(['error' => 'User not found'], 404);
         }
 
         $data = [
-            'Humble reminder' => 'Humble reminder',
-            'Hello' => 'Hello ' . $user->name,
-            'Wish' => 'We wish to remind you that you will be having an exam tomorrow. Please keep checking your timetable for further details.',
-            
+            'Humble reminder' => 'Exam Reminder Notification',
+            'Hello' => 'Hello ' . $user->first_name,
+            'Wish' => 'We wish to remind you that you have an exam tomorrow. Please check your timetable for details.',
+            'ExamDetails' => [
+                'unit' => 'BIT101 - Introduction to Information Technology',
+                'date' => '2025-05-02',
+                'day' => 'Friday',
+                'time' => '08:00 - 10:00',
+                'venue' => 'Blue Sky',
+                'location' => 'Phase1',
+            ],
         ];
 
         $user->notify(new Exam_reminder($data));

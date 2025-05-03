@@ -128,6 +128,12 @@ export default function ExamTimetable({ examTimetables, semesters, selectedSemes
                           scope="col"
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                         >
+                          Location
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
                           Chief Invigilator
                         </th>
                       </tr>
@@ -160,6 +166,8 @@ export default function ExamTimetable({ examTimetables, semesters, selectedSemes
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-900">{exam.venue}</div>
+                          </td>
+                          <td className="px-6 py-4">
                             <div className="text-sm text-gray-500">{exam.location}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
