@@ -17,8 +17,7 @@ class CreateClassTimetablesTable extends Migration
             $table->time('start_time');
             $table->time('end_time');
             $table->string('venue');
-            $table->string('location')->nullable();
-            $table->integer('no');
+            $table->string('location')->nullable();      
             $table->string('status')->default('physical'); // Add status column
             $table->unsignedBigInteger('lecturer_id')->nullable();
             $table->timestamps();

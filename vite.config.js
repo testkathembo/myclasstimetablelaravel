@@ -12,7 +12,7 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            '@': '/resources/js', // Ensure this points to the correct directory
+            '@': '/resources/js',
         },
     },
     server: {

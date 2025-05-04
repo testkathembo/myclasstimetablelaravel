@@ -232,6 +232,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+
+    Route::resource('classtimetables', ClassTimetableController::class);
 });
 
 // ✅ Exam Office and Admin Routes
@@ -370,6 +372,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notifications/send', [NotificationController::class, 'sendReminders'])->name('notifications.send');
     Route::get('/notifications/preview/{examId}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
 });
+
+// Admin dashboard route
+Route::get('/admin/dashboard', function () {
+    return Inertia::render('Admin/Dashboard'); // Ensure this matches the file path
+})->name('admin.dashboard');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

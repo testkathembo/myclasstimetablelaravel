@@ -10,7 +10,6 @@ class ClassTimetable extends Model
     use HasFactory;
 
     protected $fillable = [
-        'enrollment_id',
         'semester_id',
         'unit_id',
         'day',
@@ -19,28 +18,22 @@ class ClassTimetable extends Model
         'end_time',
         'venue',
         'location',
-        'no',
         'status',
         'lecturer_id',
     ];
 
-    public function enrollment()
+    public function semester()
     {
-        return $this->belongsTo(Enrollment::class);
+        return $this->belongsTo(Semester::class);
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
     }
 
     public function lecturer()
     {
         return $this->belongsTo(User::class, 'lecturer_id');
-    }
-
-    public function semester()
-    {
-        return $this->belongsTo(Semester::class, 'semester_id');
-    }
-
-    public function unit()
-    {
-        return $this->belongsTo(Unit::class, 'unit_id');
     }
 }
