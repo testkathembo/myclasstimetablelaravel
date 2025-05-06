@@ -177,6 +177,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/download-examtimetables', [ExamTimetableController::class, 'downloadPDF'])
         ->middleware(['permission:download-examtimetables'])
         ->name('examtimetable.download');
+
+     // Download class timetable route - MAIN ROUTE FOR PDF DOWNLOAD
+     Route::get('/download-classtimetables', [ClassTimetableController::class, 'downloadPDF'])
+     ->middleware(['permission:download-classtimetables'])
+     ->name('classtimetable.download');
 });
 
 // Student download route

@@ -444,7 +444,7 @@ class ClassTimetableController extends Controller
     public function downloadPDF(Request $request)
     {
         try {
-            // Check if the PDF template exists
+            // Ensure the view file exists
             if (!view()->exists('classtimetables.pdf')) {
                 \Log::error('PDF template not found: classtimetables.pdf');
                 return redirect()->back()->with('error', 'PDF template not found. Please contact the administrator.');
@@ -454,11 +454,17 @@ class ClassTimetableController extends Controller
             $query = ClassTimetable::query()
                 ->join('units', 'class_timetable.unit_id', '=', 'units.id')
                 ->join('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+                ->leftJoin('class_time_slots', function ($join) {
+                    $join->on('class_timetable.day', '=', 'class_time_slots.day')
+                         ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
+                         ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
+                })
                 ->select(
                     'class_timetable.*',
                     'units.name as unit_name',
                     'units.code as unit_code',
-                    'semesters.name as semester_name'
+                    'semesters.name as semester_name',
+                    'class_time_slots.status as mode_of_teaching' // Fetch mode of teaching
                 );
 
             if ($request->has('semester_id')) {
@@ -475,9 +481,9 @@ class ClassTimetableController extends Controller
                 'sample' => $classTimetables->take(2)->toArray()
             ]);
 
-            // Generate PDF with explicit configuration
-            $pdf = Pdf::loadView('classTimetables.pdf', [
-                'classTimetables' => $examTimetables,
+            // Generate PDF
+            $pdf = Pdf::loadView('classtimetables.pdf', [
+                'classTimetables' => $classTimetables,
                 'title' => 'Class Timetable',
                 'generatedAt' => now()->format('Y-m-d H:i:s'),
             ]);
@@ -586,7 +592,7 @@ class ClassTimetableController extends Controller
             ->toArray();
         
         // Get class timetables for the lecturer's units
-        $examTimetables = ExamTimetable::where('semester_id', $semesterId)
+        $classTimetables = ExamTimetable::where('semester_id', $semesterId)
             ->whereIn('unit_id', $lecturerUnitIds)
             ->with('unit') // Eager load the unit relationship
             ->orderBy('day')
@@ -602,7 +608,7 @@ class ClassTimetableController extends Controller
         ]);
         
         return Inertia::render('Lecturer/ClassTimetable', [
-            'classTimetables' => $examTimetables,
+            'classTimetables' => $classTimetables,
             'semesters' => $semesters,
             'selectedSemesterId' => $semesterId
         ]);
@@ -648,7 +654,7 @@ class ClassTimetableController extends Controller
                 ->toArray();
             
             // Get class timetables for the lecturer's units
-            $examTimetables = ExamTimetable::where('semester_id', $semesterId)
+            $classTimetables = ExamTimetable::where('semester_id', $semesterId)
                 ->whereIn('unit_id', $lecturerUnitIds)
                 ->with('unit') // Eager load the unit relationship
                 ->orderBy('day')
@@ -724,7 +730,7 @@ class ClassTimetableController extends Controller
             ->toArray();
         
         // Get class timetables for the student's enrolled units in the selected semester
-        $examTimetables = ExamTimetable::where('semester_id', $semesterId)
+        $classTimetables = ExamTimetable::where('semester_id', $semesterId)
             ->whereIn('unit_id', $enrolledUnitIds)
             ->orWhereHas('unit', function($query) use ($user, $enrolledUnitIds) {
                 $query->whereIn('id', $enrolledUnitIds);
