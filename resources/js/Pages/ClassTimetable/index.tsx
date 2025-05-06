@@ -143,7 +143,7 @@ const checkTimeOverlap = (classtimetable: ClassTimetable, day: string, startTime
 
 const ClassTimetable = () => {
   const {
-    classTimetables = { data: [] },
+    classTimetable = { data: [] },
     perPage = 10,
     search = "",
     semesters = [],
@@ -154,7 +154,7 @@ const ClassTimetable = () => {
     units = [],
     lecturers = [],
   } = usePage().props as unknown as {
-    classTimetables: PaginatedClassTimetables
+    classTimetable: PaginatedClassTimetables
     perPage: number
     search: string
     semesters: Semester[]
@@ -196,13 +196,27 @@ const ClassTimetable = () => {
 
   // Debug enrollments data structure
   useEffect(() => {
-    console.log("Enrollments data structure:", enrollments.slice(0, 3))
-    console.log("Lecturers:", lecturers)
-  }, [enrollments, lecturers])
+    console.log("Enrollments data:", enrollments.slice(0, 3))
+  }, [enrollments])
 
   useEffect(() => {
     console.log("Lecturers:", lecturers) // Debug lecturers array
   }, [lecturers])
+
+  // Debugging: Log the current semester ID
+  useEffect(() => {
+    if (formState?.semester_id) {
+      console.log(`Current semester ID: ${formState.semester_id}`);
+    }
+  }, [formState?.semester_id]);
+
+  // Debugging: Log filtered units when they are updated
+  useEffect(() => {
+    console.log(`Filtered units count: ${filteredUnits.length}`);
+    if (filteredUnits.length > 0) {
+      console.log("Filtered units:", filteredUnits);
+    }
+  }, [filteredUnits]);
 
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", classtimetable: ClassTimetable | null) => {
     setModalType(type)
@@ -316,7 +330,7 @@ const ClassTimetable = () => {
     }
 
     // Check for conflicts with existing exams
-    const conflicts = classTimetables.data.filter((classtimetable) => {
+    const conflicts = classTimetable.data.filter((classtimetable) => {
       // Skip the current Class  when editing
       if (selectedClassTimetable && classtimetable.id === selectedClassTimetable.id) return false
 
@@ -492,51 +506,30 @@ const ClassTimetable = () => {
     console.log("Units received from backend:", units)
   }, [units])
 
+  // Debugging: Log selected unit details
   const handleUnitChange = (unitId: number) => {
-    if (!formState) return
+    if (!formState) return;
 
-    const selectedUnit = units.find((u) => u.id === Number(unitId))
+    const selectedUnit = units.find((u) => u.id === unitId);
     if (selectedUnit) {
-      console.log("Selected unit:", selectedUnit)
+        console.log("Selected unit:", selectedUnit);
 
-      // Get student count and lecturer info directly from the unit object
-      const studentCount = selectedUnit.student_count || 0
-      const lecturerName = selectedUnit.lecturer_name || ""
+        const studentCount = selectedUnit.student_count || 0;
+        const lecturerName = selectedUnit.lecturer_name || "Unknown";
 
-      console.log(`Student count for unit ${selectedUnit.code}: ${studentCount}`)
-      console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`)
+        console.log(`Student count for unit ${selectedUnit.code}: ${studentCount}`);
+        console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`);
 
-      setFormState((prev) => ({
-        ...prev!,
-        unit_id: Number(unitId),
-        unit_code: selectedUnit.code,
-        unit_name: selectedUnit.name,
-        no: studentCount, // Set the student count from the unit object
-        lecturer: lecturerName || prev!.lecturer, // Set lecturer as chief invigilator if available
-      }))
-
-      // Check venue capacity if venue is already selected
-      if (formState.venue) {
-        checkVenueCapacity(formState.venue, studentCount)
-      }
-
-      // Check for conflicts if we have enough data
-      if (formState.day && formState.start_time && formState.end_time && formState.venue) {
-        checkForConflicts(formState.day, formState.start_time, formState.end_time, Number(unitId), formState.venue)
-      }
-
-      // If lecturer info is available, add it to unitLecturers
-      if (selectedUnit.lecturer_name && selectedUnit.lecturer_code) {
-        const lecturer = {
-          id: Number(selectedUnit.lecturer_code),
-          name: selectedUnit.lecturer_name,
-        }
-        setUnitLecturers([lecturer])
-      } else {
-        setUnitLecturers([])
-      }
+        setFormState((prev) => ({
+            ...prev!,
+            unit_id: unitId,
+            unit_code: selectedUnit.code,
+            unit_name: selectedUnit.name,
+            no: studentCount,
+            lecturer: lecturerName,
+        }));
     }
-  }
+  };
 
   const handleLecturerChange = (lecturerId: number) => {
     if (!formState) return
@@ -607,6 +600,47 @@ const ClassTimetable = () => {
     }
   }
 
+  // Debugging: Log form data before submission
+  const handleSubmitForm = (data: FormState) => {
+    const formattedData = {
+        ...data,
+        start_time: formatTimeToHi(data.start_time),
+        end_time: formatTimeToHi(data.end_time),
+    };
+
+    console.log("Submitting form data:", formattedData);
+
+    if (data.id === 0) {
+        router.post(`/classtimetable`, formattedData, {
+            onSuccess: () => {
+                console.log("Creation successful");
+                handleCloseModal();
+                router.reload({
+                    only: ["classtimetable"],
+                    onSuccess: () => console.log("Page data refreshed successfully"),
+                });
+            },
+            onError: (errors) => {
+                console.error("Creation failed:", errors);
+            },
+        });
+    } else {
+        router.put(`/classtimetable/${data.id}`, formattedData, {
+            onSuccess: () => {
+                console.log("Update successful");
+                handleCloseModal();
+                router.reload({
+                    only: ["classtimetable"],
+                    onSuccess: () => console.log("Page data refreshed successfully"),
+                });
+            },
+            onError: (errors) => {
+                console.error("Update failed:", errors);
+            },
+        });
+    }
+  };
+
   const handleProcessClassTimetable = () => {
     router.post(
       "/process-classtimetables",
@@ -657,57 +691,6 @@ const ClassTimetable = () => {
     const newPerPage = Number.parseInt(e.target.value)
     setRowsPerPage(newPerPage)
     router.get("/classtimetable", { search: searchValue, perPage: newPerPage })
-  }
-
-  const handleSubmitForm = (data: FormState) => {
-    // Format start_time and end_time to H:i
-    const formattedData = {
-      ...data,
-      start_time: formatTimeToHi(data.start_time),
-      end_time: formatTimeToHi(data.end_time),
-    }
-
-    console.log("Submitting form data:", formattedData) // Debug the data being sent
-
-    if (data.id === 0) {
-      // Create a new class timetable
-      router.post(`/classtimetable`, formattedData, {
-        onError: (errors) => {
-          console.error("Creation failed:", errors) // Debug errors
-        },
-        onSuccess: () => {
-          console.log("Creation successful")
-          handleCloseModal() // Close the modal after successful creation
-
-          // Reload the page to refresh the data
-          router.reload({
-            only: ["classtimetables"],
-            onSuccess: () => {
-              console.log("Page data refreshed successfully")
-            },
-          })
-        },
-      })
-    } else {
-      // Update an existing class timetable
-      router.put(`/classtimetable/${data.id}`, formattedData, {
-        onError: (errors) => {
-          console.error("Update failed:", errors) // Debug errors
-        },
-        onSuccess: () => {
-          console.log("Update successful")
-          handleCloseModal() // Close the modal after successful update
-
-          // Reload the page to refresh the data
-          router.reload({
-            only: ["classtimetables"],
-            onSuccess: () => {
-              console.log("Page data refreshed successfully")
-            },
-          })
-        },
-      })
-    }
   }
 
   // Debug effect to monitor filtered units
@@ -775,7 +758,7 @@ const ClassTimetable = () => {
           </div>
         </div>
 
-        {classTimetables?.data?.length > 0 ? (
+        {classTimetable?.data?.length > 0 ? (
           <>
             <div className="overflow-x-auto">
               <table className="w-full mt-6 border text-sm text-left">
@@ -920,6 +903,7 @@ const ClassTimetable = () => {
                           value={formState.day}
                           onChange={(e) => handleCreateChange("day", e.target.value)}
                           className="w-full border rounded p-2 mb-3"
+                          required
                         >
                           <option value="">Select Day</option>
                           {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => (
@@ -1096,7 +1080,7 @@ const ClassTimetable = () => {
 
               {modalType === "delete" && selectedClassTimetable && (
                 <>
-                  <h2 className="text-xl font-semibold mb-4">Delete CLass Timetable</h2>
+                  <h2 className="text-xl font-semibold mb-4">Delete Class Timetable</h2>
                   <p>Are you sure you want to delete this timetable?</p>
                   <div className="mt-4 flex justify-end space-x-2">
                     <Button
@@ -1105,7 +1089,11 @@ const ClassTimetable = () => {
                     >
                       Delete
                     </Button>
-                    <Button onClick={handleCloseModal} className="bg-gray-400 text-white">
+                    <Button
+                      type="button"
+                      onClick={handleCloseModal}
+                      className="bg-gray-400 text-white"
+                    >
                       Cancel
                     </Button>
                   </div>

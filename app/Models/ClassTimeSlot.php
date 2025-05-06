@@ -13,6 +13,7 @@ class ClassTimeSlot extends Model
         'day',
         'start_time',
         'end_time',
+        'status', // Add status to fillable
     ];
 }
 

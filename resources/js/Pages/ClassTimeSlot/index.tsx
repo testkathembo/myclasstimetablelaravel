@@ -8,6 +8,7 @@ interface ClassTimeSlot {
     day: string;    
     start_time: string;
     end_time: string;
+    status: string; // Add status field
 }
 
 interface PaginationLinks {
@@ -24,15 +25,15 @@ interface PaginatedTimeSlots {
     current_page: number;
 }
 
-const ClassTimeSlots = () => {
-    const { classtimeSlots = { data: [], links: [], total: 0, per_page: 10, current_page: 1 }, perPage = 10, search = '' } = usePage().props as {
-        classtimeSlots?: PaginatedTimeSlots;
+const ClassTimeSlot = () => {
+    const { classtimeSlot = { data: [], links: [], total: 0, per_page: 10, current_page: 1 }, perPage = 10, search = '' } = usePage().props as {
+        classtimeSlot?: PaginatedTimeSlots;
         perPage?: number;
         search?: string;
     };
 
     // Debugging: Log the props to verify data
-    console.log('TimeSlots props:', { classtimeSlots, perPage, search });
+    console.log('classTimeSlots props:', { classtimeSlot, perPage, search });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'create' | 'edit' | 'delete' | ''>('');
@@ -40,12 +41,12 @@ const ClassTimeSlots = () => {
     const [itemsPerPage, setItemsPerPage] = useState(perPage);
     const [searchQuery, setSearchQuery] = useState(search);
 
-    const handleOpenModal = (type: 'create' | 'edit' | 'delete', timeSlot: ClassTimeSlot | null = null) => {
+    const handleOpenModal = (type: 'create' | 'edit' | 'delete', classtimeSlot: ClassTimeSlot | null = null) => {
         setModalType(type);
         setCurrentClassTimeSlot(
             type === 'create'
-                ? { id: 0, day: '', start_time: '', end_time: '' }
-                : timeSlot
+                ? { id: 0, day: '', start_time: '', end_time: '', status: '' }
+                : classtimeSlot
         );
         setIsModalOpen(true);
     };
@@ -60,7 +61,7 @@ const ClassTimeSlots = () => {
         e.preventDefault();
 
         if (modalType === 'create') {
-            router.post('/classtimeslots', currentClassTimeSlot, {
+            router.post('/classtimeslot', currentClassTimeSlot, {
                 onSuccess: () => {
                     alert('Class Time slot created successfully!');
                     handleCloseModal();
@@ -70,7 +71,7 @@ const ClassTimeSlots = () => {
                 },
             });
         } else if (modalType === 'edit' && currentClassTimeSlot) {
-            router.put(`/classtimeslots/${currentClassTimeSlot.id}`, currentClassTimeSlot, {
+            router.put(`/classtimeslot/${currentClassTimeSlot.id}`, currentClassTimeSlot, {
                 onSuccess: () => {
                     alert('Time slot updated successfully!');
                     handleCloseModal();
@@ -80,9 +81,9 @@ const ClassTimeSlots = () => {
                 },
             });
         } else if (modalType === 'delete' && currentClassTimeSlot) {
-            router.delete(`/timeslots/${currentClassTimeSlot.id}`, {
+            router.delete(`/classtimeslot/${currentClassTimeSlot.id}`, {
                 onSuccess: () => {
-                    alert('Time slot deleted successfully!');
+                    alert('Class Time slot deleted successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
@@ -94,7 +95,7 @@ const ClassTimeSlots = () => {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get('/timeslots', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
+        router.get('/classtimeslot', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
     };
 
     const handleDateChange = (date: string) => {
@@ -112,7 +113,7 @@ const ClassTimeSlots = () => {
     const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newPerPage = parseInt(e.target.value, 10);
         setItemsPerPage(newPerPage);
-        router.get('/classtimeslots', { per_page: newPerPage, search: searchQuery }, { preserveState: true });
+        router.get('/classtimeslot', { per_page: newPerPage, search: searchQuery }, { preserveState: true });
     };
 
     return (
@@ -162,20 +163,14 @@ const ClassTimeSlots = () => {
                 <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="px-4 py-2 border">Day</th>
-                            <th className="px-4 py-2 border">Start Time</th>
-                            <th className="px-4 py-2 border">End Time</th>
-                            <th className="px-4 py-2 border">Actions</th>
+                            <th className="px-4 py-2 border">Day</th><th className="px-4 py-2 border">Start Time</th><th className="px-4 py-2 border">End Time</th><th className="px-4 py-2 border">Status</th><th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {classtimeSlots.data.length > 0 ? (
-                            classtimeSlots.data.map((class_time_slots) => (
+                        {classtimeSlot.data.length > 0 ? (
+                            classtimeSlot.data.map((class_time_slots) => (
                                 <tr key={class_time_slots.id} className="border-b hover:bg-gray-50">
-                                    <td className="px-4 py-2 border">{class_time_slots.day}</td>
-                                    <td className="px-4 py-2 border">{class_time_slots.start_time}</td>
-                                    <td className="px-4 py-2 border">{class_time_slots.end_time}</td>
-                                    <td className="px-4 py-2 border text-center">
+                                    <td className="px-4 py-2 border">{class_time_slots.day}</td><td className="px-4 py-2 border">{class_time_slots.start_time}</td><td className="px-4 py-2 border">{class_time_slots.end_time}</td><td className="px-4 py-2 border">{class_time_slots.status}</td><td className="px-4 py-2 border text-center">
                                         <button
                                             onClick={() => handleOpenModal('edit', class_time_slots)}
                                             className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 mr-2"
@@ -193,14 +188,12 @@ const ClassTimeSlots = () => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={5} className="px-4 py-2 text-center text-gray-500">
-                                    No lass time slots found.
-                                </td>
+                                <td colSpan={5} className="px-4 py-2 text-center text-gray-500">No class time slots found.</td>
                             </tr>
                         )}
                     </tbody>
                 </table>
-                <Pagination links={classtimeSlots.links} onPageChange={handlePageChange} />
+                <Pagination links={classtimeSlot.links} onPageChange={handlePageChange} />
             </div>
 
             {/* Modal */}
@@ -216,18 +209,27 @@ const ClassTimeSlots = () => {
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Day</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={currentClassTimeSlot?.day || ''}
-                                        readOnly // Make this field read-only
-                                        className="w-full border rounded p-2 bg-gray-100"
-                                    />
+                                        onChange={(e) =>
+                                            setCurrentClassTimeSlot((prev) => ({ ...prev!, day: e.target.value }))
+                                        }
+                                        className="w-full border rounded p-2"
+                                        required
+                                    >
+                                        <option value="">Select Day</option>
+                                        {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => (
+                                            <option key={day} value={day}>
+                                                {day}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Start Time</label>
                                     <input
                                         type="time"
-                                        value={currentClassTimeSlot?.start_time || ''}
+                                        value={currentClassTimeSlot?.start_time || ''} // Pre-populate start_time
                                         onChange={(e) =>
                                             setCurrentClassTimeSlot((prev) => ({ ...prev!, start_time: e.target.value }))
                                         }
@@ -239,13 +241,28 @@ const ClassTimeSlots = () => {
                                     <label className="block text-sm font-medium text-gray-700">End Time</label>
                                     <input
                                         type="time"
-                                        value={currentClassTimeSlot?.end_time || ''}
+                                        value={currentClassTimeSlot?.end_time || ''} // Pre-populate end_time
                                         onChange={(e) =>
                                             setCurrentClassTimeSlot((prev) => ({ ...prev!, end_time: e.target.value }))
                                         }
                                         className="w-full border rounded p-2"
                                         required
                                     />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                                    <select
+                                        value={currentClassTimeSlot?.status || ''}
+                                        onChange={(e) =>
+                                            setCurrentClassTimeSlot((prev) => ({ ...prev!, status: e.target.value }))
+                                        }
+                                        className="w-full border rounded p-2"
+                                        required
+                                    >
+                                        <option value="Default">Select Mode of Study</option>
+                                        <option value="Physical">Physical</option>
+                                        <option value="Online">Online</option>
+                                    </select>
                                 </div>
                                 <button
                                     type="submit"
@@ -288,4 +305,4 @@ const ClassTimeSlots = () => {
     );
 };
 
-export default ClassTimeSlots;
+export default ClassTimeSlot;

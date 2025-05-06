@@ -28,7 +28,7 @@ export default function Sidebar() {
           
           {/* Class Timetables */}
           <Link
-            href="/classtimetables"
+            href="/classtimetable"
             className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
           >
             <Calendar className="mr-3 h-5 w-5" />
@@ -107,7 +107,7 @@ export default function Sidebar() {
               </Link>
 
               <Link 
-                href="/classtimeslots" 
+                href="/classtimeslot" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <BookOpen className="mr-3 h-5 w-5" />

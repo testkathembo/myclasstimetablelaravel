@@ -27,7 +27,8 @@ class ClassTimeSlotController extends Controller
                 $q->where('day', 'like', "%{$search}%")
                   ->orWhere('date', 'like', "%{$search}%")
                   ->orWhere('start_time', 'like', "%{$search}%")
-                  ->orWhere('end_time', 'like', "%{$search}%");
+                  ->orWhere('end_time', 'like', "%{$search}%")
+                  ->orWhere('status', 'like', "%{$search}%"); // Add status to search
             });
         }
 
@@ -51,18 +52,16 @@ class ClassTimeSlotController extends Controller
      */
     public function store(Request $request)
     {
-        // Validate the request
         $validated = $request->validate([
-            'day' => 'required',           
+            'day' => 'required',
             'start_time' => 'required',
             'end_time' => 'required',
+            'status' => 'required|in:Physical,Online', // Validate status
         ]);
 
-        // Create the time slot
         ClassTimeSlot::create($validated);
 
-        return redirect()->back()
-            ->with('success', 'Class Time slot created successfully.');
+        return redirect()->back()->with('success', 'Class Time slot created successfully.');
     }
 
     /**
@@ -70,18 +69,16 @@ class ClassTimeSlotController extends Controller
      */
     public function update(Request $request, ClassTimeSlot $classtimeSlot)
     {
-        // Validate the request
         $validated = $request->validate([
-            'day' => 'required',            
+            'day' => 'required',
             'start_time' => 'required',
             'end_time' => 'required',
+            'status' => 'Physical,Online', // Validate status
         ]);
 
-        // Update the time slot
         $classtimeSlot->update($validated);
 
-        return redirect()->back()
-            ->with('success', 'Class Time slot updated successfully.');
+        return redirect()->back()->with('success', 'Class Time slot updated successfully.');
     }
 
     /**

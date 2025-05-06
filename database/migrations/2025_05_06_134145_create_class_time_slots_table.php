@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->string('day'); // Day of the week
             $table->time('start_time'); // Start time of the slot
             $table->time('end_time'); // End time of the slot
-            $table->string('status')->default('Physical'); // Status: Physical or Online
+            $table->string('status')->default('physical'); // Status: physical or online
             $table->timestamps(); // Created at and updated at timestamps
         });
     }
