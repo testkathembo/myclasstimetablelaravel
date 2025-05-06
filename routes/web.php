@@ -11,6 +11,7 @@ use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\TimeSlotController;
+use App\Http\Controllers\ClassTimeSlotController;
 use App\Http\Controllers\ExamTimetableController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\RoleController;
@@ -145,6 +146,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+
+    Route::get('/classtimeslot', [ClassTimeSlotController::class, 'index'])->name('classtimeslot.index');
+    Route::post('/classtimeslot', [ClassTimeSlotController::class, 'store'])->name('classtimeslot.store');
+    Route::put('/classtimeslot/{classtimeSlot}', [ClassTimeSlotController::class, 'update'])->name('classtimeslot.update');
+    Route::delete('/classtimeslot/{classtimeSlot}', [ClassTimeSlotController::class, 'destroy'])->name('classtimeslot.destroy');
     
     // ExamTimetable routes - UPDATED
     Route::middleware(['permission:manage-examtimetables'])->group(function () {

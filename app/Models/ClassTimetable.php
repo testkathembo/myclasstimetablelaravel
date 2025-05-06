@@ -9,27 +9,29 @@ class ClassTimetable extends Model
 {
     use HasFactory;
 
+    // Specify the table name
+    protected $table = 'class_timetable';
+
     protected $fillable = [
         'semester_id',
         'unit_id',
         'day',
-        'date',
         'start_time',
         'end_time',
         'venue',
         'location',
-        'status',
-        'lecturer_id',
+        'no',
+        'lecturer',
     ];
-
-    public function semester()
-    {
-        return $this->belongsTo(Semester::class);
-    }
 
     public function unit()
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function semester()
+    {
+        return $this->belongsTo(Semester::class);
     }
 
     public function lecturer()

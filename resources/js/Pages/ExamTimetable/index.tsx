@@ -3,8 +3,6 @@
 import type React from "react"
 import { useState, useEffect, type FormEvent } from "react"
 import { Head, usePage, router } from "@inertiajs/react"
-// Remove the problematic import
-// import { Inertia } from "@inertiajs/inertia"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
