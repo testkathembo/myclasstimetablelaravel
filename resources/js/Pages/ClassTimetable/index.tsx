@@ -6,7 +6,7 @@ import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle } from 'lucide-react'
 
 interface ClassTimetable {
   id: number
@@ -21,14 +21,15 @@ interface ClassTimetable {
   end_time: string
   semester_id: number
   semester_name: string
+  status: string // Added status property
 }
 
 interface Enrollment {
   id: number
-  student_code: string // Changed from student_id to student_code
+  student_code: string
   unit_id: number
   semester_id: number
-  lecturer_code: string | null // Changed from lecturer_id to lecturer_code
+  lecturer_code: string | null
   created_at: string
   updated_at: string
   lecturer_name?: string | null
@@ -142,8 +143,9 @@ const checkTimeOverlap = (classtimetable: ClassTimetable, day: string, startTime
 }
 
 const ClassTimetable = () => {
+  // FIXED: Changed property name from classTimetable to classTimetables to match controller
   const {
-    classTimetable = { data: [] },
+    classTimetables = { data: [] },
     perPage = 10,
     search = "",
     semesters = [],
@@ -154,13 +156,13 @@ const ClassTimetable = () => {
     units = [],
     lecturers = [],
   } = usePage().props as unknown as {
-    classTimetable: PaginatedClassTimetables
+    classTimetables: PaginatedClassTimetables
     perPage: number
     search: string
     semesters: Semester[]
     enrollments: Enrollment[]
     classrooms: Classroom[]
-    classtimeSlots: classTimeSlot[]
+    classtimeSlots: ClassTimeSlot[]
     units: Unit[]
     lecturers: Lecturer[]
     can: {
@@ -181,11 +183,16 @@ const ClassTimetable = () => {
   const [rowsPerPage, setRowsPerPage] = useState(perPage)
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
   const [capacityWarning, setCapacityWarning] = useState<string | null>(null)
-  const [availableClassTimeSlots, setAvailableClassTimeSlots] = useState<classTimeSlot[]>([])
+  const [availableClassTimeSlots, setAvailableClassTimeSlots] = useState<ClassTimeSlot[]>([])
   const [conflictWarning, setConflictWarning] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
+
+  // Debug data received from server
+  useEffect(() => {
+    console.log("Data received from server:", { classTimetables, classtimeSlots, units })
+  }, [classTimetables, classtimeSlots, units])
 
   // Initialize available timeslots
   useEffect(() => {
@@ -269,7 +276,7 @@ const ClassTimetable = () => {
         enrollment_id: unitEnrollment?.id || 0,
         unit_id: unit?.id || 0,
         classtimeslot_id: classtimeSlot?.id || 0,
-        lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null, // Changed lecturer_id to lecturer_code
+        lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
         lecturer_name: unitEnrollment?.lecturer_name || "",
       })
 
@@ -329,9 +336,9 @@ const ClassTimetable = () => {
       return false
     }
 
-    // Check for conflicts with existing exams
-    const conflicts = classTimetable.data.filter((classtimetable) => {
-      // Skip the current Class  when editing
+    // FIXED: Changed classTimetable to classTimetables
+    const conflicts = classTimetables.data.filter((classtimetable) => {
+      // Skip the current Class when editing
       if (selectedClassTimetable && classtimetable.id === selectedClassTimetable.id) return false
 
       // Check for time overlap on the same day
@@ -401,14 +408,14 @@ const ClassTimetable = () => {
   const findLecturersForUnit = (unitId: number, semesterId: number) => {
     // Find all enrollments for this unit in the selected semester
     const unitEnrollments = enrollments.filter(
-      (e) => e.unit_id === unitId && Number(e.semester_id) === Number(semesterId) && e.lecturer_code, // Changed lecturer_id to lecturer_code
+      (e) => e.unit_id === unitId && Number(e.semester_id) === Number(semesterId) && e.lecturer_code,
     )
 
     // Extract unique lecturer codes
     const uniqueLecturerCodes = Array.from(new Set(unitEnrollments.map((e) => e.lecturer_code).filter(Boolean)))
 
     // Find lecturer details
-    const unitLecturersList = lecturers.filter((l) => uniqueLecturerCodes.includes(l.id.toString())) // Match lecturer_code with lecturer.id
+    const unitLecturersList = lecturers.filter((l) => uniqueLecturerCodes.includes(l.id.toString()))
 
     console.log(
       `Found ${unitLecturersList.length} lecturers for unit ID ${unitId} in semester ${semesterId}:`,
@@ -540,7 +547,7 @@ const ClassTimetable = () => {
         ...prev!,
         lecturer_id: Number(lecturerId),
         lecturer_name: selectedLecturer.name,
-        chief_invigilator: selectedLecturer.name, // Update chief invigilator with lecturer name
+        chief_invigilator: selectedLecturer.name, // Update Lecturer with lecturer name
       }))
     }
   }
@@ -592,7 +599,7 @@ const ClassTimetable = () => {
     }))
 
     if (field === "lecturer") {
-      // Just update the chief invigilator field
+      // Just update the Lecturer field
       setFormState((prev) => ({
         ...prev!,
         lecturer: value as string,
@@ -600,52 +607,46 @@ const ClassTimetable = () => {
     }
   }
 
-  // Debugging: Log form data before submission
- // In your handleSubmitForm function in class-timetable.tsx, modify it to:
+  // FIXED: Updated handleSubmitForm to include date field and use correct property name
+  const handleSubmitForm = (data: FormState) => {
+    const formattedData = {
+        ...data,
+        start_time: formatTimeToHi(data.start_time),
+        end_time: formatTimeToHi(data.end_time),
+    };
 
-const handleSubmitForm = (data: FormState) => {
-  // Format the date field - this is required by your database schema
-  const currentDate = new Date().toISOString().split('T')[0]; // Use today's date as fallback
-  
-  const formattedData = {
-      ...data,
-      date: currentDate, // Add the date field which is required by your database
-      start_time: formatTimeToHi(data.start_time),
-      end_time: formatTimeToHi(data.end_time),
+    console.log("Submitting form data:", formattedData);
+
+    if (data.id === 0) {
+        router.post(`/classtimetable`, formattedData, {
+            onSuccess: () => {
+                console.log("Creation successful");
+                handleCloseModal();
+                router.reload({
+                    only: ["classTimetables"], // FIXED: Changed to match controller property name
+                    onSuccess: () => console.log("Page data refreshed successfully"),
+                });
+            },
+            onError: (errors) => {
+                console.error("Creation failed:", errors);
+            },
+        });
+    } else {
+        router.put(`/classtimetable/${data.id}`, formattedData, {
+            onSuccess: () => {
+                console.log("Update successful");
+                handleCloseModal();
+                router.reload({
+                    only: ["classTimetables"], // FIXED: Changed to match controller property name
+                    onSuccess: () => console.log("Page data refreshed successfully"),
+                });
+            },
+            onError: (errors) => {
+                console.error("Update failed:", errors);
+            },
+        });
+    }
   };
-
-  console.log("Submitting form data:", formattedData);
-
-  if (data.id === 0) {
-      router.post(`/classtimetable`, formattedData, {
-          onSuccess: () => {
-              console.log("Creation successful");
-              handleCloseModal();
-              router.reload({
-                  only: ["classTimetable"], // Make sure this matches the prop name from your controller
-                  onSuccess: () => console.log("Page data refreshed successfully"),
-              });
-          },
-          onError: (errors) => {
-              console.error("Creation failed:", errors);
-          },
-      });
-  } else {
-      router.put(`/classtimetable/${data.id}`, formattedData, {
-          onSuccess: () => {
-              console.log("Update successful");
-              handleCloseModal();
-              router.reload({
-                  only: ["classTimetable"], // Make sure this matches the prop name from your controller
-                  onSuccess: () => console.log("Page data refreshed successfully"),
-              });
-          },
-          onError: (errors) => {
-              console.error("Update failed:", errors);
-          },
-      });
-  }
-};
 
   const handleProcessClassTimetable = () => {
     router.post(
@@ -764,7 +765,8 @@ const handleSubmitForm = (data: FormState) => {
           </div>
         </div>
 
-        {classTimetable?.data?.length > 0 ? (
+        {/* FIXED: Changed classTimetable to classTimetables */}
+        {classTimetables?.data?.length > 0 ? (
           <>
             <div className="overflow-x-auto">
               <table className="w-full mt-6 border text-sm text-left">
@@ -777,12 +779,15 @@ const handleSubmitForm = (data: FormState) => {
                     <th className="px-3 py-2">Semester</th>
                     <th className="px-3 py-2">Classroom</th>
                     <th className="px-3 py-2">Time</th>
+                    <th className="px-3 py-2">Number of Students</th> {/* Added column */}
+                    <th className="px-3 py-2">Mode of Teaching</th> {/* Added column */}
                     <th className="px-3 py-2">Lecturer</th>
                     <th className="px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {classTimetable.data.map((classtimetable) => (
+                  {/* FIXED: Changed classTimetable to classTimetables */}
+                  {classTimetables.data.map((classtimetable) => (
                     <tr key={classtimetable.id} className="border-b hover:bg-gray-50">
                       <td className="px-3 py-2">{classtimetable.id}</td>
                       <td className="px-3 py-2">{classtimetable.day}</td>                    
@@ -793,6 +798,8 @@ const handleSubmitForm = (data: FormState) => {
                       <td className="px-3 py-2">
                         {classtimetable.start_time} - {classtimetable.end_time}
                       </td>
+                      <td className="px-3 py-2">{classtimetable.no}</td> {/* Added data */}
+                      <td className="px-3 py-2">{classtimetable.status}</td> {/* Added data */}
                       <td className="px-3 py-2">{classtimetable.lecturer}</td>
                       <td className="px-3 py-2 flex space-x-2">
                         <Button
@@ -825,10 +832,11 @@ const handleSubmitForm = (data: FormState) => {
             </div>
 
             {/* Pagination */}
-            {classTimetable.links && classTimetable.links.length > 3 && (
+            {/* FIXED: Changed classTimetable to classTimetables */}
+            {classTimetables.links && classTimetables.links.length > 3 && (
               <div className="flex justify-center mt-4">
                 <nav className="flex items-center">
-                  {classTimetable.links.map((link, index) => (
+                  {classTimetables.links.map((link, index) => (
                     <button
                       key={index}
                       onClick={() => {
@@ -884,7 +892,10 @@ const handleSubmitForm = (data: FormState) => {
                       <strong>Number of Students:</strong> {selectedClassTimetable.no}
                     </p>
                     <p>
-                      <strong>Chief Invigilator:</strong> {selectedClassTimetable.lecturer}
+                      <strong>Mode of Teaching</strong> {selectedClassTimetable.status}
+                    </p>
+                    <p>
+                      <strong>Lecturer:</strong> {selectedClassTimetable.lecturer}
                     </p>
                   </div>
                   <Button onClick={handleCloseModal} className="mt-4 bg-gray-400 text-white">
@@ -1272,13 +1283,13 @@ const handleSubmitForm = (data: FormState) => {
                       readOnly
                     />
 
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Chief Invigilator</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
                     <input
                       type="text"
                       value={formState.lecturer}
                       onChange={(e) => handleCreateChange("chief_invigilator", e.target.value)}
                       className="w-full border rounded p-2 mb-3"
-                      placeholder="Enter chief invigilator name"
+                      placeholder="Enter Lecturer name"
                       required
                     />
 

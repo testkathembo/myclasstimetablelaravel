@@ -44,6 +44,11 @@ class ClassTimetableController extends Controller
         $classTimetables = ClassTimetable::query()
             ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
             ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+            ->leftJoin('class_time_slots', function ($join) {
+                $join->on('class_timetable.day', '=', 'class_time_slots.day')
+                     ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
+                     ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
+            })
             ->select(
                 'class_timetable.id',               
                 'class_timetable.day',
@@ -56,7 +61,8 @@ class ClassTimetableController extends Controller
                 'units.name as unit_name',
                 'units.code as unit_code',
                 'semesters.name as semester_name',
-                'class_timetable.semester_id'
+                'class_timetable.semester_id',
+                'class_time_slots.status' // Include status column
             )
             ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
                 $search = $request->search;
@@ -157,15 +163,15 @@ class ClassTimetableController extends Controller
         ]);
 
         return Inertia::render('ClassTimetable/index', [
-            'classTimetables' => $classTimetables,
+            'classTimetables' => $classTimetables,  // This matches what your React component now expects
             'lecturers' => $lecturers,
             'perPage' => $perPage,
             'search' => $search,
             'semesters' => $semesters,
             'classrooms' => $classrooms,
             'classtimeSlots' => $classtimeSlots,
-            'units' => $unitsWithSemesters, // Pass units with their semester_id and enrollment data
-            'enrollments' => $allEnrollments, // Ensure enrollments are passed
+            'units' => $unitsWithSemesters,
+            'enrollments' => $allEnrollments,
             'can' => [
                 'create' => $user->can('create-classtimetables'),
                 'edit' => $user->can('update-classtimetables'),

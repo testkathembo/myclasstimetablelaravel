@@ -12,6 +12,7 @@ return new class extends Migration {
             $table->time('start_time'); // Start time of the slot
             $table->time('end_time'); // End time of the slot
             $table->string('status')->default('Physical'); // Status: Physical or Online
+            $table->integer('no')->nullable(); // Number of students
             $table->timestamps(); // Created at and updated at timestamps
         });
     }
