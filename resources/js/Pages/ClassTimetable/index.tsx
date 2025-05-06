@@ -601,45 +601,51 @@ const ClassTimetable = () => {
   }
 
   // Debugging: Log form data before submission
-  const handleSubmitForm = (data: FormState) => {
-    const formattedData = {
-        ...data,
-        start_time: formatTimeToHi(data.start_time),
-        end_time: formatTimeToHi(data.end_time),
-    };
+ // In your handleSubmitForm function in class-timetable.tsx, modify it to:
 
-    console.log("Submitting form data:", formattedData);
-
-    if (data.id === 0) {
-        router.post(`/classtimetable`, formattedData, {
-            onSuccess: () => {
-                console.log("Creation successful");
-                handleCloseModal();
-                router.reload({
-                    only: ["classtimetable"],
-                    onSuccess: () => console.log("Page data refreshed successfully"),
-                });
-            },
-            onError: (errors) => {
-                console.error("Creation failed:", errors);
-            },
-        });
-    } else {
-        router.put(`/classtimetable/${data.id}`, formattedData, {
-            onSuccess: () => {
-                console.log("Update successful");
-                handleCloseModal();
-                router.reload({
-                    only: ["classtimetable"],
-                    onSuccess: () => console.log("Page data refreshed successfully"),
-                });
-            },
-            onError: (errors) => {
-                console.error("Update failed:", errors);
-            },
-        });
-    }
+const handleSubmitForm = (data: FormState) => {
+  // Format the date field - this is required by your database schema
+  const currentDate = new Date().toISOString().split('T')[0]; // Use today's date as fallback
+  
+  const formattedData = {
+      ...data,
+      date: currentDate, // Add the date field which is required by your database
+      start_time: formatTimeToHi(data.start_time),
+      end_time: formatTimeToHi(data.end_time),
   };
+
+  console.log("Submitting form data:", formattedData);
+
+  if (data.id === 0) {
+      router.post(`/classtimetable`, formattedData, {
+          onSuccess: () => {
+              console.log("Creation successful");
+              handleCloseModal();
+              router.reload({
+                  only: ["classTimetable"], // Make sure this matches the prop name from your controller
+                  onSuccess: () => console.log("Page data refreshed successfully"),
+              });
+          },
+          onError: (errors) => {
+              console.error("Creation failed:", errors);
+          },
+      });
+  } else {
+      router.put(`/classtimetable/${data.id}`, formattedData, {
+          onSuccess: () => {
+              console.log("Update successful");
+              handleCloseModal();
+              router.reload({
+                  only: ["classTimetable"], // Make sure this matches the prop name from your controller
+                  onSuccess: () => console.log("Page data refreshed successfully"),
+              });
+          },
+          onError: (errors) => {
+              console.error("Update failed:", errors);
+          },
+      });
+  }
+};
 
   const handleProcessClassTimetable = () => {
     router.post(
@@ -776,7 +782,7 @@ const ClassTimetable = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {classTimetables.data.map((classtimetable) => (
+                  {classTimetable.data.map((classtimetable) => (
                     <tr key={classtimetable.id} className="border-b hover:bg-gray-50">
                       <td className="px-3 py-2">{classtimetable.id}</td>
                       <td className="px-3 py-2">{classtimetable.day}</td>                    
@@ -787,7 +793,7 @@ const ClassTimetable = () => {
                       <td className="px-3 py-2">
                         {classtimetable.start_time} - {classtimetable.end_time}
                       </td>
-                      <td className="px-3 py-2">{classtimetable.chief_invigilator}</td>
+                      <td className="px-3 py-2">{classtimetable.lecturer}</td>
                       <td className="px-3 py-2 flex space-x-2">
                         <Button
                           onClick={() => handleOpenModal("view", classtimetable)}
@@ -819,10 +825,10 @@ const ClassTimetable = () => {
             </div>
 
             {/* Pagination */}
-            {classTimetables.links && classTimetables.links.length > 3 && (
+            {classTimetable.links && classTimetable.links.length > 3 && (
               <div className="flex justify-center mt-4">
                 <nav className="flex items-center">
-                  {classTimetables.links.map((link, index) => (
+                  {classTimetable.links.map((link, index) => (
                     <button
                       key={index}
                       onClick={() => {

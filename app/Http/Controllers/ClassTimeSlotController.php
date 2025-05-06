@@ -24,8 +24,7 @@ class ClassTimeSlotController extends Controller
         if ($request->has('search') && $request->search !== '') {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('day', 'like', "%{$search}%")
-                  ->orWhere('date', 'like', "%{$search}%")
+                $q->where('day', 'like', "%{$search}%")                 
                   ->orWhere('start_time', 'like', "%{$search}%")
                   ->orWhere('end_time', 'like', "%{$search}%")
                   ->orWhere('status', 'like', "%{$search}%"); // Add status to search
