@@ -247,6 +247,13 @@ export default function Sidebar() {
                 <ClipboardList className="mr-3 h-5 w-5" />
                 My Enrollments
               </Link>
+              <Link 
+                href="/my-classes" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Clipboard className="mr-3 h-5 w-5" />
+                My Classes
+              </Link>
               
               <Link 
                 href="/my-exams" 

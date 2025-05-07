@@ -185,6 +185,10 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // Student download route
+Route::get('/my-class/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
+    ->name('student.classes.download');
+
+// Student download route
 Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
     ->name('student.exams.download');
 
@@ -377,11 +381,46 @@ Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
 
 // Notification routes (protected by auth middleware)
 
-// Route::get('Notifications', [MailController::class, 'index'])->name('notifications.index');
+// // Route::get('Notifications', [MailController::class, 'index'])->name('notifications.index');
+// Route::middleware(['auth'])->group(function () {
+//     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+//     Route::post('/notifications/send', [NotificationController::class, 'sendReminders'])->name('notifications.send');
+//     Route::get('/notifications/preview/{examId}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
+// });
+
+// Notification routes
 Route::middleware(['auth'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/send', [NotificationController::class, 'sendReminders'])->name('notifications.send');
-    Route::get('/notifications/preview/{examId}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
+    Route::get('/notifications/preview/{exam}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
+    
+    // Notification preferences
+    Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'index'])->name('notifications.preferences');
+    Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->name('notifications.preferences.update');
+    
+    // Notification statistics
+    Route::get('/notifications/statistics', [NotificationStatsController::class, 'index'])
+        ->name('notifications.statistics')
+        ->middleware('can:view-notification-stats');
+
+    // New routes for update notifications
+    Route::get('/notifications/update-preview/{exam}', [NotificationController::class, 'previewUpdateNotification'])
+        ->name('notifications.update-preview');
+    Route::post('/notifications/test-update/{exam}', [NotificationController::class, 'testUpdateNotification'])
+        ->name('notifications.test-update');
+    
+    // User notification center
+    Route::get('/my-notifications', [NotificationController::class, 'userNotifications'])
+        ->name('notifications.user');
+    Route::post('/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead'])
+        ->name('notifications.mark-read');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])
+        ->name('notifications.mark-all-read');
+    
+    // Notification logs with filtering
+    Route::get('/notifications/logs', [NotificationController::class, 'filterLogs'])
+        ->name('notifications.logs')
+        ->middleware('can:view-notification-logs');
 });
 
 // Admin dashboard route

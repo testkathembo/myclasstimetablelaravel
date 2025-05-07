@@ -132,4 +132,29 @@ class User extends Authenticatable
     {
         return static::where('code', $code)->first();
     }
+    /**
+     * Get the notification preferences for the user.
+     */
+    public function notificationPreference()
+    {
+        return $this->hasOne(NotificationPreference::class);
+    }
+
+    /**
+     * Create default notification preferences for a new user.
+     */
+    public static function boot()
+    {
+        parent::boot();
+
+        static::created(function ($user) {
+            $user->notificationPreference()->create([
+                'email_enabled' => true,
+                'sms_enabled' => false,
+                'push_enabled' => false,
+                'hours_before' => 24,
+                'reminder_enabled' => true,
+            ]);
+        });
+    }
 }

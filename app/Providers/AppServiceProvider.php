@@ -46,5 +46,12 @@ class AppServiceProvider extends ServiceProvider
             ] : null;
         },
     ]);
+    // Register the ExamTimetableObserver
+    \App\Models\ExamTimetable::observe
+    (\App\Observers\ExamTimetableObserver::class);
 }
+
+
+
+
 }

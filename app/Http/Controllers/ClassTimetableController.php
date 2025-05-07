@@ -592,7 +592,7 @@ class ClassTimetableController extends Controller
             ->toArray();
         
         // Get class timetables for the lecturer's units
-        $classTimetables = ExamTimetable::where('semester_id', $semesterId)
+        $classTimetables = Classimetable::where('semester_id', $semesterId)
             ->whereIn('unit_id', $lecturerUnitIds)
             ->with('unit') // Eager load the unit relationship
             ->orderBy('day')
@@ -654,7 +654,7 @@ class ClassTimetableController extends Controller
                 ->toArray();
             
             // Get class timetables for the lecturer's units
-            $classTimetables = ExamTimetable::where('semester_id', $semesterId)
+            $classTimetables = ClassTimetable::where('semester_id', $semesterId)
                 ->whereIn('unit_id', $lecturerUnitIds)
                 ->with('unit') // Eager load the unit relationship
                 ->orderBy('day')
@@ -730,7 +730,7 @@ class ClassTimetableController extends Controller
             ->toArray();
         
         // Get class timetables for the student's enrolled units in the selected semester
-        $classTimetables = ExamTimetable::where('semester_id', $semesterId)
+        $classTimetables = ClassTimetable::where('semester_id', $semesterId)
             ->whereIn('unit_id', $enrolledUnitIds)
             ->orWhereHas('unit', function($query) use ($user, $enrolledUnitIds) {
                 $query->whereIn('id', $enrolledUnitIds);
@@ -759,7 +759,7 @@ class ClassTimetableController extends Controller
      * Display details for a specific class for a student.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $examtimetable
+     * @param  int  $classtimetables
      * @return \Illuminate\Http\Response
      */
     public function viewStudentClassExamDetails(Request $request, $classtimetable)
@@ -768,7 +768,7 @@ class ClassTimetableController extends Controller
         
         // Get the class timetable with related data
         $classTimetable = ClassTimetable::with(['unit', 'semester'])
-            ->findOrFail($examtimetable);
+            ->findOrFail($classtimetable);
         
         // Check if the student is enrolled in this unit
         $isEnrolled = Enrollment::where('student_code', $user->code)
@@ -781,7 +781,7 @@ class ClassTimetableController extends Controller
         }
         
         return Inertia::render('Student/ClassDetails', [
-            'classTimetable' => $examTimetable
+            'classTimetable' => $classTimetable
         ]);
     }
     

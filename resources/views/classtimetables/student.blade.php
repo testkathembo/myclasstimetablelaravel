@@ -69,24 +69,30 @@
                 <th>Day</th>
                 <th>Unit Code</th>
                 <th>Unit Name</th>
-                <th>Venue</th>
+                <th>Semester</th>
+                <th>Classroom</th>
                 <th>Time</th>
+                <th>Location</th>
                 <th>Lecturer</th>
+                <th>Mode of Teaching</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($classtimetables as $class)
+            @forelse($classTimetables as $class)
             <tr>
                 <td>{{ $class->day }}</td>
-                <td>{{ $class->unit_code ?? $class->unit->code }}</td>
-                <td>{{ $class->unit_name ?? $class->unit->name }}</td>
-                <td>{{ $class->venue }} ({{ $class->location }})</td>
+                <td>{{ $class->unit_code }}</td>
+                <td>{{ $class->unit_name }}</td>
+                <td>{{ $class->semester_name }}</td>
+                <td>{{ $class->venue }}</td>
                 <td>{{ $class->start_time }} - {{ $class->end_time }}</td>
+                <td>{{ $class->location }}</td>
                 <td>{{ $class->lecturer }}</td>
+                <td>{{ $class->mode_of_teaching ?? 'N/A' }}</td>
             </tr>
             @empty
             <tr>
-                <td colspan="6" style="text-align: center;">No class timetables available</td>
+                <td colspan="9" style="text-align: center;">No class timetables available</td>
             </tr>
             @endforelse
         </tbody>

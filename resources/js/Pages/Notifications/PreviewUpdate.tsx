@@ -28,14 +28,20 @@ interface Student {
   email: string
 }
 
+interface Change {
+  old: string
+  new: string
+}
+
 interface PageProps {
   exam: ExamTimetable
   students: Student[]
   studentCount: number
+  changes: Record<string, Change>
 }
 
-export default function Preview({ auth }) {
-  const { exam, students, studentCount } = usePage<PageProps>().props
+export default function PreviewUpdate({ auth }) {
+  const { exam, students, studentCount, changes } = usePage<PageProps>().props
 
   const formatDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = {
@@ -46,20 +52,50 @@ export default function Preview({ auth }) {
     return new Date(dateString).toLocaleDateString(undefined, options)
   }
 
+  const handleTestSend = () => {
+    if (confirm("Send a test update notification to your email?")) {
+      router.post(route("notifications.test-update", exam.id))
+    }
+  }
+
   return (
     <AuthenticatedLayout
       user={auth.user}
-      header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Preview Notifications</h2>}
+      header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Preview Update Notification</h2>}
     >
-      <Head title={`Preview Notifications - ${exam.unit.code}`} />
+      <Head title={`Preview Update Notification - ${exam.unit.code}`} />
 
       <div className="py-12">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
           <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-            <div className="flex items-center mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <button
+                  onClick={() => router.visit(route("notifications.index"))}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-4"
+                >
+                  <svg
+                    className="mr-2 h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
+                  Back to Dashboard
+                </button>
+                <h2 className="text-lg font-medium text-gray-900">Preview Update Notification for {exam.unit.code}</h2>
+              </div>
               <button
-                onClick={() => router.visit(route("notifications.index"))}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-4"
+                onClick={handleTestSend}
+                className="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
               >
                 <svg
                   className="mr-2 h-4 w-4"
@@ -73,12 +109,11 @@ export default function Preview({ auth }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
                 </svg>
-                Back to Dashboard
+                Send Test Email
               </button>
-              <h2 className="text-lg font-medium text-gray-900">Preview Notifications for {exam.unit.code}</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -184,7 +219,7 @@ export default function Preview({ auth }) {
                 </div>
                 <div className="p-4 border-t">
                   <div className="text-sm text-gray-500">
-                    These students will receive an email notification 24 hours before the exam.
+                    These students will receive an email notification when the exam details are updated.
                   </div>
                 </div>
               </div>
@@ -210,21 +245,23 @@ export default function Preview({ auth }) {
                     </svg>
                     <h3 className="text-lg font-medium">Email Preview</h3>
                   </div>
-                  <p className="text-sm text-gray-500">Sample of the email that will be sent</p>
+                  <p className="text-sm text-gray-500">
+                    Sample of the email that will be sent when exam details change
+                  </p>
                 </div>
                 <div className="p-4">
                   <div className="border rounded-md p-4 bg-gray-50">
                     <div className="mb-4">
                       <div className="text-sm text-gray-500">Subject:</div>
-                      <div className="font-medium">Humble reminder</div>
+                      <div className="font-medium">Important: Exam Schedule Update for {exam.unit.code}</div>
                     </div>
 
                     <div className="space-y-4">
                       <p>Hello [Student Name],</p>
 
                       <p>
-                        We wish to remind you that you will be having an exam tomorrow. Please keep checking your
-                        timetable for further details.
+                        There has been an update to your exam schedule for {exam.unit.code} - {exam.unit.name}. Please
+                        review the changes below:
                       </p>
 
                       <div className="border-l-4 border-gray-300 pl-4">
@@ -243,7 +280,20 @@ export default function Preview({ auth }) {
                         </p>
                       </div>
 
-                      <p>We wish all the best in your preparation!</p>
+                      <div className="border-l-4 border-yellow-300 pl-4 bg-yellow-50 p-2">
+                        <p className="font-bold">Changes Made:</p>
+                        {Object.entries(changes).map(([field, values]) => (
+                          <p key={field}>
+                            <strong>{field.charAt(0).toUpperCase() + field.slice(1).replace("_", " ")}:</strong> Changed
+                            from "{values.old}" to "{values.new}"
+                          </p>
+                        ))}
+                      </div>
+
+                      <p>
+                        Please make note of these changes and adjust your schedule accordingly. If you have any
+                        questions, please contact your instructor.
+                      </p>
                     </div>
                   </div>
                 </div>
