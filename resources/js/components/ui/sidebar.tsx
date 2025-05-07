@@ -1,12 +1,7 @@
 import React from 'react';
 import { Link } from '@inertiajs/react';
 import RoleAwareComponent from '@/Components/RoleAwareComponent';
-import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, Download, BarChart2, Shield, User, HouseIcon, BookA } from 'lucide-react';
-import TimeSlots from '@/Pages/TimeSlots';
-import Enrollments from '@/Pages/Enrollments/Index';
-import ExamTimetable from '@/Pages/ExamTimetable';
-import EnrollmentGroups from '@/Pages/EnrollmentGroups';
-import Units from '@/Pages/Units';
+import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, Download, BarChart2, Shield, User, House, ClipboardList, Layers, ClipboardCheck, ClipboardX, Clipboard, FilePlus, FileMinus } from 'lucide-react';
 
 export default function Sidebar() {
   return (
@@ -24,16 +19,7 @@ export default function Sidebar() {
           >
             <Home className="mr-3 h-5 w-5" />
             Dashboard
-          </Link>
-          
-          {/* Class Timetables */}
-          <Link
-            href="/classtimetable"
-            className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-          >
-            <Calendar className="mr-3 h-5 w-5" />
-            Class Timetables
-          </Link>
+          </Link>          
           
           {/* Admin Section */}
           <RoleAwareComponent requiredRoles={['Admin']}>
@@ -41,15 +27,78 @@ export default function Sidebar() {
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 Administration
               </p>
-              
               <Link 
-                href="/users" 
+            href="/users" 
+            className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+          >
+            <Users className="mr-3 h-5 w-5" />
+            Users
+          </Link>
+
+              <Link 
+                href="/classrooms" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <Users className="mr-3 h-5 w-5" />
-                Users
+                <Building className="mr-3 h-5 w-5" />
+                Classrooms
               </Link>
+
+              <Link 
+                href="/classtimeslot" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Clock className="mr-3 h-5 w-5" />
+                Class Time Slots
+              </Link>
+
+              <Link
+                href="/classtimetable"
+                className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                Class Timetables
+              </Link>
+
+              <Link 
+                href="/enrollments" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <ClipboardList className="mr-3 h-5 w-5" />
+                Enrollments
+              </Link>    
               
+              <Link 
+                href="/examrooms" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <House className="mr-3 h-5 w-5" />
+                Exam Rooms
+              </Link>            
+
+              <Link 
+                href="/timeslots" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Clock className="mr-3 h-5 w-5" />
+                Exam Time Slots
+              </Link>              
+
+              <Link 
+                href="/examtimetable" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Clipboard className="mr-3 h-5 w-5" />
+                Exam Timetable
+              </Link> 
+
+              <Link 
+                href="/faculties" 
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Layers className="mr-3 h-5 w-5" />
+                Faculties
+              </Link>
+
               <Link 
                 href="/roles" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
@@ -59,76 +108,20 @@ export default function Sidebar() {
               </Link>
 
               <Link 
-                href="/faculties" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Building className="mr-3 h-5 w-5" />
-                Faculties
-              </Link>
-
-              <Link 
                 href="/units" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <BookA className="mr-3 h-5 w-5" />
+                <BookOpen className="mr-3 h-5 w-5" />
                 Units
-              </Link>
+              </Link>                        
 
               <Link 
                 href="/semesters" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <BookA className="mr-3 h-5 w-5" />
+                <Calendar className="mr-3 h-5 w-5" />
                 Semesters
-              </Link>
-
-              <Link 
-                href="/enrollments" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <BookA className="mr-3 h-5 w-5" />
-                Enrollments
-              </Link>
-
-              <Link 
-                href="/classrooms" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <HouseIcon className="mr-3 h-5 w-5" />
-                Classrooms
-              </Link>
-
-              <Link 
-                href="/examrooms" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <HouseIcon className="mr-3 h-5 w-5" />
-                Exam rooms
-              </Link>
-
-              <Link 
-                href="/classtimeslot" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <BookOpen className="mr-3 h-5 w-5" />
-                Class Time Slots
-              </Link>
-
-              <Link 
-                href="/timeslots" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <BookOpen className="mr-3 h-5 w-5" />
-                Exam Time Slots
-              </Link>              
-
-              <Link 
-                href="/examtimetable" 
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <BookOpen className="mr-3 h-5 w-5" />
-                Exam Timetable
-              </Link> 
+              </Link>         
               
               <Link 
                 href="/settings" 
@@ -137,6 +130,7 @@ export default function Sidebar() {
                 <Settings className="mr-3 h-5 w-5" />
                 Settings
               </Link>
+                
             </div>
           </RoleAwareComponent>
           
@@ -151,7 +145,7 @@ export default function Sidebar() {
                 href="/manage-timetable" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <Calendar className="mr-3 h-5 w-5" />
+                <ClipboardCheck className="mr-3 h-5 w-5" />
                 Manage Timetable
               </Link>
               
@@ -175,7 +169,7 @@ export default function Sidebar() {
                 href="/conflicts" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <Shield className="mr-3 h-5 w-5" />
+                <ClipboardX className="mr-3 h-5 w-5" />
                 Resolve Conflicts
               </Link>
             </div>
@@ -200,7 +194,7 @@ export default function Sidebar() {
                 href="/enrollments" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <Users className="mr-3 h-5 w-5" />
+                <ClipboardList className="mr-3 h-5 w-5" />
                 Enrollments
               </Link>
               
@@ -225,7 +219,7 @@ export default function Sidebar() {
                 href="/my-classes" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <BookOpen className="mr-3 h-5 w-5" />
+                <Clipboard className="mr-3 h-5 w-5" />
                 My Classes
               </Link>
               
@@ -233,7 +227,7 @@ export default function Sidebar() {
                 href="/exam-supervision" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <Calendar className="mr-3 h-5 w-5" />
+                <ClipboardCheck className="mr-3 h-5 w-5" />
                 Exam Supervision
               </Link>
             </div>
@@ -250,7 +244,7 @@ export default function Sidebar() {
                 href="/my-enrollments" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <BookOpen className="mr-3 h-5 w-5" />
+                <ClipboardList className="mr-3 h-5 w-5" />
                 My Enrollments
               </Link>
               
@@ -258,14 +252,14 @@ export default function Sidebar() {
                 href="/my-exams" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <Calendar className="mr-3 h-5 w-5" />
+                <ClipboardCheck className="mr-3 h-5 w-5" />
                 My Exams
               </Link>
             </div>
           </RoleAwareComponent>
           
           {/* Reports - Permission-based */}
-          <RoleAwareComponent requiredPermissions={['generate-reports']}>
+          {/* <RoleAwareComponent requiredPermissions={['generate-reports']}>
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 Reports
@@ -279,7 +273,7 @@ export default function Sidebar() {
                 Generate Reports
               </Link>
             </div>
-          </RoleAwareComponent>
+          </RoleAwareComponent> */}
         </nav>
       </div>
     </div>

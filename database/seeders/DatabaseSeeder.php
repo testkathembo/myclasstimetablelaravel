@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
             SemesterSeeder::class,
             AdminSeeder::class,
             TimeSlotSeeder::class,
+            ClassTimeSlotSeeder::class,
     
           
             // Add other seeders here if needed

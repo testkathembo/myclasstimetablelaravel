@@ -718,25 +718,25 @@ const ClassTimetable = () => {
           <div className="flex space-x-2">
             {can.create && (
               <Button onClick={() => handleOpenModal("create", null)} className="bg-green-500 hover:bg-green-600">
-                + Add Class
+                + Add
               </Button>
             )}
 
             {can.process && (
               <Button onClick={handleProcessClassTimetable} className="bg-blue-500 hover:bg-blue-600">
-                Process Class Timetable
+                Process
               </Button>
             )}
 
             {can.solve_conflicts && (
               <Button onClick={handleSolveConflicts} className="bg-purple-500 hover:bg-purple-600">
-                Solve Class Conflicts
+                Solve Conflicts
               </Button>
             )}
 
             {can.download && (
               <Button onClick={handleDownloadClassTimetable} className="bg-indigo-500 hover:bg-indigo-600">
-                Download Class Timetable
+                Download
               </Button>
             )}
           </div>
@@ -916,19 +916,13 @@ const ClassTimetable = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                        <select
+                        <input
+                          type="text"
                           value={formState.day}
                           onChange={(e) => handleCreateChange("day", e.target.value)}
                           className="w-full border rounded p-2 mb-3"
-                          required
-                        >
-                          <option value="">Select Day</option>
-                          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => (
-                            <option key={day} value={day}>
-                              {day}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Day of the week"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Class Time Slot</label>

@@ -72,7 +72,7 @@ class ClassTimeSlotController extends Controller
             'day' => 'required',
             'start_time' => 'required',
             'end_time' => 'required',
-            'status' => 'Physical,Online', // Validate status
+            'status' => 'required|in:Physical,Online', // Corrected validation rule
         ]);
 
         $classtimeSlot->update($validated);

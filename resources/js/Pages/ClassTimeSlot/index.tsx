@@ -67,17 +67,17 @@ const ClassTimeSlot = () => {
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error creating time slot:', errors);
+                    console.error('Error creating class time slot:', errors);
                 },
             });
         } else if (modalType === 'edit' && currentClassTimeSlot) {
             router.put(`/classtimeslot/${currentClassTimeSlot.id}`, currentClassTimeSlot, {
                 onSuccess: () => {
-                    alert('Time slot updated successfully!');
+                    alert('Class Time slot updated successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error updating time slot:', errors);
+                    console.error('Error updating class time slot:', errors);
                 },
             });
         } else if (modalType === 'delete' && currentClassTimeSlot) {
@@ -120,7 +120,7 @@ const ClassTimeSlot = () => {
         <AuthenticatedLayout>
             <Head title="Time Slots" />
             <div className="p-6 bg-white rounded-lg shadow-md">
-                <h1 className="text-2xl font-semibold mb-4">Time Slots</h1>
+                {/* <h1 className="text-2xl font-semibold mb-4">Class Time Slots</h1> */}
                 <div className="flex justify-between items-center mb-4">
                     <button
                         onClick={() => handleOpenModal('create')}
@@ -163,7 +163,7 @@ const ClassTimeSlot = () => {
                 <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="px-4 py-2 border">Day</th><th className="px-4 py-2 border">Start Time</th><th className="px-4 py-2 border">End Time</th><th className="px-4 py-2 border">Status</th><th className="px-4 py-2 border">Actions</th>
+                            <th className="px-4 py-2 border">Day</th><th className="px-4 py-2 border">Start Time</th><th className="px-4 py-2 border">End Time</th><th className="px-4 py-2 border">Mode of Learning</th><th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -250,7 +250,7 @@ const ClassTimeSlot = () => {
                                     />
                                 </div>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                                    <label className="block text-sm font-medium text-gray-700">Mode of Learning</label>
                                     <select
                                         value={currentClassTimeSlot?.status || ''}
                                         onChange={(e) =>
