@@ -2,13 +2,13 @@
 
 namespace App\Observers;
 
-use App\Models\ExamTimetable;
+use App\Models\ClassTimetable;
 use App\Models\Enrollment;
 use App\Models\User;
-use App\Notifications\ExamTimetableUpdate;
+use App\Notifications\ClassTimetableUpdate;
 use Illuminate\Support\Facades\Log;
 
-class ExamTimetableObserver
+class ClassTimetableObserver
 {
     /**
      * Write debug information directly to a file.
@@ -25,52 +25,52 @@ class ExamTimetableObserver
         $content .= "------------------------------\n";
         
         file_put_contents(
-            storage_path('logs/observer_debug.log'),
+            storage_path('logs/class_observer_debug.log'),
             $content,
             FILE_APPEND
         );
     }
 
     /**
-     * Clean up venue text to remove duplicate (Updated) text.
+     * Clean up venue text to avoid duplication of "(Updated)".
      */
     private function cleanVenueText($venue)
     {
         // Remove all instances of "(Updated)" from the venue
-        $cleanVenue = preg_replace('/\s*$$Updated$$\s*/', ' ', $venue);
+        $cleanVenue = preg_replace('/\s*\(Updated\)\s*/', '', $venue);
         // Trim extra spaces
         return trim($cleanVenue);
     }
 
     /**
-     * Handle the ExamTimetable "updated" event.
+     * Handle the ClassTimetable "updated" event.
      */
-    public function updated(ExamTimetable $examTimetable): void
+    public function updated(ClassTimetable $classTimetable): void
     {
-        $this->debugToFile('Observer triggered', [
-            'exam_id' => $examTimetable->id,
-            'dirty' => $examTimetable->getDirty(),
-            'original' => $examTimetable->getOriginal()
+        $this->debugToFile('Class Timetable Observer triggered', [
+            'class_id' => $classTimetable->id,
+            'dirty' => $classTimetable->getDirty(),
+            'original' => $classTimetable->getOriginal()
         ]);
         
         // Get the changed attributes
         $changes = [];
-        $dirty = $examTimetable->getDirty();
+        $dirty = $classTimetable->getDirty();
         
         // Only track specific fields that are relevant to students
         $relevantFields = [
-            'date', 'day', 'start_time', 'end_time', 'venue', 'location'
+            'day', 'start_time', 'end_time', 'venue', 'location'
         ];
         
         foreach ($relevantFields as $field) {
             if (array_key_exists($field, $dirty)) {
-                $oldValue = $examTimetable->getOriginal($field);
+                $oldValue = $classTimetable->getOriginal($field);
                 $newValue = $dirty[$field];
                 
-                // Clean up venue values to prevent duplicate (Updated) text
+                // Clean up venue values to prevent duplicate "(Updated)"
                 if ($field === 'venue') {
                     $oldValue = $this->cleanVenueText($oldValue);
-                    $newValue = $this->cleanVenueText($newValue);
+                    $newValue = $this->cleanVenueText($newValue) . ' (Updated)';
                 }
                 
                 $changes[$field] = [
@@ -85,28 +85,26 @@ class ExamTimetableObserver
         // Only send notifications if relevant fields were changed
         if (!empty($changes)) {
             $this->debugToFile('Preparing to notify students');
-            $this->notifyStudents($examTimetable, $changes);
+            $this->notifyStudents($classTimetable, $changes);
         } else {
             $this->debugToFile('No relevant changes, skipping notifications');
         }
-        
-        $this->debugToFile('Observer completed');
     }
     
     /**
-     * Notify students about exam timetable changes.
+     * Notify students about class timetable changes.
      */
-    private function notifyStudents(ExamTimetable $examTimetable, array $changes): void
+    private function notifyStudents(ClassTimetable $classTimetable, array $changes): void
     {
         try {
             $this->debugToFile('Loading relationships');
             // Load relationships if not already loaded
-            $examTimetable->load(['unit', 'semester']);
+            $classTimetable->load(['unit', 'semester']);
             
             $this->debugToFile('Finding enrolled students');
             // Find all student codes enrolled in this unit for this semester
-            $studentCodes = Enrollment::where('unit_id', $examTimetable->unit_id)
-                ->where('semester_id', $examTimetable->semester_id)
+            $studentCodes = Enrollment::where('unit_id', $classTimetable->unit_id)
+                ->where('semester_id', $classTimetable->semester_id)
                 ->pluck('student_code')
                 ->toArray();
                 
@@ -115,10 +113,6 @@ class ExamTimetableObserver
             // Get all users with these codes
             $students = User::whereIn('code', $studentCodes)->get();
             
-            // For testing purposes, limit to just a few students
-            // Comment this out in production
-            // $students = $students->take(1);
-            
             $this->debugToFile('Students found', [
                 'count' => $students->count(),
                 'first_few' => $students->take(3)->pluck('email')->toArray()
@@ -126,21 +120,21 @@ class ExamTimetableObserver
             
             if ($students->isEmpty()) {
                 $this->debugToFile('No students found, skipping notifications');
-                Log::info("No students found for exam update notification", [
-                    'exam_id' => $examTimetable->id,
-                    'unit_id' => $examTimetable->unit_id,
-                    'semester_id' => $examTimetable->semester_id
+                Log::info("No students found for class update notification", [
+                    'class_id' => $classTimetable->id,
+                    'unit_id' => $classTimetable->unit_id,
+                    'semester_id' => $classTimetable->semester_id
                 ]);
                 return;
             }
             
             $this->debugToFile('Preparing notification data');
             
-            // Clean venue text to prevent duplicate (Updated) text
-            $venue = $this->cleanVenueText($examTimetable->venue);
-            $location = $examTimetable->location ?? '';
+            // Clean venue text to prevent duplicate text
+            $venue = $this->cleanVenueText($classTimetable->venue);
+            $location = $classTimetable->location ?? '';
             
-            // Format venue display without adding "(Updated)"
+            // Format venue display
             $venueDisplay = $venue;
             if (!empty($location)) {
                 $venueDisplay .= ' (' . $location . ')';
@@ -148,18 +142,17 @@ class ExamTimetableObserver
             
             // Prepare notification data
             $data = [
-                'subject' => "Important: Exam Schedule Update for {$examTimetable->unit->code}",
+                'subject' => "Important: Class Schedule Update for {$classTimetable->unit->code}",
                 'greeting' => "Hello",
-                'message' => "There has been an update to your exam schedule for {$examTimetable->unit->code} - {$examTimetable->unit->name}. Please review the changes below:",
-                'exam_details' => [
-                    'unit' => $examTimetable->unit->code . ' - ' . $examTimetable->unit->name,
-                    'date' => $examTimetable->date,
-                    'day' => $examTimetable->day,
-                    'time' => $examTimetable->start_time . ' - ' . $examTimetable->end_time,
+                'message' => "There has been an update to your class schedule for {$classTimetable->unit->code} - {$classTimetable->unit->name}. Please review the changes below:",
+                'class_details' => [
+                    'unit' => $classTimetable->unit->code . ' - ' . $classTimetable->unit->name,
+                    'day' => $classTimetable->day,
+                    'time' => $classTimetable->start_time . ' - ' . $classTimetable->end_time,
                     'venue' => $venueDisplay
                 ],
                 'changes' => $changes,
-                'closing' => 'Please make note of these changes and adjust your schedule accordingly. If you have any questions, please contact your admin.'
+                'closing' => 'Please make note of these changes and adjust your schedule accordingly. If you have any questions, please contact your course admin.'
             ];
             
             $this->debugToFile('Sending notifications to students');
@@ -168,19 +161,19 @@ class ExamTimetableObserver
             foreach ($students as $student) {
                 try {
                     $this->debugToFile("Sending to student {$student->id} ({$student->email})");
-                    $student->notify(new ExamTimetableUpdate($data));
+                    $student->notify(new ClassTimetableUpdate($data));
                     
                     $this->debugToFile("Notification sent successfully to {$student->email}");
                     
                     // Log the notification
-                    Log::info("Sent exam update notification to student", [
+                    Log::info("Sent class update notification to student", [
                         'student_code' => $student->code,
                         'student_email' => $student->email,
-                        'exam_id' => $examTimetable->id
+                        'class_id' => $classTimetable->id
                     ]);
                     
                     // Log to notification_logs table
-                    $this->logNotificationToDatabase($student, $examTimetable, true);
+                    $this->logNotificationToDatabase($student, $classTimetable, true);
                 } catch (\Exception $e) {
                     $this->debugToFile("Error sending to {$student->email}", [
                         'error' => $e->getMessage(),
@@ -188,7 +181,7 @@ class ExamTimetableObserver
                     ]);
                     
                     // Log the failed notification
-                    $this->logNotificationToDatabase($student, $examTimetable, false, $e->getMessage());
+                    $this->logNotificationToDatabase($student, $classTimetable, false, $e->getMessage());
                 }
             }
             
@@ -200,8 +193,8 @@ class ExamTimetableObserver
                 'trace' => $e->getTraceAsString()
             ]);
             
-            Log::error("Failed to send exam update notifications", [
-                'exam_id' => $examTimetable->id,
+            Log::error("Failed to send class update notifications", [
+                'class_id' => $classTimetable->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -211,17 +204,17 @@ class ExamTimetableObserver
     /**
      * Log notification to database.
      */
-    private function logNotificationToDatabase($student, $examTimetable, $success, $errorMessage = null): void
+    private function logNotificationToDatabase($student, $classTimetable, $success, $errorMessage = null): void
     {
         try {
             $this->debugToFile("Logging notification to database", [
                 'student_id' => $student->id,
-                'exam_id' => $examTimetable->id,
+                'class_id' => $classTimetable->id,
                 'success' => $success
             ]);
             
             \DB::table('notification_logs')->insert([
-                'notification_type' => 'App\\Notifications\\ExamTimetableUpdate',
+                'notification_type' => 'App\\Notifications\\ClassTimetableUpdate',
                 'notifiable_type' => 'App\\Models\\User',
                 'notifiable_id' => $student->id,
                 'channel' => 'mail',

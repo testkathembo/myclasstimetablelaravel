@@ -15,14 +15,11 @@
 **Venue:** {{ $exam_details['venue'] ?? 'N/A' }}
 @endcomponent
 
-{{ $closing }}
+<!-- {{ $closing }}
 
 @if($url)
 @component('mail::button', ['url' => $url])
 View Exam Timetable
 @endcomponent
-@endif
+@endif -->
 
-Thanks,<br>
-{{ config('app.name') }}
-@endcomponent

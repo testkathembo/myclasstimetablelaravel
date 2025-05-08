@@ -19,6 +19,23 @@ class ExamTimetableUpdate extends Notification implements ShouldQueue
      */
     public function __construct($data)
     {
+        // Clean up venue text to remove duplicate (Updated) text
+        if (isset($data['exam_details']['venue'])) {
+            // Remove all instances of "(Updated)" from the venue
+            $venue = preg_replace('/\s*$$Updated$$\s*/', ' ', $data['exam_details']['venue']);
+            // Trim extra spaces
+            $venue = trim($venue);
+            $data['exam_details']['venue'] = $venue;
+        }
+        
+        // Clean up changes to show cleaner text
+        if (isset($data['changes']['venue'])) {
+            $data['changes']['venue']['old'] = preg_replace('/\s*$$Updated$$\s*/', ' ', $data['changes']['venue']['old']);
+            $data['changes']['venue']['new'] = preg_replace('/\s*$$Updated$$\s*/', ' ', $data['changes']['venue']['new']);
+            $data['changes']['venue']['old'] = trim($data['changes']['venue']['old']);
+            $data['changes']['venue']['new'] = trim($data['changes']['venue']['new']);
+        }
+        
         $this->data = $data;
     }
 
@@ -41,17 +58,24 @@ class ExamTimetableUpdate extends Notification implements ShouldQueue
         $mailMessage = (new MailMessage)
             ->subject($this->data['subject'])
             ->greeting($this->data['greeting'] . ' ' . $notifiable->first_name)
-            ->line($this->data['message'])
-            ->line('Exam Details:')
+            ->line($this->data['message']);
+
+        // Add exam details section
+        $mailMessage->line('Exam Details:')
             ->line('Unit: ' . $this->data['exam_details']['unit'])
             ->line('Date: ' . $this->data['exam_details']['date'] . ' (' . $this->data['exam_details']['day'] . ')')
             ->line('Time: ' . $this->data['exam_details']['time'])
             ->line('Venue: ' . $this->data['exam_details']['venue']);
 
         // Add changes section
-        $mailMessage->line('Changes Made:');
-        foreach ($this->data['changes'] as $field => $values) {
-            $mailMessage->line(ucfirst($field) . ': Changed from "' . $values['old'] . '" to "' . $values['new'] . '"');
+        if (!empty($this->data['changes'])) {
+            $mailMessage->line('Changes Made:');
+            
+            foreach ($this->data['changes'] as $field => $values) {
+                // Format the field name for display
+                $fieldName = ucfirst(str_replace('_', ' ', $field));
+                $mailMessage->line("{$fieldName}: Changed from \"{$values['old']}\" to \"{$values['new']}\"");
+            }
         }
 
         // Add closing message

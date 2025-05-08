@@ -22,12 +22,13 @@
 @endforeach
 @endif
 
-{{ $closing }}
+<!-- {{ $closing }}
 
 @component('mail::button', ['url' => $url])
 View Updated Timetable
-@endcomponent
+@endcomponent -->
 
-Thanks,<br>
-{{ config('app.name') }}
-@endcomponent
+
+
+
+

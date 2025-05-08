@@ -344,6 +344,11 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     // Student Exam Timetable
     Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
         ->name('student.exam-timetable');
+
+    // Student Timetable
+    Route::get('/student/timetable', [ClassTimetableController::class, 'viewStudentClassTimetable'])
+        ->name('student.timetable')
+        ->middleware(['auth', 'role:Student']);
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

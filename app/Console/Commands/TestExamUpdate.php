@@ -20,14 +20,14 @@ class TestExamUpdate extends Command
             $exam = ExamTimetable::first();
             if (!$exam) {
                 $this->error('No exams found in the database.');
-                return 1;
+                return 2;
             }
             $examId = $exam->id;
         } else {
             $exam = ExamTimetable::find($examId);
             if (!$exam) {
                 $this->error("Exam with ID {$examId} not found.");
-                return 1;
+                return 2;
             }
         }
         

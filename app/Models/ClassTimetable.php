@@ -38,4 +38,19 @@ class ClassTimetable extends Model
     {
         return $this->belongsTo(User::class, 'lecturer_id');
     }
+
+    public function getEnrolledStudents()
+    {
+        // Make sure relationships are loaded
+        $this->load(['unit', 'semester']);
+        
+        // Find all student codes enrolled in this unit for this semester
+        $studentCodes = Enrollment::where('unit_id', $this->unit_id)
+            ->where('semester_id', $this->semester_id)
+            ->pluck('student_code')
+            ->toArray();
+            
+        // Get all users with these codes
+        return User::whereIn('code', $studentCodes)->get();
+    }
 }

@@ -288,12 +288,11 @@ export default function PreviewUpdate({ auth }) {
                             from "{values.old}" to "{values.new}"
                           </p>
                         ))}
-                      </div>
-
-                      <p>
+                        <p>
                         Please make note of these changes and adjust your schedule accordingly. If you have any
-                        questions, please contact your instructor.
+                        questions, please contact your admin.
                       </p>
+                      </div>                      
                     </div>
                   </div>
                 </div>

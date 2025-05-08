@@ -37,7 +37,7 @@ class TestDatabaseChangeNotification extends Command
         
         if (!in_array($action, ['created', 'updated', 'deleted'])) {
             $this->error("Invalid action. Must be one of: created, updated, deleted");
-            return 1;
+            return 2;
         }
         
         // Find the exam
@@ -46,7 +46,7 @@ class TestDatabaseChangeNotification extends Command
             
             if (!$exam) {
                 $this->error("Exam with ID {$modelId} not found.");
-                return 1;
+                return 2;
             }
         } else {
             // Get the first available exam
@@ -54,7 +54,7 @@ class TestDatabaseChangeNotification extends Command
             
             if (!$exam) {
                 $this->error("No exams found in the database.");
-                return 1;
+                return 2;
             }
         }
         

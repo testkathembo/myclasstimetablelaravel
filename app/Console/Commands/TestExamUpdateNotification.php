@@ -42,7 +42,7 @@ class TestExamUpdateNotification extends Command
         
         if (!$exam) {
             $this->error("No exam found to test with.");
-            return 1;
+            return 2;
         }
         
         $this->info("Testing update notification for exam: {$exam->unit->code} - {$exam->unit->name}");
@@ -131,7 +131,7 @@ class TestExamUpdateNotification extends Command
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return 1;
+            return 2;
         }
     }
 }
