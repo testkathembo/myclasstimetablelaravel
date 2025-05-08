@@ -5,8 +5,9 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Messages\VonageMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Log;
 
 class ClassTimetableUpdate extends Notification implements ShouldQueue
 {
@@ -16,8 +17,11 @@ class ClassTimetableUpdate extends Notification implements ShouldQueue
 
     /**
      * Create a new notification instance.
+     *
+     * @param array $data
+     * @return void
      */
-    public function __construct($data)
+    public function __construct(array $data)
     {
         $this->data = $data;
     }
@@ -25,99 +29,69 @@ class ClassTimetableUpdate extends Notification implements ShouldQueue
     /**
      * Get the notification's delivery channels.
      *
-     * @return array<int, string>
+     * @param  mixed  $notifiable
+     * @return array
      */
-    public function via(object $notifiable): array
+    public function via($notifiable)
     {
-        $channels = ['mail'];
-        
-        // Check user preferences if available
-        if ($notifiable->notificationPreference) {
-            $prefs = $notifiable->notificationPreference;
-            
-            if (!$prefs->update_notifications_enabled) {
-                return [];
-            }
-            
-            if ($prefs->sms_enabled && $notifiable->phone) {
-                $channels[] = 'vonage';
-            }
-        }
-        
-        return $channels;
+        return ['mail'];
     }
 
     /**
      * Get the mail representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return \Illuminate\Notifications\Messages\MailMessage
      */
-    public function toMail(object $notifiable): MailMessage
+    public function toMail($notifiable)
     {
-        $classDetails = $this->data['class_details'] ?? [];
-        if (isset($classDetails['venue'])) {
-            // Clean up venue text to avoid duplication of "(Updated)"
-            $classDetails['venue'] = preg_replace('/\s*\(Updated\)\s*/', '', $classDetails['venue']);
-            $classDetails['venue'] = trim($classDetails['venue']) . ' (Updated)';
-        }
+        try {
+            // Extract data with defaults
+            $subject = $this->data['subject'] ?? 'Class Schedule Update';
+            $greeting = $this->data['greeting'] ?? 'Hello';
+            $message = $this->data['message'] ?? 'There has been an update to your class schedule.';
+            $classDetails = $this->data['class_details'] ?? '';
+            $changes = $this->data['changes'] ?? '';
+            $closing = $this->data['closing'] ?? 'Please review these changes and plan accordingly.';
 
-        return (new MailMessage)
-            ->subject($this->data['subject'] ?? 'Class Schedule Update')
-            ->greeting($this->data['greeting'] ?? 'Hello ' . $notifiable->first_name)
-            ->line($this->data['message'] ?? 'There has been an update to your class schedule.')
-            ->line('Class Details:')
-            ->line('Unit: ' . ($classDetails['unit'] ?? 'N/A'))
-            ->line('Day: ' . ($classDetails['day'] ?? 'N/A'))
-            ->line('Time: ' . ($classDetails['time'] ?? 'N/A'))
-            ->line('Venue: ' . ($classDetails['venue'] ?? 'N/A'))
-            ->line('Changes Made:')
-            ->when(!empty($this->data['changes']), function ($mailMessage) {
-                foreach ($this->data['changes'] as $field => $values) {
-                    $fieldName = ucfirst(str_replace('_', ' ', $field));
-                    $mailMessage->line("{$fieldName}: Changed from \"{$values['old']}\" to \"{$values['new']}\"");
-                }
-            })
-            ->line($this->data['closing'] ?? 'Please review these changes and plan accordingly.')
-            // ->action('View Updated Timetable', route('student.timetable'))
-            // ->line('Regards,')
-            ->line('Timetabling System Management Office');
-    }
-    
-    /**
-     * Get the Vonage / SMS representation of the notification.
-     */
-    public function toVonage(object $notifiable): VonageMessage
-    {
-        $classInfo = $this->data['class_details'];
-        $changes = $this->data['changes'];
-        
-        $changeText = '';
-        if (!empty($changes)) {
-            $changeText = " Changes: ";
-            foreach ($changes as $field => $values) {
-                $changeText .= "{$field} from {$values['old']} to {$values['new']}; ";
-            }
+            // Clean up "Updated" words in class details and changes
+            $classDetails = preg_replace('/\s*\(Updated\)\s*/', '', $classDetails);
+            $changes = preg_replace('/\s*\(Updated\)\s*/', '', $changes);
+
+            return (new MailMessage)
+                ->subject($subject)
+                ->greeting($greeting)
+                ->line($message)
+                ->when(!empty($classDetails), function ($message) use ($classDetails) {
+                    return $message->line('Class Details:')
+                        ->line($classDetails);
+                })
+                ->when(!empty($changes), function ($message) use ($changes) {
+                    return $message->line('Changes Made:')
+                        ->line($changes);
+                })
+                ->line($closing)
+                ->line('Regards,')
+                ->line('Timetabling System Management Office');
+        } catch (\Exception $e) {
+            Log::error('Failed to create class timetable update notification', [
+                'error' => $e->getMessage(),
+                'notifiable' => $notifiable->id ?? 'unknown'
+            ]);
+            throw $e;
         }
-        
-        $content = "CLASS UPDATE: {$classInfo['unit']}{$changeText}Check your email for details.";
-        
-        return (new VonageMessage)
-            ->content($content)
-            ->unicode();
     }
 
     /**
      * Get the array representation of the notification.
      *
-     * @return array<string, mixed>
+     * @param  mixed  $notifiable
+     * @return array
      */
-    public function toArray(object $notifiable): array
+    public function toArray($notifiable)
     {
         return [
-            'subject' => $this->data['subject'],
-            'greeting' => $this->data['greeting'],
-            'message' => $this->data['message'],
-            'class_details' => $this->data['class_details'],
-            'changes' => $this->data['changes'],
-            'closing' => $this->data['closing']
+            'data' => $this->data
         ];
     }
 }

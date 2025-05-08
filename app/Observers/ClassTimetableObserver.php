@@ -70,7 +70,7 @@ class ClassTimetableObserver
                 // Clean up venue values to prevent duplicate "(Updated)"
                 if ($field === 'venue') {
                     $oldValue = $this->cleanVenueText($oldValue);
-                    $newValue = $this->cleanVenueText($newValue) . ' (Updated)';
+                    $newValue = $this->cleanVenueText($newValue); // Do not append "(Updated)"
                 }
                 
                 $changes[$field] = [
@@ -140,26 +140,37 @@ class ClassTimetableObserver
                 $venueDisplay .= ' (' . $location . ')';
             }
             
-            // Prepare notification data
-            $data = [
-                'subject' => "Important: Class Schedule Update for {$classTimetable->unit->code}",
-                'greeting' => "Hello",
-                'message' => "There has been an update to your class schedule for {$classTimetable->unit->code} - {$classTimetable->unit->name}. Please review the changes below:",
-                'class_details' => [
-                    'unit' => $classTimetable->unit->code . ' - ' . $classTimetable->unit->name,
-                    'day' => $classTimetable->day,
-                    'time' => $classTimetable->start_time . ' - ' . $classTimetable->end_time,
-                    'venue' => $venueDisplay
-                ],
-                'changes' => $changes,
-                'closing' => 'Please make note of these changes and adjust your schedule accordingly. If you have any questions, please contact your course admin.'
-            ];
+            // Format changes for notification
+            $changesText = '';
+            foreach ($changes as $field => $change) {
+                $fieldName = ucfirst($field);
+                $changesText .= "- {$fieldName}: Changed from \"{$change['old']}\" to \"{$change['new']}\"\n";
+            }
             
-            $this->debugToFile('Sending notifications to students');
+            // Count notifications
+            $notificationsSent = 0;
+            $notificationsFailed = 0;
             
             // Send notification to each student
             foreach ($students as $student) {
                 try {
+                    // Get the student's first name
+                    $firstName = $student->first_name ?? $student->name ?? 'Student';
+                    $this->debugToFile("Preparing notification for student {$student->id} ({$student->email}) - {$firstName}");
+                    
+                    // Prepare notification data with personalized greeting
+                    $data = [
+                        'subject' => "Important: Class Schedule Update for {$classTimetable->unit->code}",
+                        'greeting' => "Hello {$firstName}",
+                        'message' => "There has been an update to your class schedule for {$classTimetable->unit->code} - {$classTimetable->unit->name}. Please review the changes below:",
+                        'class_details' => "Unit: {$classTimetable->unit->code} - {$classTimetable->unit->name}\n" .
+                                          "Day: {$classTimetable->day}\n" .
+                                          "Time: {$classTimetable->start_time} - {$classTimetable->end_time}\n" .
+                                          "Venue: {$venueDisplay}",
+                        'changes' => $changesText,
+                        'closing' => 'Please make note of these changes and adjust your schedule accordingly. If you have any questions, please contact your instructor.'
+                    ];
+                    
                     $this->debugToFile("Sending to student {$student->id} ({$student->email})");
                     $student->notify(new ClassTimetableUpdate($data));
                     
@@ -174,6 +185,7 @@ class ClassTimetableObserver
                     
                     // Log to notification_logs table
                     $this->logNotificationToDatabase($student, $classTimetable, true);
+                    $notificationsSent++;
                 } catch (\Exception $e) {
                     $this->debugToFile("Error sending to {$student->email}", [
                         'error' => $e->getMessage(),
@@ -182,10 +194,11 @@ class ClassTimetableObserver
                     
                     // Log the failed notification
                     $this->logNotificationToDatabase($student, $classTimetable, false, $e->getMessage());
+                    $notificationsFailed++;
                 }
             }
             
-            $this->debugToFile('All notifications processed');
+            $this->debugToFile("All notifications processed: {$notificationsSent} sent, {$notificationsFailed} failed");
             
         } catch (\Exception $e) {
             $this->debugToFile("Error in notifyStudents method", [
@@ -220,6 +233,11 @@ class ClassTimetableObserver
                 'channel' => 'mail',
                 'success' => $success,
                 'error_message' => $errorMessage,
+                'data' => json_encode([
+                    'class_id' => $classTimetable->id,
+                    'unit_code' => $classTimetable->unit->code ?? null,
+                    'unit_name' => $classTimetable->unit->name ?? null,
+                ]),
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
