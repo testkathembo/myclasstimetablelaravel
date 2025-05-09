@@ -134,6 +134,7 @@ class DashboardController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Inertia\Response
      */
+  
     public function lecturerDashboard(Request $request)
     {
         $user = $request->user();
@@ -154,26 +155,41 @@ class DashboardController extends Controller
             ]);
         }
         
-        // Get current semester for reference
-        $currentSemester = Semester::where('is_active', true)->first();
-        if (!$currentSemester) {
-            $currentSemester = Semester::latest()->first();
-        }
-        
+        // Find semesters where the lecturer has assigned units
+        $lecturerSemesters = Enrollment::where('lecturer_code', $user->code)
+            ->distinct('semester_id')
+            ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
+            ->select('semesters.*')
+            ->orderBy('semesters.name')
+            ->get();
+            
         // Default values in case of errors
-        $lecturerSemesters = collect([]);
+        $currentSemester = null;
         $unitsBySemester = [];
         $studentCounts = [];
         
         try {
-            // Get all semesters where the lecturer has assigned units
-            $lecturerSemesters = Enrollment::where('lecturer_code', $user->code)
-                ->distinct('semester_id')
-                ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
-                ->select('semesters.*')
-                ->orderBy('semesters.name')
-                ->get();
+            // Determine the current semester based on lecturer's assignments
+            // First, check if there's a semester marked as active
+            $activeSemester = $lecturerSemesters->firstWhere('is_active', true);
+            
+            // If no active semester is found among lecturer's semesters, use the most recent one
+            if (!$activeSemester && $lecturerSemesters->isNotEmpty()) {
+                $activeSemester = $lecturerSemesters->sortByDesc('id')->first();
+            }
+            
+            // If still no semester is found, try to get any active semester from the system
+            if (!$activeSemester) {
+                $activeSemester = Semester::where('is_active', true)->first();
                 
+                // If no active semester in the system, get the most recent one
+                if (!$activeSemester) {
+                    $activeSemester = Semester::latest()->first();
+                }
+            }
+            
+            $currentSemester = $activeSemester;
+            
             // Get all enrollments for this lecturer across all semesters
             $allEnrollments = Enrollment::where('lecturer_code', $user->code)
                 ->with(['unit.faculty', 'semester'])
@@ -243,9 +259,6 @@ class DashboardController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
-            // If there was an error, we'll still render the dashboard with empty data
-            // and log the error, but not crash the application
         }
         
         // For debugging
@@ -253,6 +266,7 @@ class DashboardController extends Controller
             'lecturer_id' => $user->id,
             'lecturer_code' => $user->code ?? 'No code',
             'current_semester_id' => $currentSemester ? $currentSemester->id : null,
+            'current_semester_name' => $currentSemester ? $currentSemester->name : null,
             'lecturer_semesters_count' => $lecturerSemesters->count(),
             'units_by_semester_count' => count($unitsBySemester),
             'has_lecturer_role' => method_exists($user, 'hasRole') ? $user->hasRole('Lecturer') : 'method_not_exists'
@@ -265,4 +279,8 @@ class DashboardController extends Controller
             'studentCounts' => $studentCounts
         ]);
     }
+    
+
 }
+
+

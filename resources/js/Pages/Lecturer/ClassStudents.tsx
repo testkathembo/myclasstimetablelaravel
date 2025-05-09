@@ -2,6 +2,7 @@
 
 import { Head } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
+import { useState, useEffect } from "react"
 
 interface Unit {
   id: number
@@ -11,8 +12,7 @@ interface Unit {
 }
 
 interface Student {
-  id: number | null
-  name: string
+  id: number | null 
   email: string
   code: string
 }
@@ -35,10 +35,31 @@ interface Props {
   students: Enrollment[]
   unitSemester: Semester | null
   selectedSemesterId: number
+  studentCount?: number // Add the student count prop
   error?: string
 }
 
-const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, error }: Props) => {
+const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, studentCount = 0, error }: Props) => {
+  const [isLoading, setIsLoading] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+
+  // If we have a count but no students, we can show a more specific message
+  const hasCountMismatch = studentCount > 0 && students.length === 0
+
+  // Function to retry loading students
+  const handleRetry = () => {
+    setIsLoading(true)
+    setRetryCount((prev) => prev + 1)
+
+    // Reload the page
+    window.location.reload()
+  }
+
+  // Reset loading state after component mounts or updates
+  useEffect(() => {
+    setIsLoading(false)
+  }, [students, error])
+
   return (
     <AuthenticatedLayout>
       <Head title={unit ? `Students - ${unit.code}` : "Students"} />
@@ -86,7 +107,18 @@ const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, 
           </div>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+            <div>{error}</div>
+            <button
+              onClick={handleRetry}
+              disabled={isLoading}
+              className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+            >
+              {isLoading ? "Retrying..." : "Retry"}
+            </button>
+          </div>
+        )}
 
         {unit && (
           <div className="mb-6 bg-gray-50 p-4 rounded-lg border">
@@ -113,7 +145,30 @@ const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, 
         )}
 
         <div className="mb-4">
-          <h2 className="text-xl font-medium mb-2">Enrolled Students ({students.length})</h2>
+          <h2 className="text-xl font-medium mb-2">
+            Enrolled Students ({students.length})
+            {hasCountMismatch && <span className="text-sm text-yellow-600 ml-2">(Expected: {studentCount})</span>}
+          </h2>
+
+          {hasCountMismatch && (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+              <div>
+                <p>
+                  There appears to be a discrepancy between the student count ({studentCount}) and the actual students
+                  loaded (0).
+                </p>
+                <p className="text-sm mt-1">This may be due to a data synchronization issue.</p>
+              </div>
+              <button
+                onClick={handleRetry}
+                disabled={isLoading}
+                className="px-3 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded text-sm whitespace-nowrap ml-4"
+              >
+                {isLoading ? "Retrying..." : "Retry Loading"}
+              </button>
+            </div>
+          )}
+
           {students.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -124,13 +179,7 @@ const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, 
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Student ID
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Name
-                    </th>
+                    </th>                    
                     <th
                       scope="col"
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -144,10 +193,7 @@ const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, 
                     <tr key={enrollment.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {enrollment.student?.code || "N/A"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {enrollment.student?.name || "N/A"}
-                      </td>
+                      </td>                           
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {enrollment.student?.email || "N/A"}
                       </td>
@@ -158,7 +204,11 @@ const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, 
             </div>
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-              <p className="text-yellow-700">No students are currently enrolled in this unit.</p>
+              <p className="text-yellow-700">
+                {hasCountMismatch
+                  ? "There should be students enrolled in this unit, but they couldn't be loaded. Please try again or contact support."
+                  : "No students are currently enrolled in this unit."}
+              </p>
             </div>
           )}
         </div>

@@ -27,9 +27,10 @@ interface Props {
   lecturerSemesters: Semester[]
   unitsBySemester: Record<string, SemesterUnits> // Changed from number to string for object keys
   studentCounts: Record<string, Record<string, number>> // Changed from number to string for object keys
+  error?: string
 }
 
-const Dashboard = ({ currentSemester, lecturerSemesters, unitsBySemester, studentCounts }: Props) => {
+const Dashboard = ({ currentSemester, lecturerSemesters, unitsBySemester, studentCounts, error }: Props) => {
   // Safely handle potentially undefined data
   const semesterData = unitsBySemester || {}
   const studentCountsData = studentCounts || {}
@@ -65,7 +66,10 @@ const Dashboard = ({ currentSemester, lecturerSemesters, unitsBySemester, studen
       <Head title="Lecturer Dashboard" />
       <div className="p-6 bg-white rounded-lg shadow-md">
         <h1 className="text-2xl font-semibold mb-4">Lecturer Dashboard</h1>
-        <p className="mb-6">
+
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+
+        {/* <p className="mb-6">
           Welcome to the Lecturer Dashboard.
           {currentSemester && (
             <span>
@@ -73,7 +77,7 @@ const Dashboard = ({ currentSemester, lecturerSemesters, unitsBySemester, studen
               You are currently in semester: <strong>{currentSemester.name}</strong>.
             </span>
           )}
-        </p>
+        </p> */}
 
         <h2 className="text-xl font-semibold mb-4">All Assigned Units</h2>
 
