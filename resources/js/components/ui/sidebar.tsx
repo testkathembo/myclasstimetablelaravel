@@ -224,11 +224,11 @@ export default function Sidebar() {
               </Link>
               
               <Link 
-                href="/exam-supervision" 
+                href="/my-exams" 
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <ClipboardCheck className="mr-3 h-5 w-5" />
-                Exam Supervision
+                My Exams
               </Link>
             </div>
           </RoleAwareComponent>

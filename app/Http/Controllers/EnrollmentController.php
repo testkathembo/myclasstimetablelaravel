@@ -308,18 +308,30 @@ class EnrollmentController extends Controller
      */
     public function destroyLecturerAssignment($unitId)
     {
-        // Only admins should be able to remove lecturer assignments
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to remove lecturer assignments.');
+        try {
+            // Check if the unit exists
+            $unit = Unit::find($unitId);
+            if (!$unit) {
+                return redirect()->back()->with('error', 'Unit not found.');
+            }
+
+            // Remove lecturer assignments for the given unit
+            $affectedRows = Enrollment::where('unit_id', $unitId)
+                ->update(['lecturer_code' => null]);
+
+            if ($affectedRows === 0) {
+                return redirect()->back()->with('error', 'No lecturer assignments found for this unit.');
+            }
+
+            return redirect()->back()->with('success', 'Lecturer assignment removed successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to delete lecturer assignment', [
+                'unit_id' => $unitId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to delete lecturer assignment.');
         }
-
-        // Remove lecturer assignment from all enrollments for this unit
-        Enrollment::where('unit_id', $unitId)
-            ->update(['lecturer_code' => '']);
-
-        return redirect()->route('enrollments.index')
-            ->with('success', 'Lecturer assignment removed successfully.');
     }
 
     /**

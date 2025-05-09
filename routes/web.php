@@ -239,7 +239,7 @@ Route::middleware(['auth'])->group(function () {
     
     // Lecturer assignment routes
     Route::post('/assign-lecturers', [EnrollmentController::class, 'assignLecturers'])->name('assign.lecturers');
-    Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign.lecturers.destroy');
+    Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy');
     Route::get('/lecturer-units/{lecturerId}', [EnrollmentController::class, 'getLecturerUnits'])->name('lecturer.units');
 });
     // Time Slots management
@@ -293,27 +293,17 @@ Route::middleware(['auth', 'role:Faculty Admin', 'permission:view-dashboard'])->
 });
 
 // ✅ Lecturer Routes
-Route::middleware(['auth', 'role:Lecturer', 'permission:view-dashboard'])->group(function () {
-    // Option 1: Keep the original dashboard
-    Route::get('/lecturer', fn() => Inertia::render('Lecturer/Dashboard'))->name('lecturer.dashboard');
-    
-    // Option 2: Use the unified dashboard (uncomment to use)
-    // Route::get('/lecturer', [DashboardController::class, 'index'])->name('lecturer.dashboard');
-    
-    // View own timetable
-    Route::middleware(['permission:view-own-timetable'])->get('/lecturer/timetable', [ExamTimetableController::class, 'viewLecturerTimetable'])->name('lecturer.timetable');
-    
-    // View own units
-    Route::middleware(['permission:view-own-units'])->get('/lecturer/units', [UnitController::class, 'lecturerUnits'])->name('lecturer.units');
-    
-    // Download own timetable
-    Route::middleware(['permission:download-own-timetable'])->get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('lecturer.timetable.download');
-});
 
-Route::middleware(['auth', 'role:Lecturer'])->group(function () {
-    Route::get('/lecturer/dashboard', fn() => Inertia::render('Lecturer/Dashboard'))->name('lecturer.dashboard');
-});
+    Route::prefix('lecturer')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'lecturerDashboard'])->name('lecturer.dashboard');
+        Route::get('/my-classes', [LecturerController::class, 'myClasses'])->name('lecturer.my-classes');
+        Route::get('/my-classes/{unitId}/students', [LecturerController::class, 'classStudents'])->name('lecturer.class-students');
+        Route::get('/class-timetable', [LecturerController::class, 'viewClassTimetable'])->name('lecturer.class-timetable');
+        Route::get('/exam-supervision', [LecturerController::class, 'examSupervision'])->name('lecturer.exam-supervision');
+        Route::get('/profile', [LecturerController::class, 'profile'])->name('lecturer.profile');
+    });
 
+    
 // Student Routes
 Route::middleware(['auth', 'role:Student'])->group(function () {
     // Student Dashboard
@@ -357,7 +347,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // Lecturer assignment routes
 Route::post('/assign-lecturers', [App\Http\Controllers\EnrollmentController::class, 'assignLecturers'])->name('assign-lecturers');
-Route::delete('/assign-lecturers/{unitId}', [App\Http\Controllers\EnrollmentController::class, 'destroyLecturerAssignment'])->name('destroy-lecturer-assignment');
+Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy');
 Route::get('/lecturer-units/{lecturerId}', [App\Http\Controllers\EnrollmentController::class, 'getLecturerUnits'])->name('lecturer-units');
 
 // API routes that should be accessible without API middleware

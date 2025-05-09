@@ -61,9 +61,21 @@ const Enrollments = () => {
         Inertia.post('/assign-lecturers', lecturerAssignment);
     };
 
-    const handleDeleteAssignment = (unitId) => {
+    const handleDeleteAssignment = async (unitId) => {
         if (confirm('Are you sure you want to delete this assignment?')) {
-            Inertia.delete(`/assign-lecturers/${unitId}`);
+            try {
+                await Inertia.delete(`/assign-lecturers/${unitId}`, {
+                    onError: (error) => {
+                        alert(`Failed to delete assignment: ${error.message || 'Unknown error'}`);
+                    },
+                    onSuccess: () => {
+                        alert('Lecturer assignment deleted successfully.');
+                    },
+                });
+            } catch (error) {
+                console.error('Error deleting lecturer assignment:', error);
+                alert('An unexpected error occurred. Please try again.');
+            }
         }
     };
 
