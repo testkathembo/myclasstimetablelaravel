@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Unit;
 use App\Models\Enrollment;
 use App\Models\Semester;
+use App\Models\ClassTimetable; // Add this import
 use Inertia\Inertia;
 
 class LecturerController extends Controller
@@ -393,21 +394,14 @@ class LecturerController extends Controller
       
       try {
           // Get class timetable for the lecturer
-          // Adjust this query based on your actual database structure
-          $query = \DB::table('class_timetables')
-              ->where('lecturer_code', $user->code)
-              ->where('semester_id', $selectedSemesterId)
-              ->join('units', 'class_timetables.unit_id', '=', 'units.id')
-              ->join('classrooms', 'class_timetables.classroom_id', '=', 'classrooms.id')
-              ->join('class_time_slots', 'class_timetables.class_time_slot_id', '=', 'class_time_slots.id')
-              ->select('class_timetables.*', 'units.name as unit_name', 'classrooms.name as room_name', 
-                      'class_time_slots.start_time', 'class_time_slots.end_time', 'class_time_slots.day');
-          
-          // Filter by unit if specified
+          $query = ClassTimetable::with('unit') // Ensure the unit relationship is loaded
+              ->where('semester_id', $selectedSemesterId);
+
+          // If a specific unit is selected, filter by that unit
           if ($selectedUnitId) {
-              $query->where('class_timetables.unit_id', $selectedUnitId);
+              $query->where('unit_id', $selectedUnitId);
           }
-          
+
           $classTimetables = $query->get();
           
           // Get all units assigned to this lecturer for the dropdown

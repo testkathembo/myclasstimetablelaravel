@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { Head } from "@inertiajs/react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 
 interface Unit {
@@ -20,12 +20,14 @@ interface Semester {
 interface ClassTimetable {
   id: number
   unit_id: number
-  unit_name: string
-  room_name: string
+  unit?: { name: string }
   day: string
   start_time: string
   end_time: string
-  class_type?: string
+  venue: string
+  location: string
+  no?: number
+  lecturer?: string
 }
 
 interface Props {
@@ -46,11 +48,16 @@ const ClassTimetable = ({
   error,
 }: Props) => {
   const [unitFilter, setUnitFilter] = useState<number | undefined>(selectedUnitId)
+  const [isLoading, setIsLoading] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   // Handle unit filter change
   const handleUnitFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const unitId = e.target.value ? Number.parseInt(e.target.value) : undefined
     setUnitFilter(unitId)
+
+    // Show loading indicator
+    setIsLoading(true)
 
     // Redirect to the same page with the new filter
     const url = unitId
@@ -59,6 +66,20 @@ const ClassTimetable = ({
 
     window.location.href = url
   }
+
+  // Function to retry loading timetable
+  const handleRetry = () => {
+    setIsLoading(true)
+    setRetryCount((prev) => prev + 1)
+
+    // Reload the page
+    window.location.reload()
+  }
+
+  // Reset loading state after component mounts or updates
+  useEffect(() => {
+    setIsLoading(false)
+  }, [classTimetables, error])
 
   // Group timetables by day for better display
   const timetablesByDay: Record<string, ClassTimetable[]> = {}
@@ -105,7 +126,18 @@ const ClassTimetable = ({
           </div>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+            <div>{error}</div>
+            <button
+              onClick={handleRetry}
+              disabled={isLoading}
+              className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+            >
+              {isLoading ? "Retrying..." : "Retry"}
+            </button>
+          </div>
+        )}
 
         <div className="mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -118,6 +150,7 @@ const ClassTimetable = ({
                 value={unitFilter || ""}
                 onChange={handleUnitFilterChange}
                 className="border rounded p-2 min-w-[250px]"
+                disabled={isLoading}
               >
                 <option value="">All Units</option>
                 {assignedUnits.map((unit) => (
@@ -129,7 +162,7 @@ const ClassTimetable = ({
             </div>
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
               <p className="text-blue-800 text-sm">
-                <strong>Current Semester:</strong> {currentSemester?.name || "N/A"}
+                <strong>Selected Semester:</strong> {currentSemester?.name || "N/A"}
               </p>
             </div>
           </div>
@@ -163,13 +196,13 @@ const ClassTimetable = ({
                             scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                           >
-                            Room
+                            Venue
                           </th>
                           <th
                             scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                           >
-                            Type
+                            Students
                           </th>
                         </tr>
                       </thead>
@@ -182,14 +215,12 @@ const ClassTimetable = ({
                                 {timetable.start_time} - {timetable.end_time}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {timetable.unit_name}
+                                {timetable.unit?.name || "Unknown Unit"}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {timetable.room_name}
+                                {timetable.venue} {timetable.location ? `(${timetable.location})` : ""}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {timetable.class_type || "Lecture"}
-                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{timetable.no || 0}</td>
                             </tr>
                           ))}
                       </tbody>
