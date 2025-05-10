@@ -294,6 +294,13 @@ Route::middleware(['auth', 'role:Faculty Admin', 'permission:view-dashboard'])->
 
 // ✅ Lecturer Routes
 
+Route::middleware(['auth', 'role:Lecturer'])->group(function () {
+    Route::get('/lecturer/my-classes', [LecturerController::class, 'myClasses'])->name('lecturer.my-classes');
+    
+    Route::get('/lecturer/class-timetable', [LecturerController::class, 'viewClassTimetable'])->name('lecturer.class-timetable');
+    Route::get('/lecturer/exam-supervision', [LecturerController::class, 'examSupervision'])->name('lecturer.exam-supervision');
+});
+
     Route::prefix('lecturer')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'lecturerDashboard'])->name('lecturer.dashboard');
         Route::get('/my-classes', [LecturerController::class, 'myClasses'])->name('lecturer.my-classes');

@@ -2,6 +2,7 @@
 
 import { Head } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
+import { useState } from "react"
 
 interface Semester {
   id: number
@@ -21,13 +22,44 @@ interface Supervision {
   no: number
 }
 
-interface Props {
-  supervisions: Supervision[]
-  currentSemester: Semester
-  error?: string
+interface Unit {
+  id: number
+  code: string
+  name: string
 }
 
-const ExamSupervision = ({ supervisions = [], currentSemester, error }: Props) => {
+interface Props {
+  supervisions: Supervision[]
+  lecturerSemesters: Semester[]
+  units: Unit[]
+  error?: string
+  message?: string
+}
+
+const ExamSupervision = ({ supervisions = [], lecturerSemesters = [], units = [], error, message }: Props) => {
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Function to retry loading
+  const handleRetry = () => {
+    setIsLoading(true)
+    window.location.reload()
+  }
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    } catch (e) {
+      return dateString
+    }
+  }
+
   // Group supervisions by date for better display
   const supervisionsByDate: Record<string, Supervision[]> = {}
   supervisions.forEach((supervision) => {
@@ -70,94 +102,101 @@ const ExamSupervision = ({ supervisions = [], currentSemester, error }: Props) =
           </div>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+            <div>{error}</div>
+            <button
+              onClick={handleRetry}
+              disabled={isLoading}
+              className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+            >
+              {isLoading ? "Retrying..." : "Retry"}
+            </button>
+          </div>
+        )}
 
         <div className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
           <p className="text-blue-800">
-            <strong>Current Semester:</strong> {currentSemester?.name || "N/A"}
-          </p>
-          <p className="text-blue-800 mt-2">
             <strong>Total Supervision Duties:</strong> {supervisions.length}
           </p>
         </div>
 
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Units</h2>
+          <ul className="list-disc pl-5">
+            {units.map((unit) => (
+              <li key={unit.id}>
+                <strong>{unit.code}</strong>: {unit.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+
         {supervisions.length > 0 ? (
           <div className="space-y-6">
-            {sortedDates.map((date) => {
-              // Format the date for display
-              const formattedDate = new Date(date).toLocaleDateString("en-US", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })
-
-              return (
-                <div key={date} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gray-100 px-4 py-3 font-medium border-b">
-                    <h3 className="text-lg">{formattedDate}</h3>
-                  </div>
-                  <div className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th
-                              scope="col"
-                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Time
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Unit
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Venue
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Students
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {supervisionsByDate[date]
-                            .sort((a, b) => a.start_time.localeCompare(b.start_time))
-                            .map((supervision) => (
-                              <tr key={supervision.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                  {supervision.start_time} - {supervision.end_time}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {supervision.unit_code} - {supervision.unit_name}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {supervision.venue} ({supervision.location})
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{supervision.no}</td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
+            {sortedDates.map((date) => (
+              <div key={date} className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-100 px-4 py-3 font-medium border-b">
+                  <h3 className="text-lg">{formatDate(date)}</h3>
+                </div>
+                <div className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Time
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Unit
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Venue
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Students
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {supervisionsByDate[date]
+                          .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                          .map((supervision) => (
+                            <tr key={supervision.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {supervision.start_time} - {supervision.end_time}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {supervision.unit_code} - {supervision.unit_name}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {supervision.venue} {supervision.location ? `(${supervision.location})` : ""}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{supervision.no}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-            <p className="text-yellow-700">
-              You don't have any exam supervision duties assigned for this semester yet.
-            </p>
+            <p className="text-yellow-700">{message || "No exam supervision duties found for the current semester."}</p>
           </div>
         )}
       </div>
