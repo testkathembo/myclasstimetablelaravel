@@ -17,10 +17,20 @@ interface Semester {
   name: string
 }
 
+// Update the ClassTimetable interface to include semester information
 interface ClassTimetable {
   id: number
   unit_id: number
-  unit?: { name: string }
+  semester_id: number
+  unit?: {
+    id: number
+    code: string
+    name: string
+  }
+  semester?: {
+    id: number
+    name: string
+  }
   day: string
   start_time: string
   end_time: string
@@ -30,28 +40,53 @@ interface ClassTimetable {
   lecturer?: string
 }
 
+// Update the Props interface to include lecturerSemesters
 interface Props {
   classTimetables: ClassTimetable[]
   currentSemester: Semester
   selectedSemesterId: number
   selectedUnitId?: number
   assignedUnits: Unit[]
+  lecturerSemesters: Semester[]
   error?: string
 }
 
+// Update the component parameters to include lecturerSemesters
 const ClassTimetable = ({
   classTimetables = [],
   currentSemester,
   selectedSemesterId,
   selectedUnitId,
   assignedUnits = [],
+  lecturerSemesters = [],
   error,
 }: Props) => {
   const [unitFilter, setUnitFilter] = useState<number | undefined>(selectedUnitId)
   const [isLoading, setIsLoading] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  // Add a semester filter dropdown
+  const [semesterFilter, setSemesterFilter] = useState<number | undefined>(selectedSemesterId)
 
-  // Handle unit filter change
+  // Add this function to handle semester filter changes
+  const handleSemesterFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const semesterId = e.target.value ? Number.parseInt(e.target.value) : undefined
+    setSemesterFilter(semesterId)
+
+    // Show loading indicator
+    setIsLoading(true)
+
+    // Redirect to the same page with the new filter
+    let url = semesterId ? `/lecturer/class-timetable?semester_id=${semesterId}` : `/lecturer/class-timetable`
+
+    // Add unit_id to the URL if it's selected
+    if (unitFilter) {
+      url += `&unit_id=${unitFilter}`
+    }
+
+    window.location.href = url
+  }
+
+  // Update the handleUnitFilterChange function to handle the case when no semester is selected
   const handleUnitFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const unitId = e.target.value ? Number.parseInt(e.target.value) : undefined
     setUnitFilter(unitId)
@@ -60,9 +95,12 @@ const ClassTimetable = ({
     setIsLoading(true)
 
     // Redirect to the same page with the new filter
-    const url = unitId
-      ? `/lecturer/class-timetable?semester_id=${selectedSemesterId}&unit_id=${unitId}`
-      : `/lecturer/class-timetable?semester_id=${selectedSemesterId}`
+    let url = unitId ? `/lecturer/class-timetable?unit_id=${unitId}` : `/lecturer/class-timetable`
+
+    // Add semester_id to the URL if it's selected and we're not showing all units
+    if (selectedSemesterId && unitId) {
+      url += `&semester_id=${selectedSemesterId}`
+    }
 
     window.location.href = url
   }
@@ -140,29 +178,51 @@ const ClassTimetable = ({
         )}
 
         <div className="mb-6">
+          {/* Add this to the filter section in the render function */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div className="mb-4 md:mb-0">
-              <label htmlFor="unit-filter" className="block text-sm font-medium text-gray-700 mb-1">
-                Filter by Unit:
-              </label>
-              <select
-                id="unit-filter"
-                value={unitFilter || ""}
-                onChange={handleUnitFilterChange}
-                className="border rounded p-2 min-w-[250px]"
-                disabled={isLoading}
-              >
-                <option value="">All Units</option>
-                {assignedUnits.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.code} - {unit.name}
-                  </option>
-                ))}
-              </select>
+            <div className="mb-4 md:mb-0 flex flex-col md:flex-row md:space-x-4">
+              <div>
+                <label htmlFor="unit-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Filter by Unit:
+                </label>
+                <select
+                  id="unit-filter"
+                  value={unitFilter || ""}
+                  onChange={handleUnitFilterChange}
+                  className="border rounded p-2 min-w-[250px]"
+                  disabled={isLoading}
+                >
+                  <option value="">All Units</option>
+                  {assignedUnits.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.code} - {unit.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="semester-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Filter by Semester:
+                </label>
+                <select
+                  id="semester-filter"
+                  value={semesterFilter || ""}
+                  onChange={handleSemesterFilterChange}
+                  className="border rounded p-2 min-w-[250px]"
+                  disabled={isLoading}
+                >
+                  <option value="">All Semesters</option>
+                  {lecturerSemesters?.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      {semester.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
               <p className="text-blue-800 text-sm">
-                <strong>Selected Semester:</strong> {currentSemester?.name || "N/A"}
+                <strong>Selected Semester:</strong> {currentSemester?.name || "All Semesters"}
               </p>
             </div>
           </div>
@@ -177,6 +237,7 @@ const ClassTimetable = ({
                 </div>
                 <div className="p-0">
                   <div className="overflow-x-auto">
+                    {/* Update the table header in the render section to include semester information */}
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
@@ -196,6 +257,12 @@ const ClassTimetable = ({
                             scope="col"
                             className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                           >
+                            Semester
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
                             Venue
                           </th>
                           <th
@@ -206,6 +273,7 @@ const ClassTimetable = ({
                           </th>
                         </tr>
                       </thead>
+                      {/* Update the table row to display semester information */}
                       <tbody className="bg-white divide-y divide-gray-200">
                         {timetablesByDay[day]
                           .sort((a, b) => a.start_time.localeCompare(b.start_time))
@@ -216,6 +284,9 @@ const ClassTimetable = ({
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {timetable.unit?.name || "Unknown Unit"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {timetable.semester?.name || "Unknown Semester"}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {timetable.venue} {timetable.location ? `(${timetable.location})` : ""}

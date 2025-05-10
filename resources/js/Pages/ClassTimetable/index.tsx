@@ -1123,18 +1123,14 @@ const ClassTimetable = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                        <select
+                        <input
+                          type="text"
                           value={formState.day}
                           onChange={(e) => handleCreateChange("day", e.target.value)}
-                          className="w-full border rounded p-2 mb-3"
-                        >
-                          <option value="">Select Day</option>
-                          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => (
-                            <option key={day} value={day}>
-                              {day}
-                            </option>
-                          ))}
-                        </select>
+                          className="w-full border rounded p-2 mb-3 bg-gray-50"
+                          readOnly
+                          placeholder="Day will be populated based on the selected date"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Class Time Slot</label>

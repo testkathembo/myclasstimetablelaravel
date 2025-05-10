@@ -13,15 +13,15 @@ class ClassTimetable extends Model
     protected $table = 'class_timetable';
 
     protected $fillable = [
-        'semester_id',
-        'unit_id',
         'day',
-        'start_time',
-        'end_time',
+        'unit_id',
+        'semester_id',
         'venue',
         'location',
         'no',
         'lecturer',
+        'start_time',
+        'end_time',
     ];
 
     public function unit()
@@ -32,25 +32,5 @@ class ClassTimetable extends Model
     public function semester()
     {
         return $this->belongsTo(Semester::class);
-    }
-
-    public function lecturer()
-    {
-        return $this->belongsTo(User::class, 'lecturer_id');
-    }
-
-    public function getEnrolledStudents()
-    {
-        // Make sure relationships are loaded
-        $this->load(['unit', 'semester']);
-        
-        // Find all student codes enrolled in this unit for this semester
-        $studentCodes = Enrollment::where('unit_id', $this->unit_id)
-            ->where('semester_id', $this->semester_id)
-            ->pluck('student_code')
-            ->toArray();
-            
-        // Get all users with these codes
-        return User::whereIn('code', $studentCodes)->get();
     }
 }
