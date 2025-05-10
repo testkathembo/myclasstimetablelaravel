@@ -5,30 +5,22 @@
 
 {{ $message }}
 
-@component('mail::panel')
+@if(!empty($exam_details))
 ## Exam Details
-
-**Unit:** {{ $exam_details['unit'] }}  
-**Date:** {{ $exam_details['date'] }} ({{ $exam_details['day'] }})  
-**Time:** {{ $exam_details['time'] }}  
-**Venue:** {{ $exam_details['venue'] }}
-@endcomponent
-
-@if(!empty($changes))
-## Changes Made:
-
-@foreach($changes as $field => $values)
-- **{{ ucfirst($field) }}**: Changed from "{{ $values['old'] }}" to "{{ $values['new'] }}"
-@endforeach
+{!! nl2br(e($exam_details)) !!}
 @endif
 
-<!-- {{ $closing }}
+@if(!empty($changes))
+## Changes Made
+{!! nl2br(e($changes)) !!}
+@endif
 
-@component('mail::button', ['url' => $url])
-View Updated Timetable
+{{ $closing }}
+
+<!-- @component('mail::button', ['url' => $url])
+{{ isset($is_lecturer) && $is_lecturer ? 'View Exam Schedule' : 'View Updated Exam Schedule' }}
 @endcomponent -->
 
-
-
-
-
+{{ __('Regards,') }}<br>
+{{ __('Examination Office') }}
+@endcomponent

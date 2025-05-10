@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Log;
 
 class ExamTimetableUpdate extends Notification implements ShouldQueue
 {
@@ -16,94 +17,111 @@ class ExamTimetableUpdate extends Notification implements ShouldQueue
 
     /**
      * Create a new notification instance.
+     *
+     * @param array $data
+     * @return void
      */
-    public function __construct($data)
+    public function __construct(array $data)
     {
-        // Clean up venue text to remove duplicate (Updated) text
-        if (isset($data['exam_details']['venue'])) {
-            // Remove all instances of "(Updated)" from the venue
-            $venue = preg_replace('/\s*$$Updated$$\s*/', ' ', $data['exam_details']['venue']);
-            // Trim extra spaces
-            $venue = trim($venue);
-            $data['exam_details']['venue'] = $venue;
-        }
-        
-        // Clean up changes to show cleaner text
-        if (isset($data['changes']['venue'])) {
-            $data['changes']['venue']['old'] = preg_replace('/\s*$$Updated$$\s*/', ' ', $data['changes']['venue']['old']);
-            $data['changes']['venue']['new'] = preg_replace('/\s*$$Updated$$\s*/', ' ', $data['changes']['venue']['new']);
-            $data['changes']['venue']['old'] = trim($data['changes']['venue']['old']);
-            $data['changes']['venue']['new'] = trim($data['changes']['venue']['new']);
-        }
-        
         $this->data = $data;
     }
 
     /**
      * Get the notification's delivery channels.
      *
-     * @return array<int, string>
+     * @param  mixed  $notifiable
+     * @return array
      */
-    public function via(object $notifiable): array
+    public function via($notifiable)
     {
         return ['mail'];
     }
 
     /**
      * Get the mail representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return \Illuminate\Notifications\Messages\MailMessage
      */
-    public function toMail(object $notifiable): MailMessage
+    public function toMail($notifiable)
     {
-        // Build the email message
-        $mailMessage = (new MailMessage)
-            ->subject($this->data['subject'])
-            ->greeting($this->data['greeting'] . ' ' . $notifiable->first_name)
-            ->line($this->data['message']);
+        try {
+            // Extract data with defaults
+            $subject = $this->data['subject'] ?? 'Exam Schedule Update';
+            $greeting = $this->data['greeting'] ?? 'Hello';
+            $message = $this->data['message'] ?? 'There has been an update to your exam schedule.';
+            $examDetails = $this->data['exam_details'] ?? '';
+            $changes = $this->data['changes'] ?? '';
+            $closing = $this->data['closing'] ?? 'Please review these changes and plan accordingly.';
+            $isLecturer = $this->data['is_lecturer'] ?? false;
 
-        // Add exam details section
-        $mailMessage->line('Exam Details:')
-            ->line('Unit: ' . $this->data['exam_details']['unit'])
-            ->line('Date: ' . $this->data['exam_details']['date'] . ' (' . $this->data['exam_details']['day'] . ')')
-            ->line('Time: ' . $this->data['exam_details']['time'])
-            ->line('Venue: ' . $this->data['exam_details']['venue']);
-
-        // Add changes section
-        if (!empty($this->data['changes'])) {
-            $mailMessage->line('Changes Made:');
-            
-            foreach ($this->data['changes'] as $field => $values) {
-                // Format the field name for display
-                $fieldName = ucfirst(str_replace('_', ' ', $field));
-                $mailMessage->line("{$fieldName}: Changed from \"{$values['old']}\" to \"{$values['new']}\"");
+            // Check if the route exists - different routes for lecturers and students
+            $url = '#';
+            if ($isLecturer) {
+                if (Route::has('lecturer.exams')) {
+                    $url = route('lecturer.exams');
+                } elseif (Route::has('lecturer.examtimetable')) {
+                    $url = route('lecturer.examtimetable');
+                } elseif (Route::has('lecturer.dashboard')) {
+                    $url = route('lecturer.dashboard');
+                } elseif (Route::has('dashboard')) {
+                    $url = route('dashboard');
+                }
+            } else {
+                if (Route::has('student.exams')) {
+                    $url = route('student.exams');
+                } elseif (Route::has('student.examtimetable')) {
+                    $url = route('student.examtimetable');
+                } elseif (Route::has('student.dashboard')) {
+                    $url = route('student.dashboard');
+                } elseif (Route::has('dashboard')) {
+                    $url = route('dashboard');
+                }
             }
+
+            $mailMessage = (new MailMessage)
+                ->subject($subject)
+                ->greeting($greeting)
+                ->line($message)
+                ->when(!empty($examDetails), function ($message) use ($examDetails) {
+                    return $message->line('Exam Details:')
+                        ->line($examDetails);
+                })
+                ->when(!empty($changes), function ($message) use ($changes) {
+                    return $message->line('Changes Made:')
+                        ->line($changes);
+                })
+                ->line($closing);
+                
+            // Different button text for lecturers and students
+            // if ($isLecturer) {
+            //     $mailMessage->action('View Exam Schedule', $url);
+            // } else {
+            //     $mailMessage->action('View Updated Exam Schedule', $url);
+            // }
+            
+            return $mailMessage;
+                
+        } catch (\Exception $e) {
+            Log::error('Failed to create exam timetable update notification', [
+                'error' => $e->getMessage(),
+                'notifiable' => $notifiable->id ?? 'unknown'
+            ]);
+            
+            throw $e;
         }
-
-        // Add closing message
-        $mailMessage->line($this->data['closing']);
-
-        // Only add action button if the route exists
-        if (Route::has('student.timetable')) {
-            $mailMessage->action('View Timetable', route('student.timetable'));
-        } else {
-            // Use a fallback URL or just skip the action button
-            $mailMessage->line('Please check your student portal for the latest timetable information.');
-        }
-
-        return $mailMessage;
     }
 
     /**
      * Get the array representation of the notification.
      *
-     * @return array<string, mixed>
+     * @param  mixed  $notifiable
+     * @return array
      */
-    public function toArray(object $notifiable): array
+    public function toArray($notifiable)
     {
         return [
-            'subject' => $this->data['subject'],
-            'message' => $this->data['message'],
-            'exam_details' => $this->data['exam_details'],
-            'changes' => $this->data['changes'],
+            'data' => $this->data
         ];
     }
 }

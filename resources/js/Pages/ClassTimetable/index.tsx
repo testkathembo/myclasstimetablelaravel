@@ -143,6 +143,23 @@ const checkTimeOverlap = (classtimetable: ClassTimetable, day: string, startTime
 }
 
 const ClassTimetable = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Simulate an API call
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      alert("Form submitted successfully!");
+    } catch (error) {
+      console.error("Error submitting form:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // FIXED: Changed property name from classTimetable to classTimetables to match controller
   const {
     classTimetables = { data: [] },
@@ -1076,10 +1093,10 @@ const ClassTimetable = () => {
                     <div className="mt-4 flex justify-end space-x-2">
                       <Button
                         type="submit"
+                        isLoading={isSubmitting}
                         className="bg-blue-500 hover:bg-blue-600 text-white"
-                        disabled={capacityWarning !== null || conflictWarning !== null}
                       >
-                        Save
+                        {isSubmitting ? "Submitting..." : "Save"}
                       </Button>
                       <Button type="button" onClick={handleCloseModal} className="bg-gray-400 text-white">
                         Cancel
@@ -1286,10 +1303,10 @@ const ClassTimetable = () => {
                     <div className="mt-4 flex justify-end space-x-2">
                       <Button
                         type="submit"
+                        isLoading={isSubmitting}
                         className="bg-blue-500 hover:bg-blue-600 text-white"
-                        disabled={capacityWarning !== null || conflictWarning !== null}
                       >
-                        Save
+                        {isSubmitting ? "Submitting..." : "Save"}
                       </Button>
                       <Button type="button" onClick={handleCloseModal} className="bg-gray-400 text-white">
                         Cancel

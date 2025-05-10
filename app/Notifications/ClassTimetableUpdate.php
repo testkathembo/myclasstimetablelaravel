@@ -53,12 +53,33 @@ class ClassTimetableUpdate extends Notification implements ShouldQueue
             $classDetails = $this->data['class_details'] ?? '';
             $changes = $this->data['changes'] ?? '';
             $closing = $this->data['closing'] ?? 'Please review these changes and plan accordingly.';
+            $isLecturer = $this->data['is_lecturer'] ?? false;
 
-            // Clean up "Updated" words in class details and changes
-            $classDetails = preg_replace('/\s*\(Updated\)\s*/', '', $classDetails);
-            $changes = preg_replace('/\s*\(Updated\)\s*/', '', $changes);
+            // Check if the route exists - different routes for lecturers and students
+            $url = '#';
+            if ($isLecturer) {
+                if (Route::has('lecturer.timetable')) {
+                    $url = route('lecturer.timetable');
+                } elseif (Route::has('lecturer.classtimetable')) {
+                    $url = route('lecturer.classtimetable');
+                } elseif (Route::has('lecturer.dashboard')) {
+                    $url = route('lecturer.dashboard');
+                } elseif (Route::has('dashboard')) {
+                    $url = route('dashboard');
+                }
+            } else {
+                if (Route::has('student.timetable')) {
+                    $url = route('student.timetable');
+                } elseif (Route::has('student.classtimetable')) {
+                    $url = route('student.classtimetable');
+                } elseif (Route::has('student.dashboard')) {
+                    $url = route('student.dashboard');
+                } elseif (Route::has('dashboard')) {
+                    $url = route('dashboard');
+                }
+            }
 
-            return (new MailMessage)
+            $mailMessage = (new MailMessage)
                 ->subject($subject)
                 ->greeting($greeting)
                 ->line($message)
@@ -70,14 +91,23 @@ class ClassTimetableUpdate extends Notification implements ShouldQueue
                     return $message->line('Changes Made:')
                         ->line($changes);
                 })
-                ->line($closing)
-                ->line('Regards,')
-                ->line('Timetabling System Management Office');
+                ->line($closing);
+                
+            // Different button text for lecturers and students
+            if ($isLecturer) {
+                // $mailMessage->action('View Your Timetable', $url);
+            } else {
+                // $mailMessage->action('View Updated Timetable', $url);
+            }
+            
+            return $mailMessage;
+                
         } catch (\Exception $e) {
             Log::error('Failed to create class timetable update notification', [
                 'error' => $e->getMessage(),
                 'notifiable' => $notifiable->id ?? 'unknown'
             ]);
+            
             throw $e;
         }
     }

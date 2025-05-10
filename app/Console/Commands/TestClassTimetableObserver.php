@@ -50,14 +50,34 @@ class TestClassTimetableObserver extends Command
         $this->info("Semester: {$class->semester->name}");
         
         // Check if there are students enrolled in this class
-        $enrollmentCount = Enrollment::where('unit_id', $class->unit_id)
+        $enrollments = Enrollment::where('unit_id', $class->unit_id)
             ->where('semester_id', $class->semester_id)
-            ->count();
+            ->get();
             
-        $this->info("Students enrolled: {$enrollmentCount}");
+        $this->info("Students enrolled: {$enrollments->count()}");
         
-        if ($enrollmentCount === 0) {
-            $this->warn("No students are enrolled in this class. No notifications will be sent.");
+        // Check if there's a lecturer assigned
+        $lecturerCode = null;
+        foreach ($enrollments as $enrollment) {
+            if (!empty($enrollment->lecturer_code)) {
+                $lecturerCode = $enrollment->lecturer_code;
+                break;
+            }
+        }
+        
+        if ($lecturerCode) {
+            $lecturer = User::where('code', $lecturerCode)->first();
+            if ($lecturer) {
+                $this->info("Lecturer assigned: {$lecturer->name} ({$lecturer->email})");
+            } else {
+                $this->warn("Lecturer code found ({$lecturerCode}), but no matching user found.");
+            }
+        } else {
+            $this->warn("No lecturer is assigned to this class.");
+        }
+        
+        if ($enrollments->count() === 0 && !$lecturerCode) {
+            $this->warn("No students or lecturer found for this class. No notifications will be sent.");
             if (!$this->confirm("Do you want to continue anyway?")) {
                 return 0;
             }
@@ -94,7 +114,9 @@ class TestClassTimetableObserver extends Command
             $this->info("Found {$logs->count()} recent notification logs:");
             foreach ($logs as $log) {
                 $user = User::find($log->notifiable_id);
-                $this->info("- {$user->email}: " . ($log->success ? 'Success' : 'Failed - ' . $log->error_message));
+                $data = json_decode($log->data, true);
+                $userType = isset($data['is_lecturer']) && $data['is_lecturer'] ? 'Lecturer' : 'Student';
+                $this->info("- {$userType}: {$user->email}: " . ($log->success ? 'Success' : 'Failed - ' . $log->error_message));
             }
         } else {
             $this->warn("No recent notification logs found. Check the debug log for more information.");
