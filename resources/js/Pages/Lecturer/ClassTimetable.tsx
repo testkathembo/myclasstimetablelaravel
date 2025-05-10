@@ -17,7 +17,6 @@ interface Semester {
   name: string
 }
 
-// Update the ClassTimetable interface to include semester information
 interface ClassTimetable {
   id: number
   unit_id: number
@@ -40,18 +39,17 @@ interface ClassTimetable {
   lecturer?: string
 }
 
-// Update the Props interface to include lecturerSemesters
 interface Props {
   classTimetables: ClassTimetable[]
-  currentSemester: Semester
-  selectedSemesterId: number
-  selectedUnitId?: number
+  currentSemester: Semester | null
+  selectedSemesterId: number | null
+  selectedUnitId?: number | null
   assignedUnits: Unit[]
   lecturerSemesters: Semester[]
+  showAllByDefault?: boolean
   error?: string
 }
 
-// Update the component parameters to include lecturerSemesters
 const ClassTimetable = ({
   classTimetables = [],
   currentSemester,
@@ -59,15 +57,15 @@ const ClassTimetable = ({
   selectedUnitId,
   assignedUnits = [],
   lecturerSemesters = [],
+  showAllByDefault = true,
   error,
 }: Props) => {
-  const [unitFilter, setUnitFilter] = useState<number | undefined>(selectedUnitId)
+  const [unitFilter, setUnitFilter] = useState<number | undefined>(selectedUnitId || undefined)
+  const [semesterFilter, setSemesterFilter] = useState<number | undefined>(selectedSemesterId || undefined)
   const [isLoading, setIsLoading] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
-  // Add a semester filter dropdown
-  const [semesterFilter, setSemesterFilter] = useState<number | undefined>(selectedSemesterId)
 
-  // Add this function to handle semester filter changes
+  // Handle semester filter changes
   const handleSemesterFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const semesterId = e.target.value ? Number.parseInt(e.target.value) : undefined
     setSemesterFilter(semesterId)
@@ -86,7 +84,7 @@ const ClassTimetable = ({
     window.location.href = url
   }
 
-  // Update the handleUnitFilterChange function to handle the case when no semester is selected
+  // Handle unit filter changes
   const handleUnitFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const unitId = e.target.value ? Number.parseInt(e.target.value) : undefined
     setUnitFilter(unitId)
@@ -97,9 +95,9 @@ const ClassTimetable = ({
     // Redirect to the same page with the new filter
     let url = unitId ? `/lecturer/class-timetable?unit_id=${unitId}` : `/lecturer/class-timetable`
 
-    // Add semester_id to the URL if it's selected and we're not showing all units
-    if (selectedSemesterId && unitId) {
-      url += `&semester_id=${selectedSemesterId}`
+    // Add semester_id to the URL if it's selected
+    if (semesterFilter) {
+      url += `&semester_id=${semesterFilter}`
     }
 
     window.location.href = url
@@ -112,6 +110,12 @@ const ClassTimetable = ({
 
     // Reload the page
     window.location.reload()
+  }
+
+  // Function to clear all filters
+  const handleClearFilters = () => {
+    setIsLoading(true)
+    window.location.href = `/lecturer/class-timetable`
   }
 
   // Reset loading state after component mounts or updates
@@ -178,8 +182,7 @@ const ClassTimetable = ({
         )}
 
         <div className="mb-6">
-          {/* Add this to the filter section in the render function */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between">
             <div className="mb-4 md:mb-0 flex flex-col md:flex-row md:space-x-4">
               <div>
                 <label htmlFor="unit-filter" className="block text-sm font-medium text-gray-700 mb-1">
@@ -219,10 +222,22 @@ const ClassTimetable = ({
                   ))}
                 </select>
               </div>
+              {(unitFilter || semesterFilter) && (
+                <div className="mt-4 md:mt-0 md:self-end">
+                  <button
+                    onClick={handleClearFilters}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm"
+                    disabled={isLoading}
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              )}
             </div>
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
               <p className="text-blue-800 text-sm">
-                <strong>Selected Semester:</strong> {currentSemester?.name || "All Semesters"}
+                <strong>Selected Semester:</strong>{" "}
+                {currentSemester?.name || (semesterFilter ? "Loading..." : "All Semesters")}
               </p>
             </div>
           </div>
@@ -237,7 +252,6 @@ const ClassTimetable = ({
                 </div>
                 <div className="p-0">
                   <div className="overflow-x-auto">
-                    {/* Update the table header in the render section to include semester information */}
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
@@ -273,7 +287,6 @@ const ClassTimetable = ({
                           </th>
                         </tr>
                       </thead>
-                      {/* Update the table row to display semester information */}
                       <tbody className="bg-white divide-y divide-gray-200">
                         {timetablesByDay[day]
                           .sort((a, b) => a.start_time.localeCompare(b.start_time))
