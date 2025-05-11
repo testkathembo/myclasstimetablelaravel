@@ -7,6 +7,7 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from 'lucide-react'
+import { toast } from "react-hot-toast"; // Import toast
 
 interface ClassTimetable {
   id: number
@@ -152,9 +153,10 @@ const ClassTimetable = () => {
     try {
       // Simulate an API call
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      alert("Form submitted successfully!");
+      toast.success("Form submitted successfully!");
     } catch (error) {
       console.error("Error submitting form:", error);
+      toast.error("Error submitting form.");
     } finally {
       setIsSubmitting(false);
     }
@@ -325,20 +327,20 @@ const ClassTimetable = () => {
 
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this class timetable?")) {
-      try {
-        await router.delete(`/classtimetable/${id}`, {
-          onSuccess: () => alert("Class timetable deleted successfully."),
-          onError: (errors) => {
-            console.error("Failed to delete class timetable:", errors)
-            alert("An error occurred while deleting the class timetable.")
-          },
-        })
-      } catch (error) {
-        console.error("Unexpected error:", error)
-        alert("An unexpected error occurred.")
-      }
+        try {
+            await router.delete(`/classtimetable/${id}`, {
+                onSuccess: () => toast.success("Class timetable deleted successfully."), // Use toast
+                onError: (errors) => {
+                    console.error("Failed to delete class timetable:", errors);
+                    toast.error("An error occurred while deleting the class timetable."); // Use toast
+                },
+            });
+        } catch (error) {
+            console.error("Unexpected error:", error);
+            toast.error("An unexpected error occurred."); // Use toast
+        }
     }
-  }
+};
 
   const checkForConflicts = (
     day: string,
@@ -637,70 +639,75 @@ const ClassTimetable = () => {
     if (data.id === 0) {
         router.post(`/classtimetable`, formattedData, {
             onSuccess: () => {
-                console.log("Creation successful");
+                toast.success("Class timetable created successfully."); // Use toast
                 handleCloseModal();
                 router.reload({
-                    only: ["classTimetables"], // FIXED: Changed to match controller property name
-                    onSuccess: () => console.log("Page data refreshed successfully"),
+                    only: ["classTimetables"],
                 });
             },
             onError: (errors) => {
                 console.error("Creation failed:", errors);
+                toast.error("Failed to create class timetable."); // Use toast
             },
         });
     } else {
         router.put(`/classtimetable/${data.id}`, formattedData, {
             onSuccess: () => {
-                console.log("Update successful");
+                toast.success("Class timetable updated successfully."); // Use toast
                 handleCloseModal();
                 router.reload({
-                    only: ["classTimetables"], // FIXED: Changed to match controller property name
-                    onSuccess: () => console.log("Page data refreshed successfully"),
+                    only: ["classTimetables"],
                 });
             },
             onError: (errors) => {
                 console.error("Update failed:", errors);
+                toast.error("Failed to update class timetable."); // Use toast
             },
         });
     }
-  };
+};
 
   const handleProcessClassTimetable = () => {
-    router.post(
-      "/process-classtimetables",
-      {},
-      {
-        onSuccess: () => alert("Class Timetable processed successfully."),
-        onError: () => alert("Failed to process class timetable."),
-      },
-    )
-  }
+    toast.promise(
+        router.post("/process-classtimetables", {}),
+        {
+            loading: "Processing class timetable...",
+            success: "Class timetable processed successfully.",
+            error: "Failed to process class timetable.",
+        }
+    );
+};
 
   const handleSolveConflicts = () => {
-    router.get(
-      "/solve-class-conflicts",
-      {},
-      {
-        onSuccess: () => alert("Conflicts resolved successfully."),
-        onError: () => alert("Failed to resolve conflicts."),
-      },
-    )
-  }
+    toast.promise(
+        router.get("/solve-class-conflicts", {}),
+        {
+            loading: "Resolving conflicts...",
+            success: "Conflicts resolved successfully.",
+            error: "Failed to resolve conflicts.",
+        }
+    );
+};
 
   const handleDownloadClassTimetable = () => {
-    // Create a temporary anchor element
-    const link = document.createElement("a")
-    link.href = "/download-classtimetables"
-
-    // Set these attributes to force download behavior
-    link.setAttribute("download", "classtimetable.pdf")
-    link.setAttribute("target", "_blank")
-
-    // Append to body, click, and remove
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+    toast.promise(
+        new Promise((resolve) => {
+            const link = document.createElement("a");
+            link.href = "/download-classtimetables";
+            link.setAttribute("download", "classtimetable.pdf");
+            link.setAttribute("target", "_blank");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            resolve(true);
+        }),
+        {
+            loading: "Downloading class timetable...",
+            success: "Class timetable downloaded successfully.",
+            error: "Failed to download class timetable.",
+        }
+    );
+};
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchValue(e.target.value)

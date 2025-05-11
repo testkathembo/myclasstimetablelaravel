@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { toast } from "react-hot-toast"; // Import toast
 
 interface Classroom {
     id: number;
@@ -54,31 +55,34 @@ const Classrooms = () => {
         if (modalType === 'create') {
             router.post('/classrooms', currentClassroom, {
                 onSuccess: () => {
-                    alert('Classroom created successfully!');
+                    toast.success('Classroom created successfully!'); // Use toast
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error creating classroom:', errors);
+                    toast.error('Failed to create classroom.'); // Use toast
                 },
             });
         } else if (modalType === 'edit' && currentClassroom) {
             router.put(`/classrooms/${currentClassroom.id}`, currentClassroom, {
                 onSuccess: () => {
-                    alert('Classroom updated successfully!');
+                    toast.success('Classroom updated successfully!'); // Use toast
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error updating classroom:', errors);
+                    toast.error('Failed to update classroom.'); // Use toast
                 },
             });
         } else if (modalType === 'delete' && currentClassroom) {
             router.delete(`/classrooms/${currentClassroom.id}`, {
                 onSuccess: () => {
-                    alert('Classroom deleted successfully!');
+                    toast.success('Classroom deleted successfully!'); // Use toast
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error deleting classroom:', errors);
+                    toast.error('Failed to delete classroom.'); // Use toast
                 },
             });
         }
