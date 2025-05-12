@@ -216,7 +216,7 @@ class ClassTimetableController extends Controller
 
         try {
             // Check for lecturer time conflicts
-            $conflict = ClassTimetable::where('day', $request->day)
+            $lecturerConflict = ClassTimetable::where('day', $request->day)
                 ->where('lecturer', $request->lecturer)
                 ->where(function ($query) use ($request) {
                     $query->whereBetween('start_time', [$request->start_time, $request->end_time])
@@ -228,8 +228,25 @@ class ClassTimetableController extends Controller
                 })
                 ->exists();
 
-            if ($conflict) {
+            if ($lecturerConflict) {
                 return redirect()->back()->with('error', 'Time conflict detected: The lecturer is already assigned to another class during this time.');
+            }
+
+            // Check for semester time conflicts
+            $semesterConflict = ClassTimetable::where('day', $request->day)
+                ->where('semester_id', $request->semester_id)
+                ->where(function ($query) use ($request) {
+                    $query->whereBetween('start_time', [$request->start_time, $request->end_time])
+                          ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('start_time', '<=', $request->start_time)
+                                ->where('end_time', '>=', $request->end_time);
+                          });
+                })
+                ->exists();
+
+            if ($semesterConflict) {
+                return redirect()->back()->with('error', 'Time conflict detected: Another class is already scheduled for this semester during this time.');
             }
 
             $classTimetable = ClassTimetable::create([
@@ -301,7 +318,7 @@ class ClassTimetableController extends Controller
 
         try {
             // Check for lecturer time conflicts
-            $conflict = ClassTimetable::where('id', '!=', $id)
+            $lecturerConflict = ClassTimetable::where('id', '!=', $id)
                 ->where('day', $request->day)
                 ->where('lecturer', $request->lecturer)
                 ->where(function ($query) use ($request) {
@@ -314,8 +331,26 @@ class ClassTimetableController extends Controller
                 })
                 ->exists();
 
-            if ($conflict) {
+            if ($lecturerConflict) {
                 return redirect()->back()->with('error', 'Time conflict detected: The lecturer is already assigned to another class during this time.');
+            }
+
+            // Check for semester time conflicts
+            $semesterConflict = ClassTimetable::where('id', '!=', $id)
+                ->where('day', $request->day)
+                ->where('semester_id', $request->semester_id)
+                ->where(function ($query) use ($request) {
+                    $query->whereBetween('start_time', [$request->start_time, $request->end_time])
+                          ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('start_time', '<=', $request->start_time)
+                                ->where('end_time', '>=', $request->end_time);
+                          });
+                })
+                ->exists();
+
+            if ($semesterConflict) {
+                return redirect()->back()->with('error', 'Time conflict detected: Another class is already scheduled for this semester during this time.');
             }
 
             $classTimetable = ClassTimetable::findOrFail($id);

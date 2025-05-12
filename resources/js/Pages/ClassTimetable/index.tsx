@@ -162,6 +162,25 @@ const checkLecturerConflict = (
   });
 };
 
+// Helper function to check for semester time conflicts
+const checkSemesterConflict = (
+  classTimetables: PaginatedClassTimetables,
+  day: string,
+  startTime: string,
+  endTime: string,
+  semesterId: number
+) => {
+  return classTimetables.data.some((classtimetable) => {
+    if (classtimetable.day !== day || classtimetable.semester_id !== semesterId) return false;
+
+    return (
+      (classtimetable.start_time <= startTime && classtimetable.end_time > startTime) ||
+      (classtimetable.start_time < endTime && classtimetable.end_time >= endTime) ||
+      (classtimetable.start_time >= startTime && classtimetable.end_time <= endTime)
+    );
+  });
+};
+
 const ClassTimetable = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -654,6 +673,20 @@ const ClassTimetable = () => {
     };
 
     console.log("Submitting form data:", formattedData);
+
+    // Client-side conflict detection for semesters
+    const semesterConflictExists = checkSemesterConflict(
+      classTimetables, // Pass classTimetables here
+      formattedData.day,
+      formattedData.start_time,
+      formattedData.end_time,
+      formattedData.semester_id
+    );
+
+    if (semesterConflictExists) {
+      toast.error("Conflict detected: Another class is already scheduled for this semester during this time.");
+      return; // Prevent submission
+    }
 
     // Client-side conflict detection
     const conflictExists = checkLecturerConflict(
