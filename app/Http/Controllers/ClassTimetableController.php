@@ -215,8 +215,25 @@ class ClassTimetableController extends Controller
         ]);
 
         try {
+            // Check for lecturer time conflicts
+            $conflict = ClassTimetable::where('day', $request->day)
+                ->where('lecturer', $request->lecturer)
+                ->where(function ($query) use ($request) {
+                    $query->whereBetween('start_time', [$request->start_time, $request->end_time])
+                          ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('start_time', '<=', $request->start_time)
+                                ->where('end_time', '>=', $request->end_time);
+                          });
+                })
+                ->exists();
+
+            if ($conflict) {
+                return redirect()->back()->with('error', 'Time conflict detected: The lecturer is already assigned to another class during this time.');
+            }
+
             $classTimetable = ClassTimetable::create([
-                'day' => $request->day,               
+                'day' => $request->day,
                 'unit_id' => $request->unit_id,
                 'semester_id' => $request->semester_id,
                 'venue' => $request->venue,
@@ -283,6 +300,24 @@ class ClassTimetableController extends Controller
         ]);
 
         try {
+            // Check for lecturer time conflicts
+            $conflict = ClassTimetable::where('id', '!=', $id)
+                ->where('day', $request->day)
+                ->where('lecturer', $request->lecturer)
+                ->where(function ($query) use ($request) {
+                    $query->whereBetween('start_time', [$request->start_time, $request->end_time])
+                          ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('start_time', '<=', $request->start_time)
+                                ->where('end_time', '>=', $request->end_time);
+                          });
+                })
+                ->exists();
+
+            if ($conflict) {
+                return redirect()->back()->with('error', 'Time conflict detected: The lecturer is already assigned to another class during this time.');
+            }
+
             $classTimetable = ClassTimetable::findOrFail($id);
             
             $classTimetable->update([

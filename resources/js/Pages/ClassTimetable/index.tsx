@@ -143,6 +143,25 @@ const checkTimeOverlap = (classtimetable: ClassTimetable, day: string, startTime
   )
 }
 
+// Helper function to check for lecturer time conflicts
+const checkLecturerConflict = (
+  classTimetables: PaginatedClassTimetables,
+  day: string,
+  startTime: string,
+  endTime: string,
+  lecturer: string
+) => {
+  return classTimetables.data.some((classtimetable) => {
+    if (classtimetable.day !== day || classtimetable.lecturer !== lecturer) return false;
+
+    return (
+      (classtimetable.start_time <= startTime && classtimetable.end_time > startTime) ||
+      (classtimetable.start_time < endTime && classtimetable.end_time >= endTime) ||
+      (classtimetable.start_time >= startTime && classtimetable.end_time <= endTime)
+    );
+  });
+};
+
 const ClassTimetable = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -629,43 +648,53 @@ const ClassTimetable = () => {
   // FIXED: Updated handleSubmitForm to include date field and use correct property name
   const handleSubmitForm = (data: FormState) => {
     const formattedData = {
-        ...data,
-        start_time: formatTimeToHi(data.start_time),
-        end_time: formatTimeToHi(data.end_time),
+      ...data,
+      start_time: formatTimeToHi(data.start_time),
+      end_time: formatTimeToHi(data.end_time),
     };
 
     console.log("Submitting form data:", formattedData);
 
-    if (data.id === 0) {
-        router.post(`/classtimetable`, formattedData, {
-            onSuccess: () => {
-                toast.success("Class timetable created successfully."); // Use toast
-                handleCloseModal();
-                router.reload({
-                    only: ["classTimetables"],
-                });
-            },
-            onError: (errors) => {
-                console.error("Creation failed:", errors);
-                toast.error("Failed to create class timetable."); // Use toast
-            },
-        });
-    } else {
-        router.put(`/classtimetable/${data.id}`, formattedData, {
-            onSuccess: () => {
-                toast.success("Class timetable updated successfully."); // Use toast
-                handleCloseModal();
-                router.reload({
-                    only: ["classTimetables"],
-                });
-            },
-            onError: (errors) => {
-                console.error("Update failed:", errors);
-                toast.error("Failed to update class timetable."); // Use toast
-            },
-        });
+    // Client-side conflict detection
+    const conflictExists = checkLecturerConflict(
+      classTimetables, // Pass classTimetables here
+      formattedData.day,
+      formattedData.start_time,
+      formattedData.end_time,
+      formattedData.lecturer
+    );
+
+    if (conflictExists) {
+      toast.error("Conflict detected: The lecturer is already assigned to another class during this time.");
+      return; // Prevent submission
     }
-};
+
+    if (data.id === 0) {
+      router.post(`/classtimetable`, formattedData, {
+        onSuccess: () => {
+          toast.success("Class timetable created successfully.");
+          handleCloseModal();
+          router.reload({ only: ["classTimetables"] });
+        },
+        onError: (errors) => {
+          console.error("Creation failed:", errors);
+          toast.error("Failed to create class timetable.");
+        },
+      });
+    } else {
+      router.put(`/classtimetable/${data.id}`, formattedData, {
+        onSuccess: () => {
+          toast.success("Class timetable updated successfully.");
+          handleCloseModal();
+          router.reload({ only: ["classTimetables"] });
+        },
+        onError: (errors) => {
+          console.error("Update failed:", errors);
+          toast.error("Failed to update class timetable.");
+        },
+      });
+    }
+  };
 
   const handleProcessClassTimetable = () => {
     toast.promise(
