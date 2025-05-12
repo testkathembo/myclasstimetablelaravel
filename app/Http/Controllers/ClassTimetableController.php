@@ -890,11 +890,24 @@ class ClassTimetableController extends Controller
         }
 
         // Get class timetables for the student's enrolled units in the selected semester
-        $classTimetables = ClassTimetable::where('semester_id', $semesterId)
-            ->whereIn('unit_id', $enrolledUnitIds)
-            ->with('unit') // Eager load the unit relationship
-            ->orderBy('day')
-            ->orderBy('start_time')
+        $classTimetables = ClassTimetable::query()
+            ->where('class_timetable.semester_id', $semesterId) // Specify table name for semester_id
+            ->whereIn('class_timetable.unit_id', $enrolledUnitIds) // Specify table name for unit_id
+            ->join('units', 'class_timetable.unit_id', '=', 'units.id')
+            ->join('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+            ->select(
+                'class_timetable.day',
+                'class_timetable.start_time',
+                'class_timetable.end_time',
+                'class_timetable.venue',
+                'class_timetable.location',
+                'class_timetable.lecturer',
+                'units.code as unit_code',
+                'units.name as unit_name',
+                'semesters.name as semester_name'
+            )
+            ->orderBy('class_timetable.day')
+            ->orderBy('class_timetable.start_time')
             ->get();
 
         if ($classTimetables->isEmpty()) {
@@ -903,7 +916,7 @@ class ClassTimetableController extends Controller
 
         // Generate PDF
         $pdf = Pdf::loadView('classtimetables.student', [
-            'classtimetables' => $classTimetables,
+            'classTimetables' => $classTimetables, // Pass the variable to the view
             'student' => $user,
             'currentSemester' => $semester,
         ]);

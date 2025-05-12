@@ -74,7 +74,6 @@
                 <th>Time</th>
                 <th>Location</th>
                 <th>Lecturer</th>
-                <th>Mode of Teaching</th>
             </tr>
         </thead>
         <tbody>
@@ -88,11 +87,10 @@
                 <td>{{ $class->start_time }} - {{ $class->end_time }}</td>
                 <td>{{ $class->location }}</td>
                 <td>{{ $class->lecturer }}</td>
-                <td>{{ $class->mode_of_teaching ?? 'N/A' }}</td>
             </tr>
             @empty
             <tr>
-                <td colspan="9" style="text-align: center;">No class timetables available</td>
+                <td colspan="8" style="text-align: center;">No class timetables available</td>
             </tr>
             @endforelse
         </tbody>
