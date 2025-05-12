@@ -9,16 +9,23 @@ use App\Models\Semester;
 use App\Models\Enrollment;
 use App\Models\ClassTimeSlot; // Ensure this is imported
 use App\Models\Classroom;
+use App\Models\Course;
+use App\Models\Lecturer;
+use App\Models\Room;
+use App\Models\Student;
+use App\Models\Department;
+use App\Models\AcademicYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Exception;
 use Inertia\Inertia;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class ClassTimetableController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the class timetable.
      *
      * @return \Illuminate\Http\Response
      */
@@ -69,7 +76,8 @@ class ClassTimetableController extends Controller
                 $query->where('class_timetable.day', 'like', "%{$search}%");
                     //   ->orWhere('class_timetable.date', 'like', "%{$search}%");
             })
-            ->orderBy('class_timetable.day')
+            ->orderByRaw("FIELD(class_timetable.day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
+            ->orderBy('class_timetable.start_time')
             ->paginate($request->get('per_page', 10));
 
         // Fetch lecturers with both ID and code
@@ -184,7 +192,7 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show the form for creating a new class timetable.
      *
      * @return \Illuminate\Http\Response
      */
@@ -195,7 +203,7 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created class timetable in storage.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -215,6 +223,23 @@ class ClassTimetableController extends Controller
         ]);
 
         try {
+            // Check for classroom conflicts
+            $classroomConflict = ClassTimetable::where('day', $request->day)
+                ->where('venue', $request->venue)
+                ->where(function ($query) use ($request) {
+                    $query->whereBetween('start_time', [$request->start_time, $request->end_time])
+                          ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('start_time', '<=', $request->start_time)
+                                ->where('end_time', '>=', $request->end_time);
+                          });
+                })
+                ->exists();
+
+            if ($classroomConflict) {
+                return redirect()->back()->with('error', 'Time conflict detected: The classroom is already booked during this time.');
+            }
+
             // Check for lecturer time conflicts
             $lecturerConflict = ClassTimetable::where('day', $request->day)
                 ->where('lecturer', $request->lecturer)
@@ -269,9 +294,9 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified class timetable.
      *
-     * @param  int  $id
+     * @param  \App\Models\ClassTimetable  $classTimetable
      * @return \Illuminate\Http\Response
      */
     public function show($id)
@@ -284,9 +309,9 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Show the form for editing the specified class timetable.
      *
-     * @param  int  $id
+     * @param  \App\Models\ClassTimetable  $classTimetable
      * @return \Illuminate\Http\Response
      */
     public function edit($id)
@@ -296,10 +321,10 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the specified class timetable in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  \App\Models\ClassTimetable  $classTimetable
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id)
@@ -317,6 +342,24 @@ class ClassTimetableController extends Controller
         ]);
 
         try {
+            // Check for classroom conflicts
+            $classroomConflict = ClassTimetable::where('id', '!=', $id)
+                ->where('day', $request->day)
+                ->where('venue', $request->venue)
+                ->where(function ($query) use ($request) {
+                    $query->whereBetween('start_time', [$request->start_time, $request->end_time])
+                          ->orWhereBetween('end_time', [$request->start_time, $request->end_time])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('start_time', '<=', $request->start_time)
+                                ->where('end_time', '>=', $request->end_time);
+                          });
+                })
+                ->exists();
+
+            if ($classroomConflict) {
+                return redirect()->back()->with('error', 'Time conflict detected: The classroom is already booked during this time.');
+            }
+
             // Check for lecturer time conflicts
             $lecturerConflict = ClassTimetable::where('id', '!=', $id)
                 ->where('day', $request->day)
@@ -375,9 +418,9 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified class timetable from storage.
      *
-     * @param  int  $id
+     * @param  \App\Models\ClassTimetable  $classTimetable
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
@@ -460,9 +503,8 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Process the clss timetable to optimize and resolve conflicts.
+     * Process the class timetable (example: generate timetable automatically).
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function process(Request $request)
@@ -483,9 +525,8 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Solve conflicts in the class timetable.
+     * Solve conflicts in the class timetable (example: manual conflict resolution).
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function solveConflicts(Request $request)
@@ -505,12 +546,6 @@ class ClassTimetableController extends Controller
         }
     }
 
-    /**
-     * Download the class timetable as a PDF.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
     public function downloadPDF(Request $request)
     {
         try {
@@ -541,7 +576,7 @@ class ClassTimetableController extends Controller
                 $query->where('class_timetable.semester_id', $request->semester_id);
             }
 
-            $classTimetables = $query->orderBy('class_timetable.day')
+            $classTimetables = $query->orderByRaw("FIELD(class_timetable.day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
                 ->orderBy('class_timetable.start_time')
                 ->get();
 
@@ -603,7 +638,7 @@ class ClassTimetableController extends Controller
                     'units.code as unit_code',
                     'semesters.name as semester_name'
                 )
-                ->orderBy('class_timetable.day')
+                ->orderByRaw("FIELD(class_timetable.day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
                 ->orderBy('class_timetable.start_time')
                 ->get();
             
@@ -662,10 +697,10 @@ class ClassTimetableController extends Controller
             ->toArray();
         
         // Get class timetables for the lecturer's units
-        $classTimetables = Classimetable::where('semester_id', $semesterId)
+        $classTimetables = ClassTimetable::where('semester_id', $semesterId)
             ->whereIn('unit_id', $lecturerUnitIds)
             ->with('unit') // Eager load the unit relationship
-            ->orderBy('day')
+            ->orderByRaw("FIELD(day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
             ->orderBy('start_time')
             ->get();
         
@@ -727,7 +762,7 @@ class ClassTimetableController extends Controller
             $classTimetables = ClassTimetable::where('semester_id', $semesterId)
                 ->whereIn('unit_id', $lecturerUnitIds)
                 ->with('unit') // Eager load the unit relationship
-                ->orderBy('day')
+                ->orderByRaw("FIELD(day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
                 ->orderBy('start_time')
                 ->get();
             
@@ -806,7 +841,7 @@ class ClassTimetableController extends Controller
                 $query->whereIn('id', $enrolledUnitIds);
             })
             ->with('unit') // Eager load the unit relationship
-            ->orderBy('day')
+            ->orderByRaw("FIELD(day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
             ->orderBy('start_time')
             ->get();
         
@@ -906,7 +941,7 @@ class ClassTimetableController extends Controller
                 'units.name as unit_name',
                 'semesters.name as semester_name'
             )
-            ->orderBy('class_timetable.day')
+            ->orderByRaw("FIELD(class_timetable.day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')")
             ->orderBy('class_timetable.start_time')
             ->get();
 
@@ -924,5 +959,4 @@ class ClassTimetableController extends Controller
         // Return the PDF for download
         return $pdf->download('class-timetable-' . $semester->name . '.pdf');
     }
-    
 }
