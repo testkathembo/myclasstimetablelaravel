@@ -949,11 +949,15 @@ class ClassTimetableController extends Controller
             return redirect()->back()->with('error', 'No classes found for the selected semester.');
         }
 
+        // Example: Fetch the period dynamically from the database or admin input
+        $period = 'January-May 2025'; // Replace with dynamic value if available
+
         // Generate PDF
         $pdf = Pdf::loadView('classtimetables.student', [
             'classTimetables' => $classTimetables, // Pass the variable to the view
             'student' => $user,
             'currentSemester' => $semester,
+            'period' => $period, // Pass the period to the view
         ]);
 
         // Return the PDF for download
