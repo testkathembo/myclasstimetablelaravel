@@ -1,9 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from '@inertiajs/react';
 import RoleAwareComponent from '@/Components/RoleAwareComponent';
-import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, Download, BarChart2, Shield, User, House, ClipboardList, Layers, ClipboardCheck, ClipboardX, Clipboard, FilePlus, FileMinus } from 'lucide-react';
+import { Home, Calendar, Users, Settings, FileText, BookOpen, Clock, Building, ChevronDown, ChevronUp, Download, BarChart2, Shield, User, House, ClipboardList, Layers, ClipboardCheck, ClipboardX, Clipboard, FilePlus, FileMinus } from 'lucide-react';
 
 export default function Sidebar() {
+  const [openSchool, setOpenSchool] = useState<string | null>(null);
+
+  const toggleSchool = (school: string) => {
+    setOpenSchool(openSchool === school ? null : school);
+  };
+
+  const schools = [
+    {
+      name: 'SCES',
+      programs: [
+        { name: 'BSICS', link: '/schools/sces/bsics' },
+        { name: 'BBIT', link: '/schools/sces/bbit' },
+        { name: 'BSEEE', link: '/schools/sces/bseee' },
+        { name: 'BSCNCS', link: '/schools/sces/bscncs' },
+      ],
+    },
+    {
+      name: 'BCOM',
+      programs: [],
+    },
+    {
+      name: 'LAW',
+      programs: [],
+    },
+    {
+      name: 'TOURISM',
+      programs: [],
+    },
+    {
+      name: 'HUMANITIES',
+      programs: [],
+    },
+  ];
+
   return (
     <div className="w-64 bg-blue-800 text-white h-full flex flex-col">
       <div className="p-4 border-b border-gray-700">
@@ -20,6 +54,44 @@ export default function Sidebar() {
             <Home className="mr-3 h-5 w-5" />
             Dashboard
           </Link>          
+
+          {/* Schools Section */}
+          <div className="pt-4">
+            <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Schools
+            </p>
+            {schools.map((school) => (
+              <div key={school.name} className="mt-1">
+                <button
+                  onClick={() => toggleSchool(school.name)}
+                  className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <div className="flex items-center">
+                    <Building className="mr-3 h-5 w-5" />
+                    {school.name}
+                  </div>
+                  {openSchool === school.name ? (
+                    <ChevronUp className="h-5 w-5" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" />
+                  )}
+                </button>
+                {openSchool === school.name && school.programs.length > 0 && (
+                  <div className="ml-8 mt-1 space-y-1">
+                    {school.programs.map((program) => (
+                      <Link
+                        key={program.name}
+                        href={program.link}
+                        className="block px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                      >
+                        {program.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
           
           {/* Admin Section */}
           <RoleAwareComponent requiredRoles={['Admin']}>
@@ -96,7 +168,7 @@ export default function Sidebar() {
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Layers className="mr-3 h-5 w-5" />
-                Faculties
+                Schools
               </Link>
 
               <Link 
