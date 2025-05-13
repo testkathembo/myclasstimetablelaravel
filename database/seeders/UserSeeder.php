@@ -11,70 +11,39 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         // Create admin user
-        $admin = User::create([
+        User::create([
             'first_name' => 'Admin',
             'last_name' => 'User',
             'email' => 'admin@example.com',
-            'faculty' => 'Administration',
             'phone' => '1234567890',
             'code' => 'ADM001',
+            'schools' => null,
+            'programs' => null,
             'password' => Hash::make('password'),
-        ]);
-        $admin->assignRole('Admin');
+        ])->assignRole('Admin');
 
         // Create exam office user
-        $examOffice = User::create([
+        User::create([
             'first_name' => 'Exam',
             'last_name' => 'Office',
             'email' => 'exam@example.com',
-            'faculty' => 'Examination',
             'phone' => '1234567891',
             'code' => 'EXM001',
+            'schools' => 'SCES',
+            'programs' => null,
             'password' => Hash::make('password'),
-        ]);
-        $examOffice->assignRole('Exam office');
+        ])->assignRole('Exam office');
 
         // Create faculty admin user
-        $facultyAdmin = User::create([
+        User::create([
             'first_name' => 'Faculty',
             'last_name' => 'Admin',
             'email' => 'faculty@example.com',
-            'faculty' => 'Science',  // Specify actual faculty
             'phone' => '1234567892',
             'code' => 'FAC001',
+            'schools' => 'SCES',
+            'programs' => null,
             'password' => Hash::make('password'),
-        ]);
-        $facultyAdmin->assignRole('Faculty Admin');
-
-        // Create lecturer user
-        $lecturer = User::create([
-            'first_name' => 'John',
-            'last_name' => 'Doe',
-            'email' => 'lecturer@example.com',
-            'faculty' => 'Science',  // Specify actual faculty
-            'phone' => '1234567893',
-            'code' => 'LEC001',
-            'password' => Hash::make('password'),
-        ]);
-        $lecturer->assignRole('Lecturer');
-
-        // Create student user
-        $student = User::create([
-            'first_name' => 'Jane',
-            'last_name' => 'Smith',
-            'email' => 'student@example.com',
-            'faculty' => 'Science',  // Specify actual faculty
-            'phone' => '1234567894',
-            'code' => 'STU001',
-            'password' => Hash::make('password'),
-        ]);
-        $student->assignRole('Student');
-    }
-}
-    {
-        $faker = Faker::create();
-        $faculties = ['SBS', 'BBIT', 'SL', 'SH', 'TM'];
-
-        // --- Create Key Users ---
+        ])->assignRole('Faculty Admin');
     }
 }

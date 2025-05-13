@@ -47,6 +47,8 @@ class UserController extends Controller
             'code' => 'required|string|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|string|exists:roles,name',
+            'schools' => 'nullable|string',
+            'programs' => 'nullable|string',
         ]);
 
         // Create user
@@ -58,6 +60,8 @@ class UserController extends Controller
             'phone' => $validated['phone'],
             'code' => $validated['code'],
             'password' => Hash::make($validated['password']),
+            'schools' => $validated['schools'],
+            'programs' => $validated['programs'],
         ]);
 
         // Assign role
@@ -83,9 +87,11 @@ class UserController extends Controller
             'faculty' => 'required|string|max:255',
             'phone' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:users,code,' . $user->id,
+            'schools' => 'nullable|string',
+            'programs' => 'nullable|string',
         ]);
 
-        $user->update($request->only('first_name', 'last_name', 'email', 'faculty', 'phone', 'code'));
+        $user->update($request->only('first_name', 'last_name', 'email', 'faculty', 'phone', 'code', 'schools', 'programs'));
 
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
     }

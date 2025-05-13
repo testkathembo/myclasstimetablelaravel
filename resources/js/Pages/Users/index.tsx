@@ -2,15 +2,20 @@ import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
+interface Role {
+    name: string;
+}
+
 interface User {
     id: number;
     first_name: string;
     last_name: string;
     email: string;
-    faculty: string;
     phone: string;
     code: string;
-    user_role: string; // Added user_role field
+    schools: string | null; // Added schools field
+    programs: string | null; // Added programs field
+    roles: Role[]; // Added roles field
     password?: string;
 }
 
@@ -41,7 +46,7 @@ const Users = () => {
         setModalType(type);
         setCurrentUser(
             type === 'create'
-                ? { id: 0, first_name: '', last_name: '', email: '', faculty: '', phone: '', code: '', user_role: 'student', password: '' } // Added user_role field
+                ? { id: 0, first_name: '', last_name: '', email: '', phone: '', code: '', schools: null, programs: null, roles: [], password: '' }
                 : user
         );
         setIsModalOpen(true);
@@ -58,18 +63,15 @@ const Users = () => {
 
         if (modalType === 'create') {
             if (currentUser) {
-                console.log('Submitting user data:', currentUser); // Debugging log
                 router.post('/users', currentUser, {
                     onSuccess: () => {
                         alert('User created successfully!');
                         handleCloseModal();
                     },
                     onError: (errors) => {
-                        console.error('Error creating user:', errors); // Log errors for debugging
+                        console.error('Error creating user:', errors);
                     },
                 });
-            } else {
-                console.error('Current user is null or not properly initialized.');
             }
         } else if (modalType === 'edit' && currentUser) {
             router.put(`/users/${currentUser.id}`, currentUser, {
@@ -78,7 +80,7 @@ const Users = () => {
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error updating user:', errors); // Log errors for debugging
+                    console.error('Error updating user:', errors);
                 },
             });
         } else if (modalType === 'delete' && currentUser) {
@@ -88,7 +90,7 @@ const Users = () => {
                     handleCloseModal();
                 },
                 onError: (errors) => {
-                    console.error('Error deleting user:', errors); // Log errors for debugging
+                    console.error('Error deleting user:', errors);
                 },
             });
         }
@@ -159,10 +161,12 @@ const Users = () => {
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="px-4 py-2 border">ID</th>
-                            <th className="px-4 py-2 border">Student Id</th>
+                            <th className="px-4 py-2 border">Code</th>
                             <th className="px-4 py-2 border">First Name</th>
                             <th className="px-4 py-2 border">Last Name</th>
                             <th className="px-4 py-2 border">Email</th>
+                            <th className="px-4 py-2 border">Schools</th>
+                            <th className="px-4 py-2 border">Programs</th>
                             <th className="px-4 py-2 border">Role</th>
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
@@ -175,6 +179,8 @@ const Users = () => {
                                 <td className="px-4 py-2 border">{user.first_name}</td>
                                 <td className="px-4 py-2 border">{user.last_name}</td>
                                 <td className="px-4 py-2 border">{user.email}</td>
+                                <td className="px-4 py-2 border">{user.schools || 'N/A'}</td>
+                                <td className="px-4 py-2 border">{user.programs || 'N/A'}</td>
                                 <td className="px-4 py-2 border">{user.roles.map((role) => role.name).join(', ')}</td>
                                 <td className="px-4 py-2 border">
                                     <button
@@ -232,7 +238,7 @@ const Users = () => {
                                         type="text"
                                         value={currentUser?.first_name || ''}
                                         onChange={(e) =>
-                                            setCurrentUser((prev) => ({ ...prev!, first_name: e.target.value })) // Fix state update
+                                            setCurrentUser((prev) => ({ ...prev!, first_name: e.target.value }))
                                         }
                                         className="w-full border rounded p-2"
                                         required
@@ -244,7 +250,7 @@ const Users = () => {
                                         type="text"
                                         value={currentUser?.last_name || ''}
                                         onChange={(e) =>
-                                            setCurrentUser((prev) => ({ ...prev!, last_name: e.target.value })) // Fix state update
+                                            setCurrentUser((prev) => ({ ...prev!, last_name: e.target.value }))
                                         }
                                         className="w-full border rounded p-2"
                                         required
@@ -257,18 +263,6 @@ const Users = () => {
                                         value={currentUser?.email || ''}
                                         onChange={(e) =>
                                             setCurrentUser({ ...currentUser!, email: e.target.value })
-                                        }
-                                        className="w-full border rounded p-2"
-                                        required
-                                    />
-                                </div>
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Faculty</label>
-                                    <input
-                                        type="text"
-                                        value={currentUser?.faculty || ''}
-                                        onChange={(e) =>
-                                            setCurrentUser({ ...currentUser!, faculty: e.target.value })
                                         }
                                         className="w-full border rounded p-2"
                                         required
@@ -299,11 +293,36 @@ const Users = () => {
                                     />
                                 </div>
                                 <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Schools</label>
+                                    <input
+                                        type="text"
+                                        value={currentUser?.schools || ''}
+                                        onChange={(e) =>
+                                            setCurrentUser({ ...currentUser!, schools: e.target.value })
+                                        }
+                                        className="w-full border rounded p-2"
+                                    />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Programs</label>
+                                    <input
+                                        type="text"
+                                        value={currentUser?.programs || ''}
+                                        onChange={(e) =>
+                                            setCurrentUser({ ...currentUser!, programs: e.target.value })
+                                        }
+                                        className="w-full border rounded p-2"
+                                    />
+                                </div>
+                                <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Role</label>
                                     <select
-                                        value={currentUser?.user_role || 'student'}
+                                        value={currentUser?.roles.map((role) => role.name).join(', ') || ''}
                                         onChange={(e) =>
-                                            setCurrentUser({ ...currentUser!, user_role: e.target.value })
+                                            setCurrentUser((prev) => ({
+                                                ...prev!,
+                                                roles: [{ name: e.target.value }],
+                                            }))
                                         }
                                         className="w-full border rounded p-2"
                                         required
