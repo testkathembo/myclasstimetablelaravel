@@ -126,35 +126,18 @@ class EnrollmentController extends Controller
     public function create()
     {
         $units = Unit::where('is_active', true)
-            ->select('id', 'code', 'name', 'program_id', 'school_id', 'semester_id')
-            ->with(['program:id,name', 'school:id,name', 'semester:id,name'])
+            ->select('id', 'code', 'name')
             ->orderBy('code')
             ->get();
-            
-        $semesters = Semester::select('id', 'name')->orderBy('name')->get();
-        
-        // Get active semester
-        $activeSemester = Semester::where('is_active', true)->first();
-        
-        // Get students
-        $students = User::where('role', 'student')
-            ->select('id', 'code', 'name', 'email', 'program_id', 'school_id')
-            ->with(['program:id,name', 'school:id,name'])
-            ->orderBy('name')
-            ->get();
-            
-        // Get lecturers
-        $lecturers = User::where('role', 'lecturer')
-            ->select('id', 'code', 'name', 'email')
-            ->orderBy('name')
-            ->get();
 
-        return Inertia::render('Enrollments/Create', [
+        $semesters = Semester::select('id', 'name')->orderBy('name')->get();
+
+        $activeSemester = Semester::where('is_active', true)->first();
+
+        return Inertia::render('Enrollments/Enroll', [
             'units' => $units,
             'semesters' => $semesters,
             'activeSemester' => $activeSemester,
-            'students' => $students,
-            'lecturers' => $lecturers,
         ]);
     }
 

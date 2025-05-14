@@ -12,7 +12,7 @@ class EnrollmentPolicy
      */
     public function viewAny(User $user)
     {
-        return $user->hasRole('Admin') || $user->hasRole('Faculty Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Faculty Admin') || $user->hasRole('Student');
     }
 
     /**
@@ -20,8 +20,30 @@ class EnrollmentPolicy
      */
     public function view(User $user, Enrollment $enrollment)
     {
-        return $user->hasRole('Admin') || $user->code === $enrollment->student_code;
+        return $user->hasRole('Admin') || $user->hasRole('Faculty Admin') || $user->code === $enrollment->student_code;
     }
 
-    // Add other methods as needed (e.g., create, update, delete)
+    /**
+     * Determine if the user can create enrollments.
+     */
+    public function create(User $user)
+    {
+        return $user->hasRole('Admin') || $user->hasRole('Faculty Admin') || $user->hasRole('Student');
+    }
+
+    /**
+     * Determine if the user can update an enrollment.
+     */
+    public function update(User $user, Enrollment $enrollment)
+    {
+        return $user->hasRole('Admin') || $user->hasRole('Faculty Admin');
+    }
+
+    /**
+     * Determine if the user can delete an enrollment.
+     */
+    public function delete(User $user, Enrollment $enrollment)
+    {
+        return $user->hasRole('Admin');
+    }
 }

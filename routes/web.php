@@ -346,6 +346,10 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     Route::get('/student/timetable', [ClassTimetableController::class, 'viewStudentClassTimetable'])
         ->name('student.timetable')
         ->middleware(['auth', 'role:Student']);
+
+    // Enrollments
+    Route::get('/enroll', [EnrollmentController::class, 'create'])->name('enrollments.create');
+    Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enrollments.store');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
