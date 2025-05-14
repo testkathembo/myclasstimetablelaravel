@@ -9,6 +9,7 @@ use App\Models\ExamTimetable; // Import ExamTimetable model
 use App\Observers\ExamTimetableObserver; // Import ExamTimetableObserver
 use App\Models\ClassTimetable; // Import ClassTimetable model
 use App\Observers\ClassTimetableObserver; // Import ClassTimetableObserver
+use App\Services\EnrollmentService; // Import EnrollmentService
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +26,11 @@ class AppServiceProvider extends ServiceProvider
         // Fix for 'cache.store' binding
         $this->app->singleton('cache.store', function ($app) {
             return $app['cache']->driver();
+        });
+
+        // Bind EnrollmentService to the service container
+        $this->app->bind(EnrollmentService::class, function ($app) {
+            return new EnrollmentService();
         });
     }
 

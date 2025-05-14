@@ -6,6 +6,8 @@ interface Unit {
     id: number;
     code: string;
     name: string;
+    semester_id?: number;
+    credit_hours?: number;
 }
 
 interface PaginationLinks {
@@ -23,7 +25,12 @@ interface PaginatedUnits {
 }
 
 const Units = () => {
-    const { units, perPage, search } = usePage().props as { units: PaginatedUnits; perPage: number; search: string };
+    const { units, perPage, search, semesters } = usePage().props as { 
+        units: PaginatedUnits; 
+        perPage: number; 
+        search: string; 
+        semesters: { id: number; name: string }[]; 
+    };
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'create' | 'edit' | 'delete' | ''>('');
@@ -35,7 +42,7 @@ const Units = () => {
         setModalType(type);
         setCurrentUnit(
             type === 'create'
-                ? { id: 0, code: '', name: '' }
+                ? { id: 0, code: '', name: '', credit_hours: undefined } // Default values
                 : unit
         );
         setIsModalOpen(true);
@@ -61,13 +68,21 @@ const Units = () => {
                 },
             });
         } else if (modalType === 'edit' && currentUnit) {
-            router.put(`/units/${currentUnit.id}`, currentUnit, {
+            // Explicitly remove semester_id from the payload
+            const { semester_id, ...unitData } = currentUnit;
+
+            router.put(`/units/${currentUnit.id}`, unitData, {
                 onSuccess: () => {
                     alert('Unit updated successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error updating unit:', errors);
+                    if (errors.response?.data?.errors) {
+                        Object.entries(errors.response.data.errors).forEach(([field, message]) => {
+                            alert(`${field}: ${message}`);
+                        });
+                    }
                 },
             });
         } else if (modalType === 'delete' && currentUnit) {
@@ -149,6 +164,7 @@ const Units = () => {
                         <tr>
                             <th className="px-4 py-2 border">Code</th>
                             <th className="px-4 py-2 border">Name</th>
+                            <th className="px-4 py-2 border">Credits</th> {/* Add Credits column */}
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
@@ -157,6 +173,7 @@ const Units = () => {
                             <tr key={unit.id} className="border-b hover:bg-gray-50">
                                 <td className="px-4 py-2 border">{unit.code}</td>
                                 <td className="px-4 py-2 border">{unit.name}</td>
+                                <td className="px-4 py-2 border">{unit.credit_hours}</td> {/* Display Credits */}
                                 <td className="px-4 py-2 border text-center">
                                     <button
                                         onClick={() => handleOpenModal('edit', unit)}
@@ -226,6 +243,18 @@ const Units = () => {
                                         value={currentUnit?.name || ''}
                                         onChange={(e) =>
                                             setCurrentUnit((prev) => ({ ...prev!, name: e.target.value }))
+                                        }
+                                        className="w-full border rounded p-2"
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Credit Hours</label>
+                                    <input
+                                        type="number"
+                                        value={currentUnit?.credit_hours || ''}
+                                        onChange={(e) =>
+                                            setCurrentUnit((prev) => ({ ...prev!, credit_hours: parseInt(e.target.value, 10) }))
                                         }
                                         className="w-full border rounded p-2"
                                         required

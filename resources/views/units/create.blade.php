@@ -9,13 +9,8 @@
         <input type="text" name="name" id="name" required>
     </div>
     <div>
-        <label for="semester_id">Semester</label>
-        <select name="semester_id" id="semester_id">
-            <option value="">Select Semester</option>
-            @foreach ($semesters as $semester)
-                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
-            @endforeach
-        </select>
+        <label for="credit_hours">Credit Hours</label>
+        <input type="number" name="credit_hours" id="credit_hours" required>
     </div>
     <button type="submit">Create Unit</button>
 </form>

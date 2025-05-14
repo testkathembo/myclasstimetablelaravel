@@ -4,23 +4,18 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
-    /**
-     * Run the migrations.
-     */
     public function up()
     {
         Schema::table('units', function (Blueprint $table) {
-            $table->unsignedBigInteger('semester_id')->default(1)->change(); // Set default value to 1
+            $table->dropForeign(['semester_id']); // Drop foreign key constraint
+            $table->dropColumn('semester_id'); // Remove the semester_id column
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down()
     {
         Schema::table('units', function (Blueprint $table) {
-            $table->unsignedBigInteger('semester_id')->nullable()->change(); // Revert to nullable without default
+            $table->foreignId('semester_id')->nullable()->constrained()->onDelete('cascade'); // Re-add semester_id
         });
     }
 };

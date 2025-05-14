@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Unit;
 
-class UnitSeeder extends Seeder
+class UnitSeederBbit extends Seeder
 {
     public function run()
     {
@@ -60,7 +60,11 @@ class UnitSeeder extends Seeder
             ['code' => 'BIT440', 'name' => 'IT Leadership'],
         ];
 
-        foreach ($units as $unit) {
+        $totalUnits = count($units);
+        $fourCreditCount = (int) ($totalUnits * 0.4); // 40% of units
+
+        foreach ($units as $index => $unit) {
+            $unit['credit_hours'] = $index < $fourCreditCount ? 4 : 3; // Assign 4 credits to the first 40%, 3 credits to the rest
             Unit::create($unit);
         }
     }

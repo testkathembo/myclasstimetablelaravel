@@ -4,377 +4,472 @@ namespace App\Http\Controllers;
 
 use App\Models\Enrollment;
 use App\Models\Unit;
-use App\Models\User;
 use App\Models\Semester;
+use App\Models\Program;
+use App\Models\School;
+use App\Models\User;
+use App\Services\EnrollmentService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 class EnrollmentController extends Controller
 {
+    protected $enrollmentService;
+
+    /**
+     * Create a new controller instance.
+     *
+     * @param  \App\Services\EnrollmentService  $enrollmentService
+     * @return void
+     */
+    public function __construct(EnrollmentService $enrollmentService)
+    {
+        $this->middleware('auth');
+        $this->authorizeResource(Enrollment::class, 'enrollment');
+        $this->enrollmentService = $enrollmentService;
+    }
+
+    /**
+     * Display a listing of the enrollments.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Inertia\Response
+     */
     public function index(Request $request)
     {
-        $user = auth()->user();
-        $semesterId = $request->input('semester_id', null);
+        $this->authorize('viewAny', Enrollment::class); // Ensure the user has permission to view enrollments
 
-        Log::info('Accessing Enrollments', [
-            'user_id' => $user->id,
-            'user_code' => $user->code,
-            'roles' => $user->getRoleNames(),
-            'semester_id' => $semesterId,
-        ]);
+        $query = Enrollment::query()->with(['unit', 'semester']);
 
-        $search = $request->input('search');
+        // Filter by student
+        if ($request->has('student_code') && $request->input('student_code')) {
+            $query->where('student_code', $request->input('student_code'));
+        }
 
-        // Get the query builder for enrollments
-        $query = Enrollment::with(['student', 'unit', 'semester', 'lecturer']);
+        // Filter by lecturer
+        if ($request->has('lecturer_code') && $request->input('lecturer_code')) {
+            $query->where('lecturer_code', $request->input('lecturer_code'));
+        }
+
+        // Filter by unit
+        if ($request->has('unit_id') && $request->input('unit_id')) {
+            $query->where('unit_id', $request->input('unit_id'));
+        }
+
+        // Filter by semester
+        if ($request->has('semester_id') && $request->input('semester_id')) {
+            $query->where('semester_id', $request->input('semester_id'));
+        }
+
+        // Filter by program
+        if ($request->has('program_id') && $request->input('program_id')) {
+            $query->where('program_id', $request->input('program_id'));
+        }
+
+        // Filter by school
+        if ($request->has('school_id') && $request->input('school_id')) {
+            $query->where('school_id', $request->input('school_id'));
+        }
+
+        // Filter by group
+        if ($request->has('group') && $request->input('group')) {
+            $query->where('group', $request->input('group'));
+        }
+
+        // Sorting
+        $sortField = $request->input('sort_field', 'created_at');
+        $sortDirection = $request->input('sort_direction', 'desc');
+        $query->orderBy($sortField, $sortDirection);
+
+        // Pagination
+        $perPage = $request->input('per_page', 10);
+        $enrollments = $query->paginate($perPage)->withQueryString();
+
+        // Get data for filter dropdowns
+        $units = Unit::select('id', 'code', 'name')->orderBy('code')->get();
+        $semesters = Semester::select('id', 'name')->orderBy('name')->get();
+        $programs = Program::select('id', 'code', 'name')->orderBy('name')->get();
+        $schools = School::select('id', 'code', 'name')->orderBy('name')->get();
         
-        // Filter by semester if provided
-        if ($semesterId) {
-            $query->where('semester_id', $semesterId);
-        }
-
-        // Check if user has Admin role
-        if ($user->hasRole('Admin')) {
-            // Admin sees all enrollments
-            Log::info('User is admin, showing all enrollments');
-        } else {
-            // For any non-admin user, show enrollments where their code matches
-            // This works for both students and lecturers
-            Log::info('User is not admin, filtering by user code', ['user_code' => $user->code]);
-            $query->where(function($q) use ($user) {
-                $q->where('student_code', $user->code)
-                  ->orWhere('lecturer_code', $user->code);
-            });
-            
-            // Debug: Check if there are any enrollments with this student code
-            $studentEnrollmentCount = Enrollment::where('student_code', $user->code)->count();
-            $lecturerEnrollmentCount = Enrollment::where('lecturer_code', $user->code)->count();
-            Log::info('Enrollment counts', [
-                'as_student' => $studentEnrollmentCount,
-                'as_lecturer' => $lecturerEnrollmentCount
-            ]);
-        }
-
-        // Apply search filter if provided
-        if ($search) {
-            $query->whereHas('unit', function ($q) use ($search) {
-                $q->where('name', 'like', "%$search%");
-            });
-        }
-
-        $enrollments = $query->paginate(10);
-        
-        // Log the final result count
-        Log::info('Final enrollment query result', ['count' => $enrollments->total()]);
-
-        // Only load these additional resources for admin users
-        $semesters = $user->hasRole('Admin') ? Semester::all() : [];
-        $students = $user->hasRole('Admin') ? User::whereHas('roles', function ($query) {
-            $query->where('name', 'Student');
-        })->get() : [];
-        $lecturers = $user->hasRole('Admin') ? User::whereHas('roles', function ($query) {
-            $query->where('name', 'Lecturer');
-        })->get() : [];
-        $units = $user->hasRole('Admin') ? Unit::all() : [];
-        
-        // Get lecturer unit assignments (only for admins)
-        $lecturerUnitAssignments = [];
-        if ($user->hasRole('Admin')) {
-            $lecturerUnitAssignments = DB::table('enrollments')
-                ->select('unit_id', 'lecturer_code')
-                ->whereNotNull('lecturer_code')
-                ->distinct()
-                ->get()
-                ->map(function ($assignment) {
-                    $unit = Unit::find($assignment->unit_id);
-                    $lecturer = User::where('code', $assignment->lecturer_code)->first();
-                    
-                    return [
-                        'unit_id' => $assignment->unit_id,
-                        'lecturer_code' => $assignment->lecturer_code,
-                        'unit' => $unit,
-                        'lecturer' => $lecturer
-                    ];
-                });
-        }
-
-        // Fetch units with enrollments for the selected semester
-        $unitsWithEnrollments = Unit::whereHas('enrollments', function ($query) use ($semesterId) {
-            $query->where('semester_id', $semesterId);
-        })->get();
+        // Get unique groups
+        $groups = Enrollment::select('group')
+            ->whereNotNull('group')
+            ->distinct()
+            ->pluck('group')
+            ->sort()
+            ->values();
 
         return Inertia::render('Enrollments/Index', [
             'enrollments' => $enrollments,
-            'semesters' => $semesters,
-            'students' => $students,
             'units' => $units,
-            'lecturers' => $lecturers,
-            'lecturerUnitAssignments' => $lecturerUnitAssignments,
-            'userRoles' => [
-                'isAdmin' => $user->hasRole('Admin'),
-                'isLecturer' => $user->hasRole('Lecturer'),
-                'isStudent' => $user->hasRole('Student'),
+            'semesters' => $semesters,
+            'programs' => $programs,
+            'schools' => $schools,
+            'groups' => $groups,
+            'filters' => $request->only([
+                'student_code', 'lecturer_code', 'unit_id', 'semester_id', 
+                'program_id', 'school_id', 'group', 'sort_field', 
+                'sort_direction', 'per_page'
+            ]),
+            'can' => [
+                'create' => Gate::allows('create', Enrollment::class),
             ],
-            'unitsWithEnrollments' => $unitsWithEnrollments,
-            'selectedSemesterId' => $semesterId,
         ]);
     }
 
+    /**
+     * Show the form for creating a new enrollment.
+     *
+     * @return \Inertia\Response
+     */
     public function create()
     {
-        // Only admins should access this
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to create enrollments.');
-        }
-
-        $students = User::whereHas('roles', function ($query) {
-            $query->where('name', 'Student');
-        })->get();
-
-        $units = Unit::all();
-        $semesters = Semester::all();
+        $units = Unit::where('is_active', true)
+            ->select('id', 'code', 'name', 'program_id', 'school_id', 'semester_id')
+            ->with(['program:id,name', 'school:id,name', 'semester:id,name'])
+            ->orderBy('code')
+            ->get();
+            
+        $semesters = Semester::select('id', 'name')->orderBy('name')->get();
+        
+        // Get active semester
+        $activeSemester = Semester::where('is_active', true)->first();
+        
+        // Get students
+        $students = User::where('role', 'student')
+            ->select('id', 'code', 'name', 'email', 'program_id', 'school_id')
+            ->with(['program:id,name', 'school:id,name'])
+            ->orderBy('name')
+            ->get();
+            
+        // Get lecturers
+        $lecturers = User::where('role', 'lecturer')
+            ->select('id', 'code', 'name', 'email')
+            ->orderBy('name')
+            ->get();
 
         return Inertia::render('Enrollments/Create', [
-            'students' => $students,
             'units' => $units,
             'semesters' => $semesters,
+            'activeSemester' => $activeSemester,
+            'students' => $students,
+            'lecturers' => $lecturers,
         ]);
     }
 
+    /**
+     * Store a newly created enrollment in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function store(Request $request)
     {
-        // Only admins should be able to store enrollments
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to create enrollments.');
-        }
-
-        // Log the incoming request data for debugging
-        Log::info('Enrollment request data:', $request->all());
-
-        // Validate the request
-        $request->validate([
-            'student_code' => 'required|exists:users,code', // Validate against the `code` field in `users`
+        $validated = $request->validate([
+            'student_code' => 'required|string|exists:users,code',
+            'lecturer_code' => 'nullable|string|exists:users,code',
+            'unit_id' => 'required|exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
-            'unit_ids' => 'required|array',
-            'unit_ids.*' => 'exists:units,id',
         ]);
 
-        $successCount = 0;
-
-        // Create an enrollment for each selected unit
-        foreach ($request->unit_ids as $unitId) {
-            // Check if enrollment already exists to avoid duplicates
-            $existingEnrollment = Enrollment::where([
-                'student_code' => $request->student_code, // Use the `code` directly
-                'unit_id' => $unitId,
-                'semester_id' => $request->semester_id,
-            ])->first();
-
-            if (!$existingEnrollment) {
-                // Get the lecturer assigned to this unit (if any)
-                $lecturerCode = DB::table('enrollments')
-                    ->where('unit_id', $unitId)
-                    ->whereNotNull('lecturer_code')
-                    ->value('lecturer_code');
-
-                // If no lecturer is assigned, you can optionally set a default lecturer here
-                if (!$lecturerCode) {
-                    $lecturerCode = Unit::find($unitId)->default_lecturer_code ?? null; // Example logic
-                }
-
-                // Create the enrollment
-                Enrollment::create([
-                    'student_code' => $request->student_code,
-                    'unit_id' => $unitId,
-                    'semester_id' => $request->semester_id,
-                    'lecturer_code' => $lecturerCode, // Assign the lecturer code
-                ]);
-                $successCount++;
-            }
+        // Check if enrollment already exists
+        $exists = Enrollment::where('student_code', $validated['student_code'])
+            ->where('unit_id', $validated['unit_id'])
+            ->where('semester_id', $validated['semester_id'])
+            ->exists();
+            
+        if ($exists) {
+            return redirect()->back()
+                ->withErrors(['student_code' => 'This student is already enrolled in this unit for the selected semester.']);
         }
 
-        return redirect()->route('enrollments.index')
-            ->with('success', $successCount > 0 
-                ? "{$successCount} enrollments created successfully." 
-                : "No new enrollments were created.");
+        // Get student's program and school
+        $student = User::where('code', $validated['student_code'])->first();
+        $programId = $student->program_id;
+        $schoolId = $student->school_id;
+
+        try {
+            // Use the enrollment service to handle group assignment
+            $enrollment = $this->enrollmentService->enrollStudent(
+                $validated['student_code'],
+                $validated['unit_id'],
+                $validated['semester_id']
+            );
+            
+            // Update lecturer code if provided
+            if (!empty($validated['lecturer_code'])) {
+                $enrollment->update(['lecturer_code' => $validated['lecturer_code']]);
+            }
+
+            return redirect()->route('enrollments.index')
+                ->with('success', 'Student enrolled successfully in group ' . $enrollment->group);
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to enroll student: ' . $e->getMessage()]);
+        }
     }
 
-    public function edit(Enrollment $enrollment)
+    /**
+     * Display the specified enrollment.
+     *
+     * @param  \App\Models\Enrollment  $enrollment
+     * @return \Inertia\Response
+     */
+    public function show(Enrollment $enrollment)
     {
-        // Only admins should access this
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to edit enrollments.');
+        $enrollment->load(['unit', 'semester', 'program', 'school']);
+        
+        // Get student details
+        $student = User::where('code', $enrollment->student_code)
+            ->select('id', 'code', 'name', 'email')
+            ->first();
+            
+        // Get lecturer details
+        $lecturer = null;
+        if ($enrollment->lecturer_code) {
+            $lecturer = User::where('code', $enrollment->lecturer_code)
+                ->select('id', 'code', 'name', 'email')
+                ->first();
         }
 
-        $students = User::whereHas('roles', function ($query) {
-            $query->where('name', 'Student');
-        })->get();
+        return Inertia::render('Enrollments/Show', [
+            'enrollment' => $enrollment,
+            'student' => $student,
+            'lecturer' => $lecturer,
+            'can' => [
+                'update' => Gate::allows('update', $enrollment),
+                'delete' => Gate::allows('delete', $enrollment),
+            ],
+        ]);
+    }
 
-        $units = Unit::all();
-        $semesters = Semester::all();
+    /**
+     * Show the form for editing the specified enrollment.
+     *
+     * @param  \App\Models\Enrollment  $enrollment
+     * @return \Inertia\Response
+     */
+    public function edit(Enrollment $enrollment)
+    {
+        $enrollment->load(['unit', 'semester']);
+        
+        // Get student details
+        $student = User::where('code', $enrollment->student_code)
+            ->select('id', 'code', 'name', 'email')
+            ->first();
+            
+        // Get lecturers
+        $lecturers = User::where('role', 'lecturer')
+            ->select('id', 'code', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+            
+        // Get groups for the program
+        $programGroups = [];
+        if ($enrollment->program_id) {
+            $programGroups = \App\Models\ProgramGroup::where('program_id', $enrollment->program_id)
+                ->where('is_active', true)
+                ->orderBy('group')
+                ->get();
+        }
 
         return Inertia::render('Enrollments/Edit', [
             'enrollment' => $enrollment,
-            'students' => $students,
-            'units' => $units,
-            'semesters' => $semesters,
+            'student' => $student,
+            'lecturers' => $lecturers,
+            'programGroups' => $programGroups,
         ]);
     }
 
+    /**
+     * Update the specified enrollment in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Enrollment  $enrollment
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function update(Request $request, Enrollment $enrollment)
     {
-        // Only admins should be able to update enrollments
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to update enrollments.');
-        }
-
-        $request->validate([
-            'student_code' => 'required|exists:users,code',
-            'unit_id' => 'required|exists:units,id',
-            'semester_id' => 'required|exists:semesters,id',
-            'lecturer_code' => 'nullable|exists:users,code',
+        $validated = $request->validate([
+            'lecturer_code' => 'nullable|string|exists:users,code',
+            'group' => 'nullable|string|size:1|regex:/^[A-Z]$/',
         ]);
 
-        $enrollment->update($request->only('student_code', 'unit_id', 'semester_id', 'lecturer_code'));
+        // If group is changing, update the program group counts
+        if (isset($validated['group']) && $validated['group'] !== $enrollment->group) {
+            // Decrement old group count if it exists
+            if ($enrollment->group && $enrollment->program_id) {
+                $oldGroup = \App\Models\ProgramGroup::where('program_id', $enrollment->program_id)
+                    ->where('group', $enrollment->group)
+                    ->first();
+                    
+                if ($oldGroup && $oldGroup->current_count > 0) {
+                    $oldGroup->decrement('current_count');
+                }
+            }
+            
+            // Increment new group count
+            if ($validated['group'] && $enrollment->program_id) {
+                $newGroup = \App\Models\ProgramGroup::firstOrCreate(
+                    [
+                        'program_id' => $enrollment->program_id,
+                        'group' => $validated['group'],
+                    ],
+                    [
+                        'capacity' => 60,
+                        'current_count' => 0,
+                        'is_active' => true,
+                    ]
+                );
+                
+                $newGroup->increment('current_count');
+            }
+        }
 
-        return redirect()->route('enrollments.index')->with('success', 'Enrollment updated successfully.');
+        $enrollment->update($validated);
+
+        return redirect()->route('enrollments.index')
+            ->with('success', 'Enrollment updated successfully.');
     }
 
+    /**
+     * Remove the specified enrollment from storage.
+     *
+     * @param  \App\Models\Enrollment  $enrollment
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function destroy(Enrollment $enrollment)
     {
-        // Only admins should be able to delete enrollments
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to delete enrollments.');
+        // Decrement group count if applicable
+        if ($enrollment->group && $enrollment->program_id) {
+            $group = \App\Models\ProgramGroup::where('program_id', $enrollment->program_id)
+                ->where('group', $enrollment->group)
+                ->first();
+                
+            if ($group && $group->current_count > 0) {
+                $group->decrement('current_count');
+            }
         }
 
         $enrollment->delete();
 
-        return redirect()->route('enrollments.index')->with('success', 'Enrollment deleted successfully.');
+        return redirect()->route('enrollments.index')
+            ->with('success', 'Enrollment deleted successfully.');
     }
 
     /**
-     * Assign a lecturer to a unit
+     * Bulk enroll students in a unit.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\RedirectResponse
      */
-    public function assignLecturers(Request $request)
+    public function bulkEnroll(Request $request)
     {
-        // Only admins should be able to assign lecturers
-        if (!auth()->user()->hasRole('Admin')) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'You do not have permission to assign lecturers.');
-        }
+        $this->authorize('create', Enrollment::class);
 
-        Log::info('Lecturer assignment request data:', $request->all());
-
-        $request->validate([
+        $validated = $request->validate([
+            'student_codes' => 'required|array',
+            'student_codes.*' => 'required|string|exists:users,code',
             'unit_id' => 'required|exists:units,id',
-            'lecturer_id' => 'required|exists:users,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'lecturer_code' => 'nullable|string|exists:users,code',
         ]);
 
-        // Get the lecturer's code from their ID
-        $lecturer = User::findOrFail($request->lecturer_id);
-        $lecturerCode = $lecturer->code;
-        
-        // Verify the lecturer has the Lecturer role
-        $isLecturer = $lecturer->hasRole('Lecturer');
-            
-        if (!$isLecturer) {
-            return redirect()->route('enrollments.index')
-                ->with('error', 'Selected user is not a lecturer.');
+        $successCount = 0;
+        $failCount = 0;
+        $errors = [];
+
+        foreach ($validated['student_codes'] as $studentCode) {
+            // Check if enrollment already exists
+            $exists = Enrollment::where('student_code', $studentCode)
+                ->where('unit_id', $validated['unit_id'])
+                ->where('semester_id', $validated['semester_id'])
+                ->exists();
+                
+            if ($exists) {
+                $failCount++;
+                $errors[] = "Student {$studentCode} is already enrolled in this unit.";
+                continue;
+            }
+
+            try {
+                // Use the enrollment service to handle group assignment
+                $enrollment = $this->enrollmentService->enrollStudent(
+                    $studentCode,
+                    $validated['unit_id'],
+                    $validated['semester_id']
+                );
+                
+                // Update lecturer code if provided
+                if (!empty($validated['lecturer_code'])) {
+                    $enrollment->update(['lecturer_code' => $validated['lecturer_code']]);
+                }
+                
+                $successCount++;
+            } catch (\Exception $e) {
+                $failCount++;
+                $errors[] = "Failed to enroll student {$studentCode}: " . $e->getMessage();
+            }
         }
-        
-        // Update all enrollments for this unit to have the same lecturer
-        Enrollment::where('unit_id', $request->unit_id)
-            ->update(['lecturer_code' => $lecturerCode]);
+
+        $message = "{$successCount} students enrolled successfully.";
+        if ($failCount > 0) {
+            $message .= " {$failCount} enrollments failed.";
+        }
 
         return redirect()->route('enrollments.index')
-            ->with('success', 'Lecturer assigned to unit successfully.');
+            ->with('success', $message)
+            ->with('errors', $errors);
     }
 
     /**
-     * Remove a lecturer assignment
+     * Display enrollments for the current student.
      *
-     * @param  int  $unitId
-     * @return \Illuminate\Http\Response
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Inertia\Response
      */
-    public function destroyLecturerAssignment($unitId)
-    {
-        try {
-            // Check if the unit exists
-            $unit = Unit::find($unitId);
-            if (!$unit) {
-                return redirect()->back()->with('error', 'Unit not found.');
-            }
-
-            // Remove lecturer assignments for the given unit
-            $affectedRows = Enrollment::where('unit_id', $unitId)
-                ->update(['lecturer_code' => null]);
-
-            if ($affectedRows === 0) {
-                return redirect()->back()->with('error', 'No lecturer assignments found for this unit.');
-            }
-
-            return redirect()->back()->with('success', 'Lecturer assignment removed successfully.');
-        } catch (\Exception $e) {
-            Log::error('Failed to delete lecturer assignment', [
-                'unit_id' => $unitId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return redirect()->back()->with('error', 'Failed to delete lecturer assignment.');
-        }
-    }
-
-    /**
-     * Get units assigned to a lecturer
-     *
-     * @param  string  $lecturerId
-     * @return \Illuminate\Http\Response
-     */
-    public function getLecturerUnits($lecturerId)
+    public function myEnrollments(Request $request)
     {
         $user = auth()->user();
         
-        // Only admins or the lecturer themselves should access this
-        if (!$user->hasRole('Admin') && $user->id != $lecturerId) {
-            return response()->json(['error' => 'You do not have permission to view this information'], 403);
+        // Ensure the user is a student
+        if ($user->role !== 'student') {
+            abort(403, 'Only students can access this page.');
         }
 
-        $lecturer = User::findOrFail($lecturerId);
-        $lecturerCode = $lecturer->code;
-        
-        // Verify this is a lecturer
-        $isLecturer = $lecturer->hasRole('Lecturer');
-        if (!$isLecturer) {
-            return response()->json(['error' => 'User is not a lecturer'], 400);
-        }
-        
-        // Get distinct units assigned to this lecturer
-        $units = DB::table('enrollments')
-            ->select('enrollments.unit_id', 'units.name as unit_name', 'units.code as unit_code', 'semesters.name as semester_name')
-            ->join('units', 'enrollments.unit_id', '=', 'units.id')
-            ->leftJoin('semesters', 'enrollments.semester_id', '=', 'semesters.id')
-            ->where('enrollments.lecturer_code', $lecturerCode)
-            ->distinct()
-            ->get();
+        $query = Enrollment::where('student_code', $user->code)
+            ->with(['unit', 'semester']);
 
-        return response()->json([
-            'lecturer' => [
-                'id' => $lecturer->id,
-                'code' => $lecturer->code,
-                'first_name' => $lecturer->first_name,
-                'last_name' => $lecturer->last_name,
-            ],
-            'units' => $units
+        // Filter by semester
+        if ($request->has('semester_id') && $request->input('semester_id')) {
+            $query->where('semester_id', $request->input('semester_id'));
+        } else {
+            // Default to active semester
+            $activeSemester = Semester::where('is_active', true)->first();
+            if ($activeSemester) {
+                $query->where('semester_id', $activeSemester->id);
+            }
+        }
+
+        // Sorting
+        $sortField = $request->input('sort_field', 'created_at');
+        $sortDirection = $request->input('sort_direction', 'desc');
+        $query->orderBy($sortField, $sortDirection);
+
+        $enrollments = $query->get();
+        
+        // Get all semesters for the filter dropdown
+        $semesters = Semester::select('id', 'name')->orderBy('name')->get();
+        
+        // Get active semester
+        $activeSemester = Semester::where('is_active', true)->first();
+
+        return Inertia::render('Student/Enrollments', [
+            'enrollments' => $enrollments,
+            'semesters' => $semesters,
+            'activeSemester' => $activeSemester,
+            'selectedSemester' => $request->input('semester_id', $activeSemester ? $activeSemester->id : null),
         ]);
     }
 }

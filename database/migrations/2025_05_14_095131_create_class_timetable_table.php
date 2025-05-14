@@ -6,31 +6,28 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('exam_timetables', function (Blueprint $table) {
+        Schema::create('class_timetable', function (Blueprint $table) {
             $table->id();
             $table->foreignId('semester_id')->constrained()->onDelete('cascade');
             $table->foreignId('unit_id')->constrained()->onDelete('cascade');
-            $table->date('date');
             $table->string('day');
             $table->time('start_time');
-            $table->time('end_time');         
+            $table->time('end_time');
             $table->string('venue')->nullable();
-            $table->integer('no')->nullable();
-            $table->string('chief_invigilator')->nullable();
+            $table->string('location')->nullable();
+            $table->integer('no')->nullable(); // Number of students
+            $table->string('lecturer')->nullable();
+            $table->string('group', 1)->nullable(); // Added group field to match with enrollments
+            $table->foreignId('program_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('school_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('exam_timetables');
+        Schema::dropIfExists('class_timetable');
     }
 };

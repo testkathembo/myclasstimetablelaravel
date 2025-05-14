@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Database\Seeders\UnitSeeder;
+use Database\Seeders\UnitSeederBbit;
 use Database\Seeders\FacultySeeder;
 use Database\Seeders\ClassroomSeeder;
 use Database\Seeders\ExamroomSeeder;
@@ -29,7 +29,7 @@ class DatabaseSeeder extends Seeder
             FacultySeeder::class,            // Other seeders
             ClassroomSeeder::class,
             ExamroomSeeder::class,
-            UnitSeeder::class,
+            UnitSeederBbit::class,
             SemesterSeeder::class,
             AdminSeeder::class,
             TimeSlotSeeder::class,

@@ -4,71 +4,69 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Enrollment extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'student_code', 
+        'student_code',
+        'lecturer_code',
+        'group',
         'unit_id',
         'semester_id',
-        'lecturer_code',
+        'program_id',
+        'school_id',
     ];
 
     /**
-     * Get the student that owns the enrollment.
+     * Get the unit that owns the enrollment.
      */
-    public function student()
-    {
-        return $this->belongsTo(User::class, 'student_code', 'code'); // Reference `code` in `users`
-    }
-
-    /**
-     * Get the unit that the enrollment belongs to.
-     */
-    public function unit()
+    public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
     }
 
     /**
-     * Get the semester that the enrollment belongs to.
+     * Get the semester that owns the enrollment.
      */
-    public function semester()
+    public function semester(): BelongsTo
     {
         return $this->belongsTo(Semester::class);
     }
 
     /**
-     * Get the lecturer assigned to this enrollment.
+     * Get the program that owns the enrollment.
+     */
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
+    }
+
+    /**
+     * Get the school that owns the enrollment.
+     */
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    /**
+     * Get the student that owns the enrollment.
+     * This assumes you have a User or Student model with a 'code' field.
+     */
+    public function student()
+    {
+        return $this->belongsTo(User::class, 'student_code', 'code');
+    }
+
+    /**
+     * Get the lecturer that owns the enrollment.
+     * This assumes you have a User or Lecturer model with a 'code' field.
      */
     public function lecturer()
     {
-        return $this->belongsTo(User::class, 'lecturer_code', 'code'); // Reference `code` in `users`
-    }
-
-    /**
-     * Scope a query to filter enrollments by student code.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  string  $studentCode
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeByStudentCode($query, $studentCode)
-    {
-        return $query->where('student_code', $studentCode);
-    }
-
-    /**
-     * Scope a query to filter enrollments by lecturer code.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  string  $lecturerCode
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeByLecturerCode($query, $lecturerCode)
-    {
-        return $query->where('lecturer_code', $lecturerCode);
+        return $this->belongsTo(User::class, 'lecturer_code', 'code');
     }
 }

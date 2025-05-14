@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExamTimetable extends Model
 {
@@ -20,34 +21,55 @@ class ExamTimetable extends Model
         'location',
         'no',
         'chief_invigilator',
+        'group',
+        'program_id',
+        'school_id',
     ];
 
-    public function unit()
+    protected $casts = [
+        'date' => 'date',
+        'start_time' => 'datetime:H:i',
+        'end_time' => 'datetime:H:i',
+    ];
+
+    /**
+     * Get the unit that owns the exam timetable.
+     */
+    public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
     }
 
-    public function semester()
+    /**
+     * Get the semester that owns the exam timetable.
+     */
+    public function semester(): BelongsTo
     {
         return $this->belongsTo(Semester::class);
     }
-    /*
-    * Get students enrolled in this exam.
-    */
-   public function getEnrolledStudents()
-   {
-       // Make sure relationships are loaded
-       $this->load(['unit', 'semester']);
-       
-       // Find all student codes enrolled in this unit for this semester
-       $studentCodes = Enrollment::where('unit_id', $this->unit_id)
-           ->where('semester_id', $this->semester_id)
-           ->pluck('student_code')
-           ->toArray();
-           
-       // Get all users with these codes
-       return User::whereIn('code', $studentCodes)->get();
-   }
-   
-   
+
+    /**
+     * Get the program that owns the exam timetable.
+     */
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
+    }
+
+    /**
+     * Get the school that owns the exam timetable.
+     */
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    /**
+     * Get the chief invigilator that owns the exam timetable.
+     * This assumes you have a User or Staff model.
+     */
+    public function chiefInvigilator()
+    {
+        return $this->belongsTo(User::class, 'chief_invigilator', 'code');
+    }
 }

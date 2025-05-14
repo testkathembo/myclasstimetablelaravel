@@ -6,25 +6,25 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Semester extends Model
+class School extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'code',
         'name',
-        'is_active',
-        'start_date',
-        'end_date',
-    ];
-
-    protected $casts = [
-        'is_active' => 'boolean',
-        'start_date' => 'date',
-        'end_date' => 'date',
     ];
 
     /**
-     * Get the units for this semester.
+     * Get the programs that belong to this school.
+     */
+    public function programs(): HasMany
+    {
+        return $this->hasMany(Program::class);
+    }
+
+    /**
+     * Get the units that belong to this school.
      */
     public function units(): HasMany
     {
@@ -32,7 +32,7 @@ class Semester extends Model
     }
 
     /**
-     * Get the enrollments for this semester.
+     * Get the enrollments associated with this school.
      */
     public function enrollments(): HasMany
     {
@@ -40,7 +40,7 @@ class Semester extends Model
     }
 
     /**
-     * Get the class timetables for this semester.
+     * Get the class timetables associated with this school.
      */
     public function classTimetables(): HasMany
     {
@@ -48,18 +48,10 @@ class Semester extends Model
     }
 
     /**
-     * Get the exam timetables for this semester.
+     * Get the exam timetables associated with this school.
      */
     public function examTimetables(): HasMany
     {
         return $this->hasMany(ExamTimetable::class);
-    }
-
-    /**
-     * Scope a query to only include active semesters.
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
     }
 }

@@ -4,27 +4,37 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Semester extends Model
+class Program extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'code',
         'name',
-        'is_active',
-        'start_date',
-        'end_date',
-    ];
-
-    protected $casts = [
-        'is_active' => 'boolean',
-        'start_date' => 'date',
-        'end_date' => 'date',
+        'school_id',
     ];
 
     /**
-     * Get the units for this semester.
+     * Get the school that owns the program.
+     */
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    /**
+     * Get the program groups for this program.
+     */
+    public function programGroups(): HasMany
+    {
+        return $this->hasMany(ProgramGroup::class);
+    }
+
+    /**
+     * Get the units associated with this program.
      */
     public function units(): HasMany
     {
@@ -32,7 +42,7 @@ class Semester extends Model
     }
 
     /**
-     * Get the enrollments for this semester.
+     * Get the enrollments associated with this program.
      */
     public function enrollments(): HasMany
     {
@@ -40,7 +50,7 @@ class Semester extends Model
     }
 
     /**
-     * Get the class timetables for this semester.
+     * Get the class timetables associated with this program.
      */
     public function classTimetables(): HasMany
     {
@@ -48,18 +58,10 @@ class Semester extends Model
     }
 
     /**
-     * Get the exam timetables for this semester.
+     * Get the exam timetables associated with this program.
      */
     public function examTimetables(): HasMany
     {
         return $this->hasMany(ExamTimetable::class);
-    }
-
-    /**
-     * Scope a query to only include active semesters.
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
     }
 }

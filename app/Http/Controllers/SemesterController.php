@@ -4,28 +4,58 @@ namespace App\Http\Controllers;
 
 use App\Models\Semester;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
-use App\Models\Timetable;
-use Illuminate\Support\Facades\DB;
 
 class SemesterController extends Controller
 {
     /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+        $this->authorizeResource(Semester::class, 'semester');
+    }
+
+    /**
      * Display a listing of the semesters.
      *
+     * @param  \Illuminate\Http\Request  $request
      * @return \Inertia\Response
      */
-    public function index()
+    public function index(Request $request)
     {
-        $semesters = Semester::orderBy('name')->get();
-        $user = auth()->user();
+        $query = Semester::query();
 
-        return Inertia::render('Semesters/index', [
+        // Filter by active status
+        if ($request->has('is_active')) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        // Search functionality
+        if ($request->has('search')) {
+            $search = $request->input('search');
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        // Sorting
+        $sortField = $request->input('sort_field', 'name');
+        $sortDirection = $request->input('sort_direction', 'asc');
+        $query->orderBy($sortField, $sortDirection);
+
+        // Pagination
+        $perPage = $request->input('per_page', 10);
+        $semesters = $query->paginate($perPage)->withQueryString();
+
+        return Inertia::render('Semesters/Index', [
             'semesters' => $semesters,
+            'filters' => $request->only(['search', 'is_active', 'sort_field', 'sort_direction', 'per_page']),
             'can' => [
-                'create' => $user->can('create-semesters'),
-                'edit' => $user->can('edit-semesters'),
-                'delete' => $user->can('delete-semesters'),
+                'create' => Gate::allows('create', Semester::class),
             ],
         ]);
     }
@@ -48,32 +78,50 @@ class SemesterController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $validated = $request->validate([
+            'name' => 'required|string|max:255|unique:semesters,name',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'is_active' => 'boolean',
         ]);
 
-        DB::beginTransaction();
-        
-        try {
-            // If setting this new semester as active, deactivate all others
-            if ($request->has('is_active') && $request->is_active) {
-                Semester::where('is_active', true)->update(['is_active' => false]);
-            }
-            
-            Semester::create([
-                'name' => $request->name,
-                'is_active' => $request->has('is_active') ? $request->is_active : false,
-            ]);
-            
-            DB::commit();
-            
-            return redirect()->route('semesters.index')->with('success', 'Semester created successfully.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            return redirect()->route('semesters.index')->with('error', 'Failed to create semester: ' . $e->getMessage());
+        // If this semester is active, deactivate all others
+        if ($request->boolean('is_active')) {
+            Semester::where('is_active', true)->update(['is_active' => false]);
         }
+
+        Semester::create($validated);
+
+        return redirect()->route('semesters.index')
+            ->with('success', 'Semester created successfully.');
+    }
+
+    /**
+     * Display the specified semester.
+     *
+     * @param  \App\Models\Semester  $semester
+     * @return \Inertia\Response
+     */
+    public function show(Semester $semester)
+    {
+        $unitCount = $semester->units()->count();
+        $enrollmentCount = $semester->enrollments()->count();
+        $classTimetableCount = $semester->classTimetables()->count();
+        $examTimetableCount = $semester->examTimetables()->count();
+
+        return Inertia::render('Semesters/Show', [
+            'semester' => $semester,
+            'stats' => [
+                'unitCount' => $unitCount,
+                'enrollmentCount' => $enrollmentCount,
+                'classTimetableCount' => $classTimetableCount,
+                'examTimetableCount' => $examTimetableCount,
+            ],
+            'can' => [
+                'update' => Gate::allows('update', $semester),
+                'delete' => Gate::allows('delete', $semester),
+            ],
+        ]);
     }
 
     /**
@@ -98,36 +146,27 @@ class SemesterController extends Controller
      */
     public function update(Request $request, Semester $semester)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('semesters')->ignore($semester->id),
+            ],
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'is_active' => 'boolean',
         ]);
 
-        // Begin a database transaction
-        DB::beginTransaction();
-        
-        try {
-            // If setting this semester as active, deactivate all others
-            if ($request->has('is_active') && $request->is_active && !$semester->is_active) {
-                Semester::where('is_active', true)->update(['is_active' => false]);
-            }
-            
-            // Update the semester
-            $semester->update([
-                'name' => $request->name,
-                'is_active' => $request->has('is_active') ? $request->is_active : false,
-            ]);
-            
-            // Commit the transaction
-            DB::commit();
-            
-            return redirect()->route('semesters.index')->with('success', 'Semester updated successfully.');
-        } catch (\Exception $e) {
-            // Something went wrong, rollback the transaction
-            DB::rollBack();
-            
-            return redirect()->route('semesters.index')->with('error', 'Failed to update semester: ' . $e->getMessage());
+        // If this semester is being activated, deactivate all others
+        if ($request->boolean('is_active') && !$semester->is_active) {
+            Semester::where('is_active', true)->update(['is_active' => false]);
         }
+
+        $semester->update($validated);
+
+        return redirect()->route('semesters.index')
+            ->with('success', 'Semester updated successfully.');
     }
 
     /**
@@ -138,87 +177,40 @@ class SemesterController extends Controller
      */
     public function destroy(Semester $semester)
     {
+        // Check if the semester has any associated data
+        if (
+            $semester->units()->exists() ||
+            $semester->enrollments()->exists() ||
+            $semester->classTimetables()->exists() ||
+            $semester->examTimetables()->exists()
+        ) {
+            return redirect()->route('semesters.index')
+                ->with('error', 'Cannot delete semester because it has associated data.');
+        }
+
         $semester->delete();
 
-        return redirect()->route('semesters.index')->with('success', 'Semester deleted successfully.');
+        return redirect()->route('semesters.index')
+            ->with('success', 'Semester deleted successfully.');
     }
 
     /**
-     * Toggle the active status of a semester.
-     * When a semester is activated, all other semesters are deactivated.
+     * Set the specified semester as active.
      *
      * @param  \App\Models\Semester  $semester
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function toggleActive(Semester $semester)
+    public function setActive(Semester $semester)
     {
-        // Begin a database transaction
-        DB::beginTransaction();
-        
-        try {
-            // If we're activating this semester, deactivate all others
-            if (!$semester->is_active) {
-                // Deactivate all semesters
-                Semester::where('is_active', true)->update(['is_active' => false]);
-                
-                // Activate the selected semester
-                $semester->is_active = true;
-                $semester->save();
-                
-                $message = "Semester '{$semester->name}' has been set as the active semester.";
-            } else {
-                // If we're deactivating the current active semester
-                $semester->is_active = false;
-                $semester->save();
-                
-                $message = "Semester '{$semester->name}' has been deactivated. No semester is currently active.";
-            }
-            
-            // Commit the transaction
-            DB::commit();
-            
-            return redirect()->route('semesters.index')->with('success', $message);
-        } catch (\Exception $e) {
-            // Something went wrong, rollback the transaction
-            DB::rollBack();
-            
-            return redirect()->route('semesters.index')->with('error', 'Failed to update semester status: ' . $e->getMessage());
-        }
-    }
+        $this->authorize('update', $semester);
 
-    /**
-     * View timetable for a specific semester.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Inertia\Response
-     */
-    public function viewTimetable(Request $request)
-    {
-        $semesterId = $request->input('semester_id', null);
-        $search = $request->input('search', '');
-        $perPage = $request->input('per_page', 10);
+        // Deactivate all semesters
+        Semester::where('is_active', true)->update(['is_active' => false]);
 
-        $query = Timetable::query()
-            ->with(['unit', 'classroom', 'lecturer'])
-            ->when($semesterId, function ($q) use ($semesterId) {
-                $q->where('semester_id', $semesterId);
-            })
-            ->when($search, function ($q) use ($search) {
-                $q->whereHas('unit', function ($q) use ($search) {
-                    $q->where('name', 'like', "%$search%");
-                });
-            });
+        // Activate the specified semester
+        $semester->update(['is_active' => true]);
 
-        $timetables = $query->paginate($perPage);
-
-        $semesters = Semester::all();
-
-        return inertia('Timetable/View', [
-            'timetables' => $timetables,
-            'semesters' => $semesters,
-            'selectedSemester' => $semesterId,
-            'perPage' => $perPage,
-            'search' => $search,
-        ]);
+        return redirect()->route('semesters.index')
+            ->with('success', 'Semester "' . $semester->name . '" is now active.');
     }
 }

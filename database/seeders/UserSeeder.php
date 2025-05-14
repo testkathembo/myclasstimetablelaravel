@@ -15,10 +15,7 @@ class UserSeeder extends Seeder
             'first_name' => 'Admin',
             'last_name' => 'User',
             'email' => 'admin@example.com',
-            'phone' => '1234567890',
             'code' => 'ADM001',
-            'schools' => null,
-            'programs' => null,
             'password' => Hash::make('password'),
         ])->assignRole('Admin');
 
