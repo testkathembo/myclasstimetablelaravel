@@ -88,6 +88,15 @@ const Classrooms = () => {
         }
     };
 
+    const handleDelete = (id: number) => {
+        if (confirm('Are you sure you want to delete this classroom?')) {
+            router.delete(`/classrooms/${id}`, {
+                onSuccess: () => alert('Classroom deleted successfully!'),
+                onError: (errors) => console.error('Error deleting classroom:', errors),
+            });
+        }
+    };
+
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         router.get('/classrooms', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
@@ -172,7 +181,7 @@ const Classrooms = () => {
                                         Edit
                                     </button>
                                     <button
-                                        onClick={() => handleOpenModal('delete', classroom)}
+                                        onClick={() => handleDelete(classroom.id)}
                                         className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
                                     >
                                         Delete

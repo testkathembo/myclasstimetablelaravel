@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Unit;
+use App\Models\Semester;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -10,17 +11,23 @@ class UnitController extends Controller
 {
     public function index()
     {
-        $units = Unit::paginate(10); // Use pagination
-        return Inertia::render('Units/index', [
-            'units' => $units,
-            'perPage' => 10,
-            'search' => request('search', ''),
-        ]);
+        try {
+            $units = Unit::paginate(10); // Ensure the 'units' table exists and has data
+            return Inertia::render('Units/index', [
+                'units' => $units,
+                'perPage' => 10,
+                'search' => request('search', ''),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to fetch units: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch units'], 500);
+        }
     }
 
     public function create()
     {
-        return Inertia::render('Units/Create');
+        $semesters = Semester::all(); // Fetch all semesters
+        return Inertia::render('Units/Create', ['semesters' => $semesters]);
     }
 
     public function store(Request $request)
@@ -28,9 +35,14 @@ class UnitController extends Controller
         $request->validate([
             'code' => 'required|unique:units',
             'name' => 'required',
+            'semester_id' => 'nullable|exists:semesters,id',
         ]);
 
-        Unit::create($request->all());
+        Unit::create([
+            'code' => $request->code,
+            'name' => $request->name,
+            'semester_id' => $request->semester_id ?? 1, // Use default value if not provided
+        ]);
 
         return redirect()->route('units.index')
                          ->with('success', 'Unit created successfully.');

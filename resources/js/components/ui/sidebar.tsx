@@ -24,7 +24,7 @@ export default function Sidebar() {
           link: '/schools/sces/bsics',
           components: [
             { name: 'Classrooms', icon: <Building className="mr-3 h-5 w-5" />, link: '/schools/sces/bsics/classrooms' },
-            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bsics/classtimetables' },
+            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bsics/classtimetable' },
             { name: 'Exam Rooms', icon: <House className="mr-3 h-5 w-5" />, link: '/schools/sces/bsics/examrooms' },
             { name: 'Exam Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bsics/examtimeslots' },
             { name: 'Exam Timetable', icon: <ClipboardCheck className="mr-3 h-5 w-5" />, link: '/schools/sces/bsics/examtimetable' },
@@ -38,13 +38,13 @@ export default function Sidebar() {
           link: '/schools/sces/bbit',
           components: [
             { name: 'Classrooms', icon: <Building className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/classrooms' },
-            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/classtimetables' },
+            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/classtimetable' },
             { name: 'Exam Rooms', icon: <House className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/examrooms' },
-            { name: 'Exam Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/examtimeslots' },
+            { name: 'Exam Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/timeslots' },
             { name: 'Exam Timetable', icon: <ClipboardCheck className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/examtimetable' },
             { name: 'Enrollments', icon: <ClipboardList className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/enrollments' },
             { name: 'Units', icon: <BookOpen className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/units' },
-            { name: 'Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/timeslots' },
+            { name: 'Class Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bbit/classtimeslot' },
           ],
         },
         {
@@ -52,7 +52,7 @@ export default function Sidebar() {
           link: '/schools/sces/bseee',
           components: [
             { name: 'Classrooms', icon: <Building className="mr-3 h-5 w-5" />, link: '/schools/sces/bseee/classrooms' },
-            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bseee/classtimetables' },
+            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bseee/classtimetable' },
             { name: 'Exam Rooms', icon: <House className="mr-3 h-5 w-5" />, link: '/schools/sces/bseee/examrooms' },
             { name: 'Exam Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bseee/examtimeslots' },
             { name: 'Exam Timetable', icon: <ClipboardCheck className="mr-3 h-5 w-5" />, link: '/schools/sces/bseee/examtimetable' },
@@ -66,7 +66,7 @@ export default function Sidebar() {
           link: '/schools/sces/bscncs',
           components: [
             { name: 'Classrooms', icon: <Building className="mr-3 h-5 w-5" />, link: '/schools/sces/bscncs/classrooms' },
-            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bscncs/classtimetables' },
+            { name: 'Class Timetables', icon: <Calendar className="mr-3 h-5 w-5" />, link: '/schools/sces/bscncs/classtimetable' },
             { name: 'Exam Rooms', icon: <House className="mr-3 h-5 w-5" />, link: '/schools/sces/bscncs/examrooms' },
             { name: 'Exam Time Slots', icon: <Clock className="mr-3 h-5 w-5" />, link: '/schools/sces/bscncs/examtimeslots' },
             { name: 'Exam Timetable', icon: <ClipboardCheck className="mr-3 h-5 w-5" />, link: '/schools/sces/bscncs/examtimetable' },

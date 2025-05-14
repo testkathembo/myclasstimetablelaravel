@@ -99,7 +99,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/faculties/{faculty}', [FacultyController::class, 'destroy'])->name('faculties.destroy');
 
     // Units management
-    Route::get('/units', [UnitController::class, 'index'])->name('units.index');
+    Route::get('/schools/sces/bbit/units', [UnitController::class, 'index'])->name('units.index');
     Route::post('/units', [UnitController::class, 'store'])->name('units.store');
     Route::put('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
@@ -113,7 +113,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');  
 
      // Classrooms management
-     Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
+     Route::get('/schools/sces/bbit/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
      Route::get('/classrooms/create', [ClassroomController::class, 'create'])->name('classrooms.create');
      Route::post('/classrooms', [ClassroomController::class, 'store'])->name('classrooms.store');
      Route::get('/classrooms/{classroom}', [ClassroomController::class, 'show'])->name('classrooms.show');
@@ -123,7 +123,7 @@ Route::middleware(['auth'])->group(function () {
 
      // ClassTimetable routes
      Route::middleware(['permission:manage-classtimetables'])->group(function () {
-        Route::get('/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index');
+        Route::get('/schools/sces/bbit/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index');
         Route::get('/classtimetable/create', [ClassTimetableController::class, 'create'])->name('classtimetable.create');
         Route::post('/classtimetable', [ClassTimetableController::class, 'store'])->name('classtimetable.store');
         Route::get('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'show'])->name('classtimetable.show');
@@ -134,7 +134,7 @@ Route::middleware(['auth'])->group(function () {
     });
     
     // Exams Rooms
-    Route::get('/examrooms', [ExamroomController::class, 'index'])->name('examrooms.index');
+    Route::get('/schools/sces/bbit/examrooms', [ExamroomController::class, 'index'])->name('examrooms.index');
     Route::get('/examrooms/create', [ExamroomController::class, 'create'])->name('examrooms.create');
     Route::post('/examrooms', [ExamroomController::class, 'store'])->name('examrooms.store');
     Route::get('/examrooms/{examroom}', [ExamroomController::class, 'show'])->name('examrooms.show');
@@ -142,19 +142,19 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/examrooms/{examroom}', [ExamroomController::class, 'update'])->name('examrooms.update');
     Route::delete('/examrooms/{examroom}', [ExamroomController::class, 'destroy'])->name('examrooms.destroy');
      
-    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+    Route::get('/schools/sces/bbit/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
     Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
     Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
     Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
 
-    Route::get('/classtimeslot', [ClassTimeSlotController::class, 'index'])->name('classtimeslot.index');
+    Route::get('/schools/sces/bbit/classtimeslot', [ClassTimeSlotController::class, 'index'])->name('classtimeslot.index');
     Route::post('/classtimeslot', [ClassTimeSlotController::class, 'store'])->name('classtimeslot.store');
     Route::put('/classtimeslot/{classtimeSlot}', [ClassTimeSlotController::class, 'update'])->name('classtimeslot.update');
     Route::delete('/classtimeslot/{classtimeSlot}', [ClassTimeSlotController::class, 'destroy'])->name('classtimeslot.destroy');
     
     // ExamTimetable routes - UPDATED
     Route::middleware(['permission:manage-examtimetables'])->group(function () {
-        Route::get('/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
+        Route::get('/schools/sces/bbit/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
         Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
         Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
         Route::get('/examtimetable/{id}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
@@ -211,7 +211,7 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::resource('permissions', PermissionController::class)->except(['show']);
 
     // Semesters management
-    Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
+    Route::get('/schools/sces/bbit/semesters', [SemesterController::class, 'index'])->name('semesters.index');
     Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
     Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
     Route::get('/semesters/{semester}', [SemesterController::class, 'show'])->name('semesters.show');
@@ -230,7 +230,7 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
         
     // Enrollment routes
 Route::middleware(['auth'])->group(function () {
-    Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
+    Route::get('/schools/sces/bbit/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
     Route::get('/enrollments/create', [EnrollmentController::class, 'create'])->name('enrollments.create');
     Route::post('/enrollments', [EnrollmentController::class, 'store'])->name('enrollments.store');
     Route::get('/enrollments/{enrollment}/edit', [EnrollmentController::class, 'edit'])->name('enrollments.edit');
