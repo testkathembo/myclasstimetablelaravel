@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Semester extends Model
 {
@@ -12,54 +11,14 @@ class Semester extends Model
 
     protected $fillable = [
         'name',
-        'is_active',
         'start_date',
         'end_date',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-        'start_date' => 'date',
-        'end_date' => 'date',
-    ];
-
-    /**
-     * Get the units for this semester.
-     */
-    public function units(): HasMany
+    public function units()
     {
-        return $this->hasMany(Unit::class);
-    }
-
-    /**
-     * Get the enrollments for this semester.
-     */
-    public function enrollments(): HasMany
-    {
-        return $this->hasMany(Enrollment::class);
-    }
-
-    /**
-     * Get the class timetables for this semester.
-     */
-    public function classTimetables(): HasMany
-    {
-        return $this->hasMany(ClassTimetable::class);
-    }
-
-    /**
-     * Get the exam timetables for this semester.
-     */
-    public function examTimetables(): HasMany
-    {
-        return $this->hasMany(ExamTimetable::class);
-    }
-
-    /**
-     * Scope a query to only include active semesters.
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
+        return $this->belongsToMany(Unit::class, 'semester_unit')
+            ->withPivot('class_id')
+            ->withTimestamps();
     }
 }

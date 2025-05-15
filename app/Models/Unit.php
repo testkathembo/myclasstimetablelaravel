@@ -12,12 +12,10 @@ class Unit extends Model
     use HasFactory;
 
     protected $fillable = [
-        'code',
         'name',
-        'program_id',
-        'school_id',
+        'code',
         'credit_hours',
-        'is_active',
+        'program_id',
     ];
 
     protected $casts = [
@@ -38,14 +36,6 @@ class Unit extends Model
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
-    }
-
-    /**
-     * Get the semester that owns the unit.
-     */
-    public function semester(): BelongsTo
-    {
-        return $this->belongsTo(Semester::class);
     }
 
     /**
@@ -78,5 +68,15 @@ class Unit extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Get the semesters associated with this unit.
+     */
+    public function semesters()
+    {
+        return $this->belongsToMany(Semester::class, 'semester_unit')
+            ->withPivot('class_id')
+            ->withTimestamps();
     }
 }

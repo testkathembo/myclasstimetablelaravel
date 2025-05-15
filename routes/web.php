@@ -217,6 +217,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/semester-units', [SemesterUnitController::class, 'store'])->name('semester-units.store');
         Route::delete('/semester-units/{id}', [SemesterUnitController::class, 'destroy'])->name('semester-units.destroy');
         Route::post('/semester-units/bulk-assign', [SemesterUnitController::class, 'bulkAssign'])->name('semester-units.bulk-assign');
+        Route::put('/semester-units/{semester}/units/{unit}', [SemesterUnitController::class, 'updateUnit'])->name('semester-units.update-unit');
+        Route::delete('/semester-units/{semester}/units/{unit}', [SemesterUnitController::class, 'deleteUnit'])->name('semester-units.delete-unit');
     });
 
     // Programs management
@@ -316,6 +318,13 @@ Route::middleware(['auth'])->group(function () {
     // Classes and Groups routes
     Route::resource('classes', ClassController::class);
     Route::resource('groups', GroupController::class);
+    Route::resource('enrollments', EnrollmentController::class);
+
+    // Semester Unit Routes
+    Route::middleware(['permission:manage-semester-units'])->group(function () {
+        Route::get('/semester-units', [SemesterUnitController::class, 'index'])->name('semester-units.index');
+        Route::post('/semester-units', [SemesterUnitController::class, 'store'])->name('semester-units.store');
+    });
 });
 
 // Student download routes
