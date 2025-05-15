@@ -29,6 +29,9 @@ use App\Http\Controllers\SemesterUnitController;
 use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\ProgramGroupController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\SchoolController;
+use App\Http\Controllers\ClassController;
+use App\Http\Controllers\GroupController;
 // Add other controller imports as needed
 
 /*
@@ -95,12 +98,15 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/users/{user}/update-role', [UserController::class, 'updateRole'])->name('users.updateRole');
     });
 
-    // Faculties management
-    Route::middleware(['permission:manage-faculties'])->group(function () {
-        Route::get('/faculties', [FacultyController::class, 'index'])->name('faculties.index');
-        Route::post('/faculties', [FacultyController::class, 'store'])->name('faculties.store');
-        Route::put('/faculties/{faculty}', [FacultyController::class, 'update'])->name('faculties.update');
-        Route::delete('/faculties/{faculty}', [FacultyController::class, 'destroy'])->name('faculties.destroy');
+    // Schools management
+    Route::middleware(['permission:manage-schools'])->group(function () {
+        Route::get('/schools', [SchoolController::class, 'index'])->name('schools.index');
+        Route::get('/schools/create', [SchoolController::class, 'create'])->name('schools.create');
+        Route::post('/schools', [SchoolController::class, 'store'])->name('schools.store');
+        Route::get('/schools/{school}', [SchoolController::class, 'show'])->name('schools.show');
+        Route::get('/schools/{school}/edit', [SchoolController::class, 'edit'])->name('schools.edit');
+        Route::put('/schools/{school}', [SchoolController::class, 'update'])->name('schools.update');
+        Route::delete('/schools/{school}', [SchoolController::class, 'destroy'])->name('schools.destroy');
     });
 
     // Units management
@@ -303,6 +309,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/programs', [ProgramController::class, 'index'])->name('programs.index');
     Route::get('/programs/create', [ProgramController::class, 'create'])->name('programs.create');
     Route::post('/programs', [ProgramController::class, 'store'])->name('programs.store');
+
+    // Schools routes
+    Route::get('/schools', [SchoolController::class, 'index'])->name('schools.index');
+
+    // Classes and Groups routes
+    Route::resource('classes', ClassController::class);
+    Route::resource('groups', GroupController::class);
 });
 
 // Student download routes
@@ -321,29 +334,17 @@ Route::middleware(['auth', 'permission:download-own-timetable'])->group(function
 
 // Admin Routes - Admin role bypasses permission checks
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    // Keep the original dashboard
     Route::get('/admin', fn() => Inertia::render('Admin/Dashboard'))->name('admin.dashboard');
-    
-    // Roles and Permissions management
-    Route::resource('roles', RoleController::class)->except(['show']);
-    Route::resource('permissions', PermissionController::class)->except(['show']);
-
-    // Semesters management
-    Route::get('/schools/sces/bbit/semesters', [SemesterController::class, 'index'])->name('semesters.index');
-    Route::get('/semesters/create', [SemesterController::class, 'create'])->name('semesters.create');
-    Route::post('/semesters', [SemesterController::class, 'store'])->name('semesters.store');
-    Route::get('/semesters/{semester}', [SemesterController::class, 'show'])->name('semesters.show');
-    Route::get('/semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
-    Route::put('/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
-    Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
-
-    // Time Slots management
-    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
-    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
-    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
-    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
-
-    Route::resource('classtimetable', ClassTimetableController::class);
+    Route::resource('roles', RoleController::class);
+    Route::resource('permissions', PermissionController::class);
+    Route::resource('schools', SchoolController::class);
+    Route::resource('programs', ProgramController::class);
+    Route::resource('units', UnitController::class);
+    Route::resource('semesters', SemesterController::class);
+    Route::resource('enrollments', EnrollmentController::class);
+    Route::resource('classrooms', ClassroomController::class);
+    Route::resource('classtimetables', ClassTimetableController::class);
+    Route::resource('examtimetables', ExamTimetableController::class);
 });
 
 // ✅ Exam Office and Admin Routes

@@ -231,6 +231,13 @@ export default function Sidebar() {
                 <Settings className="mr-3 h-5 w-5" />
                 Settings
               </Link>
+              <Link
+                href="/schools"
+                className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Building className="mr-3 h-5 w-5" />
+                Schools
+              </Link>
             </div>
           </RoleAwareComponent>
 
@@ -252,6 +259,20 @@ export default function Sidebar() {
 
               {openSection === "academic" && (
                 <div className="ml-4 mt-1 space-y-1">
+                  <Link
+                    href="/classes"
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                  >
+                    <Clipboard className="mr-3 h-5 w-5" />
+                    Classes
+                  </Link>
+                  <Link
+                    href="/groups"
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                  >
+                    <Users className="mr-3 h-5 w-5" />
+                    Groups
+                  </Link>
                   <Link
                     href="/semester-units"
                     className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
@@ -295,11 +316,11 @@ export default function Sidebar() {
                     Units
                   </Link>
                   <Link
-                    href="/faculties"
+                    href="/schools"
                     className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
                   >
                     <Users className="mr-3 h-5 w-5" />
-                    Faculties
+                    Schools
                   </Link>
                 </div>
               )}

@@ -2,12 +2,23 @@ import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
+interface School {
+    id: number;
+    name: string;
+}
+
+interface Program {
+    id: number;
+    name: string;
+    school_id: number;
+}
+
 interface Unit {
     id: number;
-    code: string;
     name: string;
-    semester_id?: number;
-    credit_hours?: number;
+    code: string;
+    program_id: number | null;
+    credit_hours: number | null; // Added credit_hours field
 }
 
 interface PaginationLinks {
@@ -25,11 +36,12 @@ interface PaginatedUnits {
 }
 
 const Units = () => {
-    const { units, perPage, search, semesters } = usePage().props as { 
-        units: PaginatedUnits; 
-        perPage: number; 
-        search: string; 
-        semesters: { id: number; name: string }[]; 
+    const { units, programs, schools, perPage, search } = usePage().props as {
+        units: PaginatedUnits;
+        programs: Program[];
+        schools: School[];
+        perPage: number;
+        search: string;
     };
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,7 +54,7 @@ const Units = () => {
         setModalType(type);
         setCurrentUnit(
             type === 'create'
-                ? { id: 0, code: '', name: '', credit_hours: undefined } // Default values
+                ? { id: 0, name: '', code: '', program_id: null, credit_hours: null }
                 : unit
         );
         setIsModalOpen(true);
@@ -58,31 +70,35 @@ const Units = () => {
         e.preventDefault();
 
         if (modalType === 'create') {
-            router.post('/units', currentUnit, {
-                onSuccess: () => {
-                    alert('Unit created successfully!');
-                    handleCloseModal();
-                },
-                onError: (errors) => {
-                    console.error('Error creating unit:', errors);
-                },
-            });
+            if (currentUnit) {
+                router.post('/units', {
+                    name: currentUnit.name,
+                    code: currentUnit.code,
+                    credit_hours: currentUnit.credit_hours,
+                    program_id: currentUnit.program_id, // Ensure program_id is sent
+                }, {
+                    onSuccess: () => {
+                        alert('Unit created successfully!');
+                        handleCloseModal();
+                    },
+                    onError: (errors) => {
+                        console.error('Error creating unit:', errors);
+                    },
+                });
+            }
         } else if (modalType === 'edit' && currentUnit) {
-            // Explicitly remove semester_id from the payload
-            const { semester_id, ...unitData } = currentUnit;
-
-            router.put(`/units/${currentUnit.id}`, unitData, {
+            router.put(`/units/${currentUnit.id}`, {
+                name: currentUnit.name,
+                code: currentUnit.code,
+                credit_hours: currentUnit.credit_hours,
+                program_id: currentUnit.program_id, // Ensure program_id is sent
+            }, {
                 onSuccess: () => {
                     alert('Unit updated successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error updating unit:', errors);
-                    if (errors.response?.data?.errors) {
-                        Object.entries(errors.response.data.errors).forEach(([field, message]) => {
-                            alert(`${field}: ${message}`);
-                        });
-                    }
                 },
             });
         } else if (modalType === 'delete' && currentUnit) {
@@ -162,34 +178,45 @@ const Units = () => {
                 <table className="min-w-full border-collapse border border-gray-200">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="px-4 py-2 border">Code</th>
+                            <th className="px-4 py-2 border">ID</th>
                             <th className="px-4 py-2 border">Name</th>
-                            <th className="px-4 py-2 border">Credits</th> {/* Add Credits column */}
+                            <th className="px-4 py-2 border">Code</th>
+                            <th className="px-4 py-2 border">Credit Hours</th>
+                            <th className="px-4 py-2 border">Program</th>
+                            <th className="px-4 py-2 border">School</th>
                             <th className="px-4 py-2 border">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {units.data.map((unit) => (
-                            <tr key={unit.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-2 border">{unit.code}</td>
-                                <td className="px-4 py-2 border">{unit.name}</td>
-                                <td className="px-4 py-2 border">{unit.credit_hours}</td> {/* Display Credits */}
-                                <td className="px-4 py-2 border text-center">
-                                    <button
-                                        onClick={() => handleOpenModal('edit', unit)}
-                                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 mr-2"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => handleOpenModal('delete', unit)}
-                                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                                    >
-                                        Delete
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                        {units.data.map((unit) => {
+                            const program = programs.find((p) => p.id === unit.program_id);
+                            const school = program ? schools.find((s) => s.id === program.school_id) : null;
+
+                            return (
+                                <tr key={unit.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 border">{unit.id}</td>
+                                    <td className="px-4 py-2 border">{unit.name}</td>
+                                    <td className="px-4 py-2 border">{unit.code}</td>
+                                    <td className="px-4 py-2 border">{unit.credit_hours || 'N/A'}</td>
+                                    <td className="px-4 py-2 border">{program?.name || 'N/A'}</td>
+                                    <td className="px-4 py-2 border">{school?.name || 'N/A'}</td>
+                                    <td className="px-4 py-2 border">
+                                        <button
+                                            onClick={() => handleOpenModal('edit', unit)}
+                                            className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 mr-2"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenModal('delete', unit)}
+                                            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
                 <div className="mt-4 flex justify-between items-center">
@@ -225,18 +252,6 @@ const Units = () => {
                         {modalType !== 'delete' ? (
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700">Code</label>
-                                    <input
-                                        type="text"
-                                        value={currentUnit?.code || ''}
-                                        onChange={(e) =>
-                                            setCurrentUnit((prev) => ({ ...prev!, code: e.target.value }))
-                                        }
-                                        className="w-full border rounded p-2"
-                                        required
-                                    />
-                                </div>
-                                <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Name</label>
                                     <input
                                         type="text"
@@ -249,16 +264,52 @@ const Units = () => {
                                     />
                                 </div>
                                 <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Code</label>
+                                    <input
+                                        type="text"
+                                        value={currentUnit?.code || ''}
+                                        onChange={(e) =>
+                                            setCurrentUnit((prev) => ({ ...prev!, code: e.target.value }))
+                                        }
+                                        className="w-full border rounded p-2"
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700">Credit Hours</label>
                                     <input
                                         type="number"
                                         value={currentUnit?.credit_hours || ''}
                                         onChange={(e) =>
-                                            setCurrentUnit((prev) => ({ ...prev!, credit_hours: parseInt(e.target.value, 10) }))
+                                            setCurrentUnit((prev) => ({
+                                                ...prev!,
+                                                credit_hours: parseInt(e.target.value, 10),
+                                            }))
                                         }
                                         className="w-full border rounded p-2"
                                         required
                                     />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700">Program</label>
+                                    <select
+                                        value={currentUnit?.program_id || ''}
+                                        onChange={(e) =>
+                                            setCurrentUnit((prev) => ({
+                                                ...prev!,
+                                                program_id: parseInt(e.target.value, 10),
+                                            }))
+                                        }
+                                        className="w-full border rounded p-2"
+                                        required
+                                    >
+                                        <option value="" disabled>Select a program</option>
+                                        {programs.map((program) => (
+                                            <option key={program.id} value={program.id}>
+                                                {program.name} ({schools.find((s) => s.id === program.school_id)?.name || 'N/A'})
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <button
                                     type="submit"

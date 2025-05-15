@@ -2,25 +2,18 @@
 
 namespace App\Providers;
 
-use App\Models\Unit;
-use App\Models\ClassTimetable;
-use App\Models\ExamTimetable;
-use App\Policies\UnitPolicy;
-use App\Policies\ClassTimetablePolicy;
-use App\Policies\ExamTimetablePolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 class AuthServiceProvider extends ServiceProvider
 {
     /**
-     * The policy mappings for the application.
+     * The model to policy mappings for the application.
      *
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        Unit::class => UnitPolicy::class,
-        ClassTimetable::class => ClassTimetablePolicy::class,
-        ExamTimetable::class => ExamTimetablePolicy::class,
+        //
     ];
 
     /**
@@ -29,5 +22,10 @@ class AuthServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPolicies();
+
+        // Grant all permissions to the Admin role
+        Gate::before(function ($user, $ability) {
+            return $user->hasRole('Admin') ? true : null;
+        });
     }
 }
