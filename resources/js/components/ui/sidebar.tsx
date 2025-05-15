@@ -273,6 +273,34 @@ export default function Sidebar() {
                     <Users className="mr-3 h-5 w-5" />
                     Student Groups
                   </Link>
+                  <Link
+                    href="/semesters"
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                  >
+                    <Calendar className="mr-3 h-5 w-5" />
+                    Semesters
+                  </Link>
+                  <Link
+                    href="/programs"
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                  >
+                    <GraduationCap className="mr-3 h-5 w-5" />
+                    Programs
+                  </Link>
+                  <Link
+                    href="/units"
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                  >
+                    <BookOpen className="mr-3 h-5 w-5" />
+                    Units
+                  </Link>
+                  <Link
+                    href="/faculties"
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                  >
+                    <Users className="mr-3 h-5 w-5" />
+                    Faculties
+                  </Link>
                 </div>
               )}
             </div>

@@ -119,12 +119,14 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Show the form for creating a new enrollment.
+     * Display the form for enrolling in units.
      *
      * @return \Inertia\Response
      */
     public function create()
     {
+        $this->authorize('create', Enrollment::class); // Ensure the user has permission to create enrollments
+
         $units = Unit::where('is_active', true)
             ->select('id', 'code', 'name')
             ->orderBy('code')

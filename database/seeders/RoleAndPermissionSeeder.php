@@ -45,6 +45,10 @@ class RoleAndPermissionSeeder extends Seeder
 
             // Enrollment Management
             'manage-enrollments',
+            'view-enrollments',
+            'create-enrollments',
+            'update-enrollments',
+            'delete-enrollments',
 
             // Time Slot Management
             'manage-time-slots',
@@ -119,6 +123,10 @@ class RoleAndPermissionSeeder extends Seeder
                 'manage-units',
                 'manage-semesters',
                 'manage-enrollments',
+                'view-enrollments',
+                'create-enrollments',
+                'update-enrollments',
+                'delete-enrollments',
                 'manage-time-slots',
                 'manage-classtimetables',
                 'process-classtimetables',

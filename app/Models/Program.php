@@ -11,10 +11,28 @@ class Program extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
-        'code',
         'name',
+        'code',
         'school_id',
+        'description',
+        'duration',
+        'is_active',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'is_active' => 'boolean',
+        'duration' => 'integer',
     ];
 
     /**
@@ -26,15 +44,7 @@ class Program extends Model
     }
 
     /**
-     * Get the program groups for this program.
-     */
-    public function programGroups(): HasMany
-    {
-        return $this->hasMany(ProgramGroup::class);
-    }
-
-    /**
-     * Get the units associated with this program.
+     * Get the units for the program.
      */
     public function units(): HasMany
     {
@@ -42,26 +52,26 @@ class Program extends Model
     }
 
     /**
-     * Get the enrollments associated with this program.
+     * Get the students for the program.
+     */
+    public function students(): HasMany
+    {
+        return $this->hasMany(User::class)->where('role', 'student');
+    }
+
+    /**
+     * Get the program groups for the program.
+     */
+    public function programGroups(): HasMany
+    {
+        return $this->hasMany(ProgramGroup::class);
+    }
+
+    /**
+     * Get the enrollments for the program.
      */
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
-    }
-
-    /**
-     * Get the class timetables associated with this program.
-     */
-    public function classTimetables(): HasMany
-    {
-        return $this->hasMany(ClassTimetable::class);
-    }
-
-    /**
-     * Get the exam timetables associated with this program.
-     */
-    public function examTimetables(): HasMany
-    {
-        return $this->hasMany(ExamTimetable::class);
     }
 }
