@@ -29,8 +29,8 @@ const SemesterUnits = () => {
         classes: Class[];
     };
 
-    const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
-    const [selectedClass, setSelectedClass] = useState<number | null>(null);
+    const [selectedSemester, setSelectedSemester] = useState<number | "">("");
+    const [selectedClass, setSelectedClass] = useState<number | "">("");
     const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [currentUnit, setCurrentUnit] = useState<{ semesterId: number; unitId: number; classId: number } | null>(null);
@@ -46,8 +46,8 @@ const SemesterUnits = () => {
             }, {
                 onSuccess: () => {
                     alert('Units assigned to class in semester successfully!');
-                    setSelectedSemester(null);
-                    setSelectedClass(null);
+                    setSelectedSemester("");
+                    setSelectedClass("");
                     setSelectedUnits([]);
                 },
                 onError: (errors) => {

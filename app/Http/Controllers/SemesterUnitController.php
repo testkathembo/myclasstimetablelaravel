@@ -11,7 +11,7 @@ class SemesterUnitController extends Controller
 {
     public function index()
     {
-        $semesters = Semester::with('units')->get();
+        $semesters = Semester::with('units.program', 'units.school')->get();
         $units = Unit::all();
         $classes = ClassModel::all();
 

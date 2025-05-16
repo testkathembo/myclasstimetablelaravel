@@ -126,6 +126,8 @@ class UnitController extends Controller
             'code' => 'required|string|max:255|unique:units,code',
             'name' => 'required|string|max:255',
             'credit_hours' => 'required|integer|min:1|max:6',
+            'program_id' => 'nullable|exists:programs,id',
+            'school_id' => 'nullable|exists:schools,id',
         ]);
 
         Unit::create($validated);
@@ -283,27 +285,5 @@ class UnitController extends Controller
 
         return redirect()->route('units.index')
             ->with('success', 'Unit assigned to semester successfully.');
-    }
-
-    /**
-     * Get units by class and semester.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getUnitsByClassAndSemester(Request $request)
-    {
-        $validated = $request->validate([
-            'semester_id' => 'required|exists:semesters,id',
-            'class_id' => 'required|exists:classes,id',
-        ]);
-
-        $units = Unit::whereHas('semesters', function ($query) use ($validated) {
-            $query->where('semester_id', $validated['semester_id']);
-        })->whereHas('classes', function ($query) use ($validated) {
-            $query->where('class_id', $validated['class_id']);
-        })->get();
-
-        return response()->json($units);
     }
 }
