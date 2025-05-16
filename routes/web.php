@@ -481,6 +481,38 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('can:view-notification-logs');
 });
 
+// Add this to your routes/web.php
+Route::get('/debug/units-for-class/{semester_id}/{class_id}', function ($semesterId, $classId) {
+    // Check if the units table has the expected structure
+    $unitColumns = Schema::getColumnListing('units');
+    
+    // Get all units assigned to this class and semester
+    $units = DB::table('units')
+        ->where('semester_id', $semesterId)
+        ->where('class_id', $classId)
+        ->get();
+    
+    // Check if there's a unit_classes table that maps units to classes
+    $hasUnitClassesTable = Schema::hasTable('unit_classes');
+    
+    $unitClassMappings = [];
+    if ($hasUnitClassesTable) {
+        $unitClassMappings = DB::table('unit_classes')
+            ->where('class_id', $classId)
+            ->get();
+    }
+    
+    return [
+        'semester_id' => $semesterId,
+        'class_id' => $classId,
+        'unit_table_columns' => $unitColumns,
+        'units_count' => count($units),
+        'units' => $units,
+        'has_unit_classes_table' => $hasUnitClassesTable,
+        'unit_class_mappings' => $unitClassMappings
+    ];
+})->middleware('auth');
+
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');

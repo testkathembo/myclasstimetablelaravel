@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import axios from "axios"
@@ -74,12 +74,14 @@ const Enrollments = () => {
     groups = [],
     classes = [],
     units = [],
+    errors: pageErrors,
   } = usePage().props as {
     enrollments: PaginatedEnrollments | null
     semesters: Semester[] | null
     groups: Group[] | null
     classes: Class[] | null
     units: Unit[] | null
+    errors: Record<string, string>
   }
 
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -95,7 +97,14 @@ const Enrollments = () => {
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fetchAttempted, setFetchAttempted] = useState(false)
+
+  // Display page errors if any
+  useEffect(() => {
+    if (pageErrors && Object.keys(pageErrors).length > 0) {
+      const errorMessage = Object.values(pageErrors).join(", ")
+      setError(errorMessage)
+    }
+  }, [pageErrors])
 
   const handleOpenModal = () => {
     setCurrentEnrollment({
@@ -106,7 +115,7 @@ const Enrollments = () => {
       unit_id: 0,
     })
     setIsModalOpen(true)
-    setFetchAttempted(false)
+    setError(null)
   }
 
   const handleCloseModal = () => {
@@ -126,7 +135,6 @@ const Enrollments = () => {
     setFilteredClasses((classes || []).filter((cls) => cls.semester_id === semesterId))
     setFilteredGroups([])
     setFilteredUnits([])
-    setFetchAttempted(false)
   }
 
   const handleClassChange = async (classId: number) => {
@@ -140,14 +148,14 @@ const Enrollments = () => {
     setFilteredUnits([])
     setIsLoading(true)
     setError(null)
-    setFetchAttempted(true)
-
+  
     if (currentEnrollment?.semester_id) {
       try {
         // Get CSRF token directly from meta tag
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
         console.log("Fetching units for semester_id:", currentEnrollment.semester_id, "and class_id:", classId)
-
+  
+        // Make the API call to get all units for this class and semester
         const response = await axios.post(
           "/api/units/by-class-and-semester",
           {
@@ -162,9 +170,9 @@ const Enrollments = () => {
             },
           },
         )
-
+  
         console.log("Units response:", response.data)
-
+  
         // Check if the response contains a warning
         if (response.data.warning && response.data.units) {
           setFilteredUnits(response.data.units)
@@ -174,48 +182,59 @@ const Enrollments = () => {
         } else if (response.data.units && Array.isArray(response.data.units)) {
           setFilteredUnits(response.data.units)
         } else {
-          setFilteredUnits([])
-          setError("No units found for this class and semester. Please contact the administrator.")
+          // If no units found from API, try to find units based on class name pattern
+          const classNamePattern = (classes || []).find((c) => c.id === classId)?.name.toLowerCase() || ""
+          const fallbackUnits = (units || []).filter((unit) => {
+            // Try to match units by name or code patterns
+            const unitName = (unit.name || "").toLowerCase()
+            const unitCode = (unit.code || "").toLowerCase()
+  
+            // Extract class level if it's in format like "BBIT 1.1"
+            const classMatch = classNamePattern.match(/(\w+)\s+(\d+\.\d+)/)
+            if (classMatch) {
+              const program = classMatch[1] // e.g., "bbit"
+              const level = classMatch[2] // e.g., "1.1"
+              const majorLevel = level.split(".")[0] // e.g., "1"
+  
+              return (
+                unitCode.includes(program) ||
+                unitCode.includes(majorLevel) ||
+                unitName.includes(program) ||
+                unitName.includes(`level ${majorLevel}`) ||
+                unitName.includes(`year ${majorLevel}`)
+              )
+            }
+  
+            return false
+          })
+  
+          if (fallbackUnits.length > 0) {
+            console.log("Using fallback units based on name/code matching:", fallbackUnits)
+            setFilteredUnits(fallbackUnits)
+            setError("Using best-match units for this class. Please verify your selection.")
+          } else {
+            setFilteredUnits([])
+            setError("No units found for this class and semester. Please contact the administrator.")
+          }
         }
       } catch (error: any) {
         console.error("Error fetching units:", error.response?.data || error.message)
-
+  
         // Extract and display a more user-friendly error message
-        let errorMessage = "Failed to fetch units. Please try again or contact the administrator."
-
+        const errorMessage = "Failed to fetch units. Please try again or contact the administrator."
+  
         if (error.response?.data?.error) {
-          // Log the detailed error for debugging
           console.error("Detailed error:", error.response.data.error)
-
-          // Check for specific database errors
-          if (error.response.data.error.includes("SQLSTATE")) {
-            errorMessage =
-              "Database error occurred. Please contact the administrator with this information: " +
-              error.response.data.error.substring(0, 50) +
-              "..."
-          }
         }
-
+  
         setError(errorMessage)
-        setFilteredUnits([])
-        try {
-          // Try to fetch all units for this semester as a fallback
-          const metaToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
-          const fallbackResponse = await axios.get(`/units/by-semester/${currentEnrollment.semester_id}`, {
-            headers: {
-              "X-CSRF-TOKEN": metaToken,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          })
-
-          if (fallbackResponse.data && Array.isArray(fallbackResponse.data) && fallbackResponse.data.length > 0) {
-            console.log("Using fallback units from semester endpoint:", fallbackResponse.data)
-            setFilteredUnits(fallbackResponse.data)
-            setError("Using all available units for this semester as a fallback. Please select the appropriate unit.")
-          }
-        } catch (fallbackError) {
-          console.error("Fallback fetch also failed:", fallbackError)
+  
+        // Try to use all available units as a last resort
+        const allUnits = units || []
+        if (allUnits.length > 0) {
+          console.log("Using all available units as fallback")
+          setFilteredUnits(allUnits)
+          setError("Unable to fetch specific units. Showing all available units as a fallback.")
         }
       } finally {
         setIsLoading(false)
@@ -225,7 +244,6 @@ const Enrollments = () => {
       setIsLoading(false)
     }
   }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -306,11 +324,7 @@ const Enrollments = () => {
                 <tr key={enrollment.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 border">{enrollment.id}</td>
                   <td className="px-4 py-2 border">
-                    {enrollment.student
-                      ? enrollment.student.name ||
-                        `${enrollment.student.first_name || ""} ${enrollment.student.last_name || ""}` ||
-                        enrollment.student.code
-                      : enrollment.student_code || "N/A"}
+                    {enrollment.student_code || "N/A"}
                   </td>
                   <td className="px-4 py-2 border">
                     {enrollment.group ? enrollment.group.name : enrollment.group_id || "N/A"}

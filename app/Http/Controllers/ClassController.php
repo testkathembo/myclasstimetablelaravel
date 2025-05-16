@@ -33,24 +33,4 @@ class ClassController extends Controller
 
         return redirect()->back()->with('success', 'Class created successfully!');
     }
-
-    public function update(Request $request, ClassModel $class)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'semester_id' => 'required|exists:semesters,id',
-            'program_id' => 'required|exists:programs,id',
-        ]);
-
-        $class->update($validated);
-
-        return redirect()->back()->with('success', 'Class updated successfully!');
-    }
-
-    public function destroy(ClassModel $class)
-    {
-        $class->delete();
-
-        return redirect()->back()->with('success', 'Class deleted successfully!');
-    }
 }

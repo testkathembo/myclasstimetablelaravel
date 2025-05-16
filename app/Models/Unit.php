@@ -54,7 +54,7 @@ class Unit extends Model
      */
     public function classes()
     {
-        return $this->belongsToMany(ClassModel::class, 'class_unit', 'unit_id', 'class_id');
+        return $this->belongsToMany(ClassModel::class, 'semester_unit', 'unit_id', 'class_id');
     }
 
     /**
