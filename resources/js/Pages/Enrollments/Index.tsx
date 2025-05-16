@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import axios from "axios"
@@ -144,7 +144,8 @@ const Enrollments = () => {
 
     if (currentEnrollment?.semester_id) {
       try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
+        // Get CSRF token directly from meta tag
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
         console.log("Fetching units for semester_id:", currentEnrollment.semester_id, "and class_id:", classId)
 
         const response = await axios.post(
@@ -155,7 +156,7 @@ const Enrollments = () => {
           },
           {
             headers: {
-              "X-CSRF-TOKEN": csrfToken,
+              "X-CSRF-TOKEN": token,
               "Content-Type": "application/json",
               Accept: "application/json",
             },
@@ -164,52 +165,57 @@ const Enrollments = () => {
 
         console.log("Units response:", response.data)
 
-        if (Array.isArray(response.data) && response.data.length > 0) {
+        // Check if the response contains a warning
+        if (response.data.warning && response.data.units) {
+          setFilteredUnits(response.data.units)
+          setError(response.data.warning)
+        } else if (Array.isArray(response.data) && response.data.length > 0) {
           setFilteredUnits(response.data)
+        } else if (response.data.units && Array.isArray(response.data.units)) {
+          setFilteredUnits(response.data.units)
         } else {
-          // If no units found, try to use units from the main units array that might match this class
-          const selectedClass = (classes || []).find((c) => c.id === classId)
-          if (selectedClass && selectedClass.name.includes("BBIT")) {
-            const relevantUnits = (units || []).filter(
-              (unit) =>
-                unit.code?.startsWith("BIT") ||
-                unit.code?.startsWith("CS") ||
-                unit.name.includes("Information Technology") ||
-                unit.name.includes("Database") ||
-                unit.name.includes("Software") ||
-                unit.name.includes("Programming") ||
-                unit.name.includes("Computer Science"),
-            )
-
-            console.log("Using fallback units for BBIT class:", relevantUnits)
-            setFilteredUnits(relevantUnits)
-          } else {
-            setFilteredUnits([])
-            setError("No units found for this class and semester. Please contact the administrator.")
-          }
+          setFilteredUnits([])
+          setError("No units found for this class and semester. Please contact the administrator.")
         }
       } catch (error: any) {
         console.error("Error fetching units:", error.response?.data || error.message)
-        setError("Failed to fetch units. Please try again or contact the administrator.")
 
-        // Try to use fallback units from the main units array
-        const selectedClass = (classes || []).find((c) => c.id === classId)
-        if (selectedClass && selectedClass.name.includes("BBIT")) {
-          const fallbackUnits = (units || []).filter(
-            (unit) =>
-              unit.code?.startsWith("BIT") ||
-              unit.code?.startsWith("CS") ||
-              unit.name.includes("Information Technology") ||
-              unit.name.includes("Database") ||
-              unit.name.includes("Software") ||
-              unit.name.includes("Programming") ||
-              unit.name.includes("Computer Science"),
-          )
+        // Extract and display a more user-friendly error message
+        let errorMessage = "Failed to fetch units. Please try again or contact the administrator."
 
-          if (fallbackUnits.length > 0) {
-            console.log("Using fallback units after error:", fallbackUnits)
-            setFilteredUnits(fallbackUnits)
+        if (error.response?.data?.error) {
+          // Log the detailed error for debugging
+          console.error("Detailed error:", error.response.data.error)
+
+          // Check for specific database errors
+          if (error.response.data.error.includes("SQLSTATE")) {
+            errorMessage =
+              "Database error occurred. Please contact the administrator with this information: " +
+              error.response.data.error.substring(0, 50) +
+              "..."
           }
+        }
+
+        setError(errorMessage)
+        setFilteredUnits([])
+        try {
+          // Try to fetch all units for this semester as a fallback
+          const metaToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
+          const fallbackResponse = await axios.get(`/units/by-semester/${currentEnrollment.semester_id}`, {
+            headers: {
+              "X-CSRF-TOKEN": metaToken,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          })
+
+          if (fallbackResponse.data && Array.isArray(fallbackResponse.data) && fallbackResponse.data.length > 0) {
+            console.log("Using fallback units from semester endpoint:", fallbackResponse.data)
+            setFilteredUnits(fallbackResponse.data)
+            setError("Using all available units for this semester as a fallback. Please select the appropriate unit.")
+          }
+        } catch (fallbackError) {
+          console.error("Fallback fetch also failed:", fallbackError)
         }
       } finally {
         setIsLoading(false)
@@ -272,32 +278,6 @@ const Enrollments = () => {
       })
     }
   }
-
-  // If no units are found after API call, try to use fallback units
-  useEffect(() => {
-    if (fetchAttempted && !isLoading && filteredUnits.length === 0 && currentEnrollment?.class_id) {
-      const selectedClass = (classes || []).find((c) => c.id === currentEnrollment.class_id)
-
-      if (selectedClass && selectedClass.name.includes("BBIT")) {
-        const fallbackUnits = (units || []).filter(
-          (unit) =>
-            unit.code?.startsWith("BIT") ||
-            unit.code?.startsWith("CS") ||
-            unit.name.includes("Information Technology") ||
-            unit.name.includes("Database") ||
-            unit.name.includes("Software") ||
-            unit.name.includes("Programming") ||
-            unit.name.includes("Computer Science"),
-        )
-
-        if (fallbackUnits.length > 0) {
-          console.log("Using fallback units in useEffect:", fallbackUnits)
-          setFilteredUnits(fallbackUnits)
-          setError("Using available units that may be relevant to this class.")
-        }
-      }
-    }
-  }, [fetchAttempted, isLoading, filteredUnits.length, currentEnrollment?.class_id, classes, units])
 
   return (
     <AuthenticatedLayout>

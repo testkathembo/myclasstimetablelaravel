@@ -267,105 +267,195 @@ class EnrollmentController extends Controller
                 'semester_id' => $class->semester_id
             ]);
 
-            // Try multiple approaches to find units
+            // 1. First approach: Check if we have a direct relationship in the database
+            // This could be a many-to-many relationship between classes and units
             
-            // 1. First try: Check if class_unit pivot table exists and has entries
-            $pivotUnits = [];
-            try {
-                if (Schema::hasTable('class_unit')) {
-                    $pivotUnits = DB::table('units')
-                        ->join('class_unit', 'units.id', '=', 'class_unit.unit_id')
-                        ->where('class_unit.class_id', $validated['class_id'])
-                        ->select('units.*')
-                        ->get();
-                    
-                    Log::info('Pivot table approach found ' . count($pivotUnits) . ' units');
-                }
-            } catch (\Exception $e) {
-                Log::warning('Error using pivot table approach: ' . $e->getMessage());
-            }
-            
-            if (count($pivotUnits) > 0) {
-                // Convert to Unit models with relationships
-                $unitIds = $pivotUnits->pluck('id')->toArray();
-                $units = Unit::with(['program', 'school'])->whereIn('id', $unitIds)->get();
-                Log::info('Returning ' . count($units) . ' units from pivot table approach');
-                return response()->json($units);
-            }
-            
-            // 2. Try using the relationship approach
-            try {
-                $relationshipUnits = Unit::with(['program', 'school'])
-                    ->whereHas('classes', function($query) use ($validated) {
-                        $query->where('classes.id', $validated['class_id']);
-                    })
+            // Check if class_unit pivot table exists
+            if (Schema::hasTable('class_unit')) {
+                $units = Unit::with(['program', 'school'])
+                    ->join('class_unit', 'units.id', '=', 'class_unit.unit_id')
+                    ->where('class_unit.class_id', $validated['class_id'])
+                    ->select('units.*')
                     ->get();
                 
-                Log::info('Relationship approach found ' . count($relationshipUnits) . ' units');
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units using class_unit pivot table');
+                    return response()->json($units);
+                }
+            }
+            
+            // 2. Second approach: Check if there's a semester_unit_class table
+            if (Schema::hasTable('semester_unit_class')) {
+                $units = Unit::with(['program', 'school'])
+                    ->join('semester_unit_class', 'units.id', '=', 'semester_unit_class.unit_id')
+                    ->where('semester_unit_class.class_id', $validated['class_id'])
+                    ->where('semester_unit_class.semester_id', $validated['semester_id'])
+                    ->select('units.*')
+                    ->get();
                 
-                if (count($relationshipUnits) > 0) {
-                    return response()->json($relationshipUnits);
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units using semester_unit_class table');
+                    return response()->json($units);
                 }
-            } catch (\Exception $e) {
-                Log::warning('Error using relationship approach: ' . $e->getMessage());
             }
             
-            // 3. Try direct column approach if units table has class_id
+            // 3. Third approach: Check if units have a direct class_id column
+            if (Schema::hasColumn('units', 'class_id')) {
+                $units = Unit::with(['program', 'school'])
+                    ->where('class_id', $validated['class_id'])
+                    ->get();
+                
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units using direct class_id column');
+                    return response()->json($units);
+                }
+            }
+            
+            // 4. Fourth approach: Look for units that have been previously enrolled for this class
+            $enrolledUnitIds = DB::table('enrollments')
+                ->join('groups', 'enrollments.group_id', '=', 'groups.id')
+                ->where('groups.class_id', $validated['class_id'])
+                ->where('enrollments.semester_id', $validated['semester_id'])
+                ->distinct()
+                ->pluck('enrollments.unit_id')
+                ->toArray();
+            
+            if (!empty($enrolledUnitIds)) {
+                $units = Unit::with(['program', 'school'])
+                    ->whereIn('id', $enrolledUnitIds)
+                    ->get();
+                
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units from previous enrollments');
+                    return response()->json($units);
+                }
+            }
+            
+            // 5. Fifth approach: Check if there's a specific table for this class
+            // For example, if the class is "BBIT 1.1", check for a table named "bbit_1_1_units"
+            $className = strtolower(str_replace([' ', '.'], ['_', '_'], $class->name));
+            $tableName = $className . '_units';
+            
+            if (Schema::hasTable($tableName)) {
+                $units = DB::table($tableName)
+                    ->join('units', $tableName . '.unit_id', '=', 'units.id')
+                    ->select('units.*')
+                    ->get();
+                
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units using ' . $tableName . ' table');
+                    // Convert to Unit models with relationships
+                    $unitIds = collect($units)->pluck('id')->toArray();
+                    $units = Unit::with(['program', 'school'])->whereIn('id', $unitIds)->get();
+                    return response()->json($units);
+                }
+            }
+            
+            // 6. Sixth approach: Check if there's a view for this class
+            $viewName = 'view_' . $className . '_units';
+            
             try {
-                if (Schema::hasColumn('units', 'class_id')) {
-                    $directUnits = Unit::with(['program', 'school'])
-                        ->where('class_id', $validated['class_id'])
-                        ->get();
-                    
-                    Log::info('Direct column approach found ' . count($directUnits) . ' units');
-                    
-                    if (count($directUnits) > 0) {
-                        return response()->json($directUnits);
-                    }
+                $units = DB::table($viewName)->get();
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units using ' . $viewName . ' view');
+                    // Convert to Unit models with relationships
+                    $unitIds = collect($units)->pluck('id')->toArray();
+                    $units = Unit::with(['program', 'school'])->whereIn('id', $unitIds)->get();
+                    return response()->json($units);
                 }
             } catch (\Exception $e) {
-                Log::warning('Error using direct column approach: ' . $e->getMessage());
+                Log::warning('Error using view ' . $viewName . ': ' . $e->getMessage());
             }
             
-            // 4. Fallback: Get units by semester
-            $semesterUnits = Unit::with(['program', 'school'])
+            // 7. Seventh approach: Check if there's a stored procedure for this class
+            try {
+                $units = DB::select("CALL get_units_for_class(?, ?)", [$validated['class_id'], $validated['semester_id']]);
+                if (count($units) > 0) {
+                    Log::info('Found ' . count($units) . ' units using stored procedure');
+                    // Convert to Unit models with relationships
+                    $unitIds = collect($units)->pluck('id')->toArray();
+                    $units = Unit::with(['program', 'school'])->whereIn('id', $unitIds)->get();
+                    return response()->json($units);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error using stored procedure: ' . $e->getMessage());
+            }
+            
+            // 8. Eighth approach: If the class name contains a pattern like "BBIT 1.1", 
+            // try to find units that match the class level
+            if (preg_match('/(\w+)\s+(\d+\.\d+)/', $class->name, $matches)) {
+                $program = $matches[1]; // e.g., "BBIT"
+                $level = $matches[2];   // e.g., "1.1"
+                
+                // Extract the major level (e.g., "1" from "1.1")
+                $majorLevel = explode('.', $level)[0];
+                
+                try {
+                    // First check if the 'code' column exists
+                    if (Schema::hasColumn('units', 'code')) {
+                        // Look for units with codes that might match this class level
+                        $query = Unit::with(['program', 'school']);
+                        
+                        $query->where(function($q) use ($program, $majorLevel) {
+                            // Look for units with codes that start with the program and contain the level
+                            $q->where('code', 'like', $program . '%' . $majorLevel . '%')
+                              // Or units with codes that match common patterns for this level
+                              ->orWhere('code', 'like', 'BIT' . $majorLevel . '%')
+                              ->orWhere('code', 'like', 'CS' . $majorLevel . '%');
+                        });
+                        
+                        // Only add semester_id condition if the column exists
+                        if (Schema::hasColumn('units', 'semester_id')) {
+                            $query->where('semester_id', $validated['semester_id']);
+                        }
+                        
+                        $units = $query->get();
+                        
+                        if (count($units) > 0) {
+                            Log::info('Found ' . count($units) . ' units using class level pattern matching');
+                            return response()->json($units);
+                        }
+                    } else {
+                        // If 'code' column doesn't exist, try to match by name instead
+                        $query = Unit::with(['program', 'school']);
+                        
+                        // Try to find units by name patterns that might match this class
+                        $query->where(function($q) use ($program, $majorLevel) {
+                            $q->where('name', 'like', '%' . $program . '%')
+                              ->orWhere('name', 'like', '%Level ' . $majorLevel . '%')
+                              ->orWhere('name', 'like', '%Year ' . $majorLevel . '%')
+                              ->orWhere('name', 'like', '%' . $majorLevel . '%');
+                        });
+                        
+                        // Only add semester_id condition if the column exists
+                        if (Schema::hasColumn('units', 'semester_id')) {
+                            $query->where('semester_id', $validated['semester_id']);
+                        }
+                        
+                        $units = $query->get();
+                        
+                        if (count($units) > 0) {
+                            Log::info('Found ' . count($units) . ' units using name pattern matching');
+                            return response()->json($units);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error in pattern matching approach: ' . $e->getMessage());
+                    // Continue to next approach
+                }
+            }
+            
+            // 9. Last resort: Return all units for this semester with a warning
+            $units = Unit::with(['program', 'school'])
                 ->where('semester_id', $validated['semester_id'])
                 ->get();
             
-            Log::info('Fallback to semester approach found ' . count($semesterUnits) . ' units');
+            Log::warning('No specific units found for class ' . $class->name . '. Returning all ' . count($units) . ' units for semester ' . $validated['semester_id']);
             
-            // 5. Special case for BBIT 1.1 class
-            if ($class && $class->name === 'BBIT 1.1') {
-                // Filter units that might be for BBIT 1.1 based on their names or codes
-                $bbitUnits = Unit::with(['program', 'school'])
-                    ->where(function($query) {
-                        $query->where('name', 'like', '%Introduction to Information Technology%')
-                              ->orWhere('name', 'like', '%Database Systems%')
-                              ->orWhere('name', 'like', '%Software Engineering%')
-                              ->orWhere('name', 'like', '%Programming%')
-                              ->orWhere('name', 'like', '%Computer Science%')
-                              ->orWhere('code', 'like', 'BIT%')
-                              ->orWhere('code', 'like', 'CS%');
-                    })
-                    ->get();
-                
-                Log::info('BBIT 1.1 special case found ' . count($bbitUnits) . ' units');
-                
-                if (count($bbitUnits) > 0) {
-                    return response()->json($bbitUnits);
-                }
-            }
-            
-            // If we still have no units, return the semester units as fallback
-            if (count($semesterUnits) > 0) {
-                return response()->json($semesterUnits);
-            }
-            
-            // Last resort: return all units
-            $allUnits = Unit::with(['program', 'school'])->get();
-            Log::info('Last resort: returning all ' . count($allUnits) . ' units');
-            
-            return response()->json($allUnits);
+            return response()->json([
+                'units' => $units,
+                'warning' => 'No specific units found for this class. Showing all units for the semester.'
+            ]);
             
         } catch (\Exception $e) {
             Log::error('Error in getUnitsByClassAndSemester: ' . $e->getMessage());
