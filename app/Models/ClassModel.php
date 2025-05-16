@@ -30,4 +30,8 @@ class ClassModel extends Model
     {
         return $this->hasMany(Group::class);
     }
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 }

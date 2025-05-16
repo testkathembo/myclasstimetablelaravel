@@ -23,7 +23,7 @@ interface Class {
 }
 
 const SemesterUnits = () => {
-    const { semesters, units, classes } = usePage().props as {
+    const { semesters = [], units = [], classes = [] } = usePage().props as {
         semesters: Semester[];
         units: Unit[];
         classes: Class[];
@@ -165,9 +165,9 @@ const SemesterUnits = () => {
                             <h3 className="text-xl font-medium text-blue-500 mb-4">{semester.name}</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {classes.map((classItem) => {
-                                    const classUnits = semester.units.filter(
-                                        (unit) => unit.pivot.class_id === classItem.id
-                                    );
+                                    const classUnits = semester.units?.filter(
+                                        (unit) => unit.pivot?.class_id === classItem.id
+                                    ) || [];
                                     if (classUnits.length === 0) return null;
                                     return (
                                         <div key={classItem.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
@@ -177,12 +177,6 @@ const SemesterUnits = () => {
                                                     <li key={unit.id} className="flex justify-between items-center">
                                                         <span>{unit.name} ({unit.code})</span>
                                                         <div className="flex space-x-2">
-                                                            {/* <button
-                                                                onClick={() => handleEditUnit(semester.id, unit.id, classItem.id)}
-                                                                className="text-blue-500 hover:underline"
-                                                            >
-                                                                Edit
-                                                            </button> */}
                                                             <button
                                                                 onClick={() => handleDeleteUnit(semester.id, unit.id)}
                                                                 className="bg-red-500 text-white px-3 py-1 rounded border border-red-700 hover:bg-red-600 hover:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-500"

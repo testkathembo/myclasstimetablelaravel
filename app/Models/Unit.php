@@ -4,28 +4,39 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Unit extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
     protected $fillable = [
-        'name',
         'code',
-        'credit_hours',
+        'name',
+        'description',
+        'semester_id',
         'program_id',
+        'school_id',
+        'credits',
+        'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    /**
+     * Get the semester that owns the unit.
+     */
+    public function semester()
+    {
+        return $this->belongsTo(Semester::class);
+    }
 
     /**
      * Get the program that owns the unit.
      */
-    public function program(): BelongsTo
+    public function program()
     {
         return $this->belongsTo(Program::class);
     }
@@ -33,50 +44,40 @@ class Unit extends Model
     /**
      * Get the school that owns the unit.
      */
-    public function school(): BelongsTo
+    public function school()
     {
         return $this->belongsTo(School::class);
     }
 
     /**
-     * Get the enrollments for this unit.
+     * Get the classes for the unit.
      */
-    public function enrollments(): HasMany
+    public function classes()
+    {
+        return $this->belongsToMany(ClassModel::class, 'class_unit', 'unit_id', 'class_id');
+    }
+
+    /**
+     * Get the semesters for the unit.
+     */
+    public function semesters()
+    {
+        return $this->belongsToMany(Semester::class, 'semester_unit', 'unit_id', 'semester_id');
+    }
+
+    /**
+     * Get the enrollments for the unit.
+     */
+    public function enrollments()
     {
         return $this->hasMany(Enrollment::class);
     }
 
     /**
-     * Get the class timetables for this unit.
+     * Get the lecturer for the unit.
      */
-    public function classTimetables(): HasMany
+    public function lecturer()
     {
-        return $this->hasMany(ClassTimetable::class);
-    }
-
-    /**
-     * Get the exam timetables for this unit.
-     */
-    public function examTimetables(): HasMany
-    {
-        return $this->hasMany(ExamTimetable::class);
-    }
-
-    /**
-     * Scope a query to only include active units.
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
-    }
-
-    /**
-     * Get the semesters associated with this unit.
-     */
-    public function semesters()
-    {
-        return $this->belongsToMany(Semester::class, 'semester_unit')
-            ->withPivot('class_id')
-            ->withTimestamps();
+        return $this->belongsTo(User::class, 'lecturer_id');
     }
 }

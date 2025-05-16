@@ -437,6 +437,10 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
 // API routes that should be accessible without API middleware
 Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySemester'])->name('units.by-semester');
 
+Route::post('/api/units/by-class-and-semester', [EnrollmentController::class, 'getUnitsByClassAndSemester'])
+    ->middleware('web') // Ensure the 'web' middleware is applied
+    ->name('api.units.by-class-and-semester');
+
 // Faculty-specific exam timetable downloads
 Route::middleware(['auth', 'permission:download-faculty-examtimetables'])->group(function () {
     Route::get('/examtimetable/faculty/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])->name('examtimetable.faculty.download');

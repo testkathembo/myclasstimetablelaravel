@@ -284,4 +284,26 @@ class UnitController extends Controller
         return redirect()->route('units.index')
             ->with('success', 'Unit assigned to semester successfully.');
     }
+
+    /**
+     * Get units by class and semester.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUnitsByClassAndSemester(Request $request)
+    {
+        $validated = $request->validate([
+            'semester_id' => 'required|exists:semesters,id',
+            'class_id' => 'required|exists:classes,id',
+        ]);
+
+        $units = Unit::whereHas('semesters', function ($query) use ($validated) {
+            $query->where('semester_id', $validated['semester_id']);
+        })->whereHas('classes', function ($query) use ($validated) {
+            $query->where('class_id', $validated['class_id']);
+        })->get();
+
+        return response()->json($units);
+    }
 }

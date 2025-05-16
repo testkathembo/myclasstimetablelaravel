@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('student_code');
             $table->string('lecturer_code')->nullable();
-            $table->string('group', 1)->nullable(); // Group (A, B, C, D)
+            $table->string('group_id', 1)->nullable(); // Group (A, B, C, D)
             $table->foreignId('unit_id')->constrained()->onDelete('cascade');
             $table->foreignId('semester_id')->default(1)->constrained()->onDelete('cascade');
             $table->foreignId('program_id')->nullable()->constrained()->onDelete('set null');

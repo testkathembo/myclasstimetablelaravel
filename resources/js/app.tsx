@@ -5,8 +5,17 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { Toaster } from "react-hot-toast"; // Import Toaster
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+const App = ({ Component, pageProps }: AppProps) => {
+  const Layout = Component.layout || ((page) => <AuthenticatedLayout>{page}</AuthenticatedLayout>);
+
+  return <Layout>
+    <Component {...pageProps} />
+  </Layout>;
+};
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
@@ -25,3 +34,5 @@ createInertiaApp({
         color: '#4B5563',
     },
 });
+
+export default App;

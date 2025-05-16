@@ -14,8 +14,19 @@ class Group extends Model
         'capacity',
     ];
 
+    /**
+     * Get the class associated with the group.
+     */
     public function class()
     {
         return $this->belongsTo(ClassModel::class);
+    }
+
+    /**
+     * Get the enrollments associated with the group.
+     */
+    public function enrollments()
+    {
+        return $this->hasMany(Enrollment::class, 'group_id');
     }
 }

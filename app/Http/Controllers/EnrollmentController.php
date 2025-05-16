@@ -13,6 +13,9 @@ use App\Models\ClassModel;
 use App\Services\EnrollmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class EnrollmentController extends Controller
@@ -28,7 +31,13 @@ class EnrollmentController extends Controller
     public function __construct(EnrollmentService $enrollmentService)
     {
         $this->middleware('auth');
-        $this->authorizeResource(Enrollment::class, 'enrollment');
+        // Only apply authorization to resource methods, not to API methods
+        $this->middleware(function ($request, $next) {
+            if (!$request->is('api/*')) {
+                $this->authorizeResource(Enrollment::class, 'enrollment');
+            }
+            return $next($request);
+        });
         $this->enrollmentService = $enrollmentService;
     }
 
@@ -39,18 +48,39 @@ class EnrollmentController extends Controller
      */
     public function index()
     {
-        $enrollments = Enrollment::with(['group.class', 'student'])->paginate(10);
-        $groups = Group::with('class')->get(); // Fetch groups with their associated classes
-        $classes = ClassModel::all(); // Fetch all classes
+        // Load enrollments with all related data
+        $enrollments = Enrollment::with([
+            'student:id,code,first_name,last_name', // Explicitly select student fields
+            'unit',    // Load unit relationship
+            'group',   // Load group relationship
+            'group.class', // Load class through group relationship
+            'program', // Load program relationship
+            'school',  // Load school relationship
+        ])
+        ->orderBy('id', 'desc')
+        ->paginate(10);
 
-        // Fetch students based on Spatie roles
-        $students = User::role('Student')->get();
+        // Log the first enrollment for debugging
+        if ($enrollments->count() > 0) {
+            Log::info('First enrollment data for debugging:', [
+                'id' => $enrollments[0]->id,
+                'student_code' => $enrollments[0]->student_code,
+                'student' => $enrollments[0]->student,
+                'student_relation_loaded' => $enrollments[0]->relationLoaded('student'),
+            ]);
+        }
+
+        $semesters = Semester::all(); // Fetch all semesters
+        $classes = ClassModel::with('semester')->get(); // Fetch all classes with their semesters
+        $groups = Group::with('class')->get(); // Fetch all groups with their classes
+        $units = Unit::with(['program', 'school'])->get(); // Fetch all units with their program and school
 
         return inertia('Enrollments/Index', [
             'enrollments' => $enrollments,
-            'groups' => $groups,
+            'semesters' => $semesters,
             'classes' => $classes,
-            'students' => $students,
+            'groups' => $groups,
+            'units' => $units,
         ]);
     }
 
@@ -62,30 +92,138 @@ class EnrollmentController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'group_id' => 'required|exists:groups,id',
-            'student_number' => 'required|string',
-        ]);
+        // Log the incoming request data for debugging
+        Log::info('Enrollment store request data:', $request->all());
 
-        $student = User::where('student_number', $validated['student_number'])->first();
+        try {
+            $validated = $request->validate([
+                'group_id' => 'required|exists:groups,id',
+                'code' => 'required|string', // Student code
+                'unit_id' => 'required|exists:units,id',
+                'semester_id' => 'required|exists:semesters,id',
+            ]);
 
-        if (!$student) {
-            return redirect()->back()->withErrors(['student_number' => 'Student not found.']);
+            // Trim the student code to remove any whitespace
+            $studentCode = trim($validated['code']);
+            
+            if (empty($studentCode)) {
+                Log::error('Empty student code provided');
+                return redirect()->back()->withErrors(['code' => 'Student code cannot be empty']);
+            }
+
+            // Find the student by code
+            $student = User::where('code', $studentCode)->first();
+
+            if (!$student) {
+                Log::error('Student not found with code: ' . $studentCode);
+                return redirect()->back()->withErrors(['code' => 'Student not found with code: ' . $studentCode]);
+            }
+
+            // Log the found student
+            Log::info('Found student:', [
+                'id' => $student->id,
+                'code' => $student->code,
+                'name' => $student->first_name . ' ' . $student->last_name,
+            ]);
+
+            // Check if student is already enrolled in this unit
+            $existingEnrollment = Enrollment::where('student_code', $studentCode)
+                ->where('unit_id', $validated['unit_id'])
+                ->where('semester_id', $validated['semester_id'])
+                ->first();
+                
+            if ($existingEnrollment) {
+                Log::warning('Student already enrolled in this unit', [
+                    'student_code' => $studentCode,
+                    'unit_id' => $validated['unit_id'],
+                    'semester_id' => $validated['semester_id'],
+                ]);
+                return redirect()->back()->withErrors(['error' => 'Student is already enrolled in this unit for this semester']);
+            }
+
+            // Check group capacity - COUNT UNIQUE STUDENTS, not total enrollments
+            $group = Group::findOrFail($validated['group_id']);
+            
+            // Count unique student codes in this group
+            $uniqueStudentsCount = Enrollment::where('group_id', $validated['group_id'])
+                ->distinct('student_code')
+                ->count('student_code');
+                
+            // Check if the current student is already in this group
+            $studentAlreadyInGroup = Enrollment::where('group_id', $validated['group_id'])
+                ->where('student_code', $studentCode)
+                ->exists();
+                
+            // Only count this student toward capacity if they're not already in the group
+            $effectiveStudentCount = $studentAlreadyInGroup ? $uniqueStudentsCount : $uniqueStudentsCount + 1;
+
+            Log::info('Group capacity check:', [
+                'group_id' => $group->id,
+                'group_name' => $group->name,
+                'unique_students' => $uniqueStudentsCount,
+                'student_already_in_group' => $studentAlreadyInGroup,
+                'effective_student_count' => $effectiveStudentCount,
+                'capacity' => $group->capacity,
+                'is_full' => $effectiveStudentCount > $group->capacity
+            ]);
+
+            if ($effectiveStudentCount > $group->capacity) {
+                return redirect()->back()->withErrors([
+                    'group_id' => "This group is already full. Unique students: {$uniqueStudentsCount}, Capacity: {$group->capacity}"
+                ]);
+            }
+
+            // Get the class associated with the group to find its school
+            $class = null;
+            if ($group && $group->class_id) {
+                $class = ClassModel::with('school')->find($group->class_id);
+                Log::info('Class data for enrollment:', [
+                    'class_id' => $class ? $class->id : null,
+                    'class_name' => $class ? $class->name : null,
+                    'school_id' => $class && $class->school ? $class->school->id : null,
+                ]);
+            }
+
+            try {
+                // Get the unit with its program and school
+                $unit = Unit::with(['program', 'school'])->find($validated['unit_id']);
+                
+                if (!$unit) {
+                    return redirect()->back()->withErrors(['unit_id' => 'Unit not found.']);
+                }
+                
+                // Log the unit data
+                Log::info('Unit data for enrollment:', [
+                    'unit_id' => $unit->id,
+                    'unit_name' => $unit->name,
+                    'program_id' => $unit->program_id ?? ($unit->program ? $unit->program->id : null),
+                    'school_id' => $unit->school_id ?? ($unit->school ? $unit->school->id : null),
+                ]);
+
+                // Create the enrollment with all required fields
+                $enrollment = Enrollment::create([
+                    'student_code' => $student->code, // Store the student code
+                    'group_id' => $validated['group_id'],
+                    'unit_id' => $validated['unit_id'],
+                    'semester_id' => $validated['semester_id'],
+                    'program_id' => $unit->program_id ?? ($unit->program ? $unit->program->id : null),
+                    // Prioritize school from class if available, otherwise use unit's school
+                    'school_id' => ($class && $class->school) ? $class->school->id : 
+                                  ($unit->school_id ?? ($unit->school ? $unit->school->id : null)),
+                ]);
+
+                // Log the created enrollment
+                Log::info('Created enrollment:', $enrollment->toArray());
+
+                return redirect()->back()->with('success', 'Student enrolled successfully!');
+            } catch (\Exception $e) {
+                Log::error('Error creating enrollment: ' . $e->getMessage());
+                return redirect()->back()->withErrors(['error' => 'Failed to create enrollment: ' . $e->getMessage()]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Validation error: ' . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => 'Validation failed: ' . $e->getMessage()]);
         }
-
-        $group = Group::findOrFail($validated['group_id']);
-        $currentEnrollments = Enrollment::where('group_id', $group->id)->count();
-
-        if ($currentEnrollments >= $group->capacity) {
-            return redirect()->back()->withErrors(['group_id' => 'This group is already full.']);
-        }
-
-        Enrollment::create([
-            'group_id' => $validated['group_id'],
-            'student_id' => $student->id,
-        ]);
-
-        return redirect()->back()->with('success', 'Student enrolled successfully!');
     }
 
     /**
@@ -96,8 +234,139 @@ class EnrollmentController extends Controller
      */
     public function destroy(Enrollment $enrollment)
     {
-        $enrollment->delete();
+        try {
+            $enrollment->delete();
+            return redirect()->back()->with('success', 'Enrollment removed successfully!');
+        } catch (\Exception $e) {
+            Log::error('Error deleting enrollment: ' . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => 'Failed to delete enrollment: ' . $e->getMessage()]);
+        }
+    }
 
-        return redirect()->back()->with('success', 'Enrollment removed successfully!');
+    /**
+     * Get units by class and semester.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUnitsByClassAndSemester(Request $request)
+    {
+    try {
+        $validated = $request->validate([
+            'semester_id' => 'required|exists:semesters,id',
+            'class_id' => 'required|exists:classes,id',
+        ]);
+
+        Log::info('Fetching units for semester_id: ' . $validated['semester_id'] . ' and class_id: ' . $validated['class_id']);
+
+        // Check if the units table exists
+        if (!Schema::hasTable('units')) {
+            Log::error('Units table does not exist');
+            return response()->json(['error' => 'Units table does not exist'], 500);
+        }
+
+        // Try different approaches to find units
+        $units = [];
+        
+        // First try: Use the pivot table approach (most likely to work)
+        try {
+            // Check if we have a class_unit pivot table
+            if (Schema::hasTable('class_unit')) {
+                $units = Unit::with(['program', 'school'])
+                    ->join('class_unit', 'units.id', '=', 'class_unit.unit_id')
+                    ->where('class_unit.class_id', $validated['class_id'])
+                    ->select('units.*')
+                    ->get();
+                
+                Log::info('Found ' . count($units) . ' units using class_unit pivot table');
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error using pivot table approach: ' . $e->getMessage());
+        }
+        
+        // If no units found, try direct columns
+        if (count($units) === 0) {
+            try {
+                if (Schema::hasColumn('units', 'class_id') && Schema::hasColumn('units', 'semester_id')) {
+                    $units = Unit::with(['program', 'school'])
+                        ->where('class_id', $validated['class_id'])
+                        ->where('semester_id', $validated['semester_id'])
+                        ->get();
+                    
+                    Log::info('Found ' . count($units) . ' units using direct columns approach');
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error using direct columns approach: ' . $e->getMessage());
+            }
+        }
+        
+        // If still no units found, try using relationships
+        if (count($units) === 0) {
+            try {
+                $units = Unit::with(['program', 'school'])
+                    ->whereHas('classes', function($query) use ($validated) {
+                        $query->where('classes.id', $validated['class_id']);
+                    })
+                    ->get();
+                
+                Log::info('Found ' . count($units) . ' units using relationships approach');
+            } catch (\Exception $e) {
+                Log::warning('Error using relationships approach: ' . $e->getMessage());
+            }
+        }
+        
+        // If still no units, return all units for this semester as a fallback
+        if (count($units) === 0) {
+            try {
+                $units = Unit::with(['program', 'school'])
+                    ->where('semester_id', $validated['semester_id'])
+                    ->get();
+                
+                Log::info('Returning all units for semester ' . $validated['semester_id'] . ' as fallback');
+            } catch (\Exception $e) {
+                Log::warning('Error getting units by semester: ' . $e->getMessage());
+            }
+        }
+        
+        // Last resort: return all units
+        if (count($units) === 0) {
+            try {
+                $units = Unit::with(['program', 'school'])->get();
+                Log::info('Returning all units as last resort');
+            } catch (\Exception $e) {
+                Log::error('Error getting all units: ' . $e->getMessage());
+                return response()->json(['error' => 'Failed to fetch any units: ' . $e->getMessage()], 500);
+            }
+        }
+
+        return response()->json($units);
+    } catch (\Exception $e) {
+        Log::error('Error fetching units: ' . $e->getMessage());
+        Log::error($e->getTraceAsString());
+        return response()->json(['error' => 'Failed to fetch units: ' . $e->getMessage()], 500);
+    }
+}
+    
+    /**
+     * Get unit details including program and school.
+     *
+     * @param  int  $unitId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUnitDetails($unitId)
+    {
+        try {
+            $unit = Unit::with(['program', 'school'])->findOrFail($unitId);
+            
+            return response()->json([
+                'success' => true,
+                'unit' => $unit,
+                'program_id' => $unit->program_id ?? ($unit->program ? $unit->program->id : null),
+                'school_id' => $unit->school_id ?? ($unit->school ? $unit->school->id : null),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching unit details: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch unit details.'], 500);
+        }
     }
 }
