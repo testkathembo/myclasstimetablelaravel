@@ -97,29 +97,73 @@ class EnrollmentController extends Controller
             $validated = $request->validate([
                 'group_id' => 'required|exists:groups,id',
                 'code' => 'required|string', // Student code
-                'unit_ids' => 'required|array', // Validate as an array of unit IDs
-                'unit_ids.*' => 'exists:units,id', // Each unit ID must exist
+                'unit_id' => 'required|exists:units,id',
                 'semester_id' => 'required|exists:semesters,id',
             ]);
 
+            // Trim the student code to remove any whitespace
             $studentCode = trim($validated['code']);
+            
             if (empty($studentCode)) {
+                Log::error('Empty student code provided');
                 return redirect()->back()->withErrors(['code' => 'Student code cannot be empty']);
             }
 
+            // Find the student by code
             $student = User::where('code', $studentCode)->first();
+
             if (!$student) {
+                Log::error('Student not found with code: ' . $studentCode);
                 return redirect()->back()->withErrors(['code' => 'Student not found with code: ' . $studentCode]);
             }
 
+            // Log the found student
+            Log::info('Found student:', [
+                'id' => $student->id,
+                'code' => $student->code,
+                'name' => $student->first_name . ' ' . $student->last_name,
+            ]);
+
+            // Check if student is already enrolled in this unit
+            $existingEnrollment = Enrollment::where('student_code', $studentCode)
+                ->where('unit_id', $validated['unit_id'])
+                ->where('semester_id', $validated['semester_id'])
+                ->first();
+                
+            if ($existingEnrollment) {
+                Log::warning('Student already enrolled in this unit', [
+                    'student_code' => $studentCode,
+                    'unit_id' => $validated['unit_id'],
+                    'semester_id' => $validated['semester_id'],
+                ]);
+                return redirect()->back()->withErrors(['error' => 'Student is already enrolled in this unit for this semester']);
+            }
+
+            // Check group capacity - COUNT UNIQUE STUDENTS, not total enrollments
             $group = Group::findOrFail($validated['group_id']);
+            
+            // Count unique student codes in this group
             $uniqueStudentsCount = Enrollment::where('group_id', $validated['group_id'])
                 ->distinct('student_code')
                 ->count('student_code');
+                
+            // Check if the current student is already in this group
             $studentAlreadyInGroup = Enrollment::where('group_id', $validated['group_id'])
                 ->where('student_code', $studentCode)
                 ->exists();
+                
+            // Only count this student toward capacity if they're not already in the group
             $effectiveStudentCount = $studentAlreadyInGroup ? $uniqueStudentsCount : $uniqueStudentsCount + 1;
+
+            Log::info('Group capacity check:', [
+                'group_id' => $group->id,
+                'group_name' => $group->name,
+                'unique_students' => $uniqueStudentsCount,
+                'student_already_in_group' => $studentAlreadyInGroup,
+                'effective_student_count' => $effectiveStudentCount,
+                'capacity' => $group->capacity,
+                'is_full' => $effectiveStudentCount > $group->capacity
+            ]);
 
             if ($effectiveStudentCount > $group->capacity) {
                 return redirect()->back()->withErrors([
@@ -127,35 +171,56 @@ class EnrollmentController extends Controller
                 ]);
             }
 
-            foreach ($validated['unit_ids'] as $unitId) {
-                $existingEnrollment = Enrollment::where('student_code', $studentCode)
-                    ->where('unit_id', $unitId)
-                    ->where('semester_id', $validated['semester_id'])
-                    ->first();
-
-                if ($existingEnrollment) {
-                    continue; // Skip if already enrolled
-                }
-
-                $unit = Unit::with(['program', 'school'])->find($unitId);
-                if (!$unit) {
-                    continue; // Skip if unit not found
-                }
-
-                Enrollment::create([
-                    'student_code' => $student->code,
-                    'group_id' => $validated['group_id'],
-                    'unit_id' => $unitId,
-                    'semester_id' => $validated['semester_id'],
-                    'program_id' => $unit->program_id ?? ($unit->program ? $unit->program->id : null),
-                    'school_id' => $group->class->school_id ?? ($unit->school_id ?? ($unit->school ? $unit->school->id : null)),
+            // Get the class associated with the group to find its school
+            $class = null;
+            if ($group && $group->class_id) {
+                $class = ClassModel::with('school')->find($group->class_id);
+                Log::info('Class data for enrollment:', [
+                    'class_id' => $class ? $class->id : null,
+                    'class_name' => $class ? $class->name : null,
+                    'school_id' => $class && $class->school ? $class->school->id : null,
                 ]);
             }
 
-            return redirect()->back()->with('success', 'Student enrolled successfully!');
+            try {
+                // Get the unit with its program and school
+                $unit = Unit::with(['program', 'school'])->find($validated['unit_id']);
+                
+                if (!$unit) {
+                    return redirect()->back()->withErrors(['unit_id' => 'Unit not found.']);
+                }
+                
+                // Log the unit data
+                Log::info('Unit data for enrollment:', [
+                    'unit_id' => $unit->id,
+                    'unit_name' => $unit->name,
+                    'program_id' => $unit->program_id ?? ($unit->program ? $unit->program->id : null),
+                    'school_id' => $unit->school_id ?? ($unit->school ? $unit->school->id : null),
+                ]);
+
+                // Create the enrollment with all required fields
+                $enrollment = Enrollment::create([
+                    'student_code' => $student->code, // Store the student code
+                    'group_id' => $validated['group_id'],
+                    'unit_id' => $validated['unit_id'],
+                    'semester_id' => $validated['semester_id'],
+                    'program_id' => $unit->program_id ?? ($unit->program ? $unit->program->id : null),
+                    // Prioritize school from class if available, otherwise use unit's school
+                    'school_id' => ($class && $class->school) ? $class->school->id : 
+                                  ($unit->school_id ?? ($unit->school ? $unit->school->id : null)),
+                ]);
+
+                // Log the created enrollment
+                Log::info('Created enrollment:', $enrollment->toArray());
+
+                return redirect()->back()->with('success', 'Student enrolled successfully!');
+            } catch (\Exception $e) {
+                Log::error('Error creating enrollment: ' . $e->getMessage());
+                return redirect()->back()->withErrors(['error' => 'Failed to create enrollment: ' . $e->getMessage()]);
+            }
         } catch (\Exception $e) {
-            Log::error('Error creating enrollment: ' . $e->getMessage());
-            return redirect()->back()->withErrors(['error' => 'Failed to create enrollment: ' . $e->getMessage()]);
+            Log::error('Validation error: ' . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => 'Validation failed: ' . $e->getMessage()]);
         }
     }
 

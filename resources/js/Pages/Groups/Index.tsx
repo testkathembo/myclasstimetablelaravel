@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import axios from "axios";
 
 interface Class {
     id: number;
@@ -84,15 +85,33 @@ const Groups = () => {
                 },
             });
         } else if (modalType === 'delete' && currentGroup) {
-            router.delete(`/groups/${currentGroup.id}`, {
-                onSuccess: () => {
-                    alert('Group deleted successfully!');
-                    handleCloseModal();
-                },
-                onError: (errors) => {
-                    console.error('Error deleting group:', errors);
+            deleteGroup(currentGroup.id);
+        }
+    };
+
+    const deleteGroup = async (groupId: number) => {
+        try {
+            // Get CSRF token from meta tag
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+
+            if (!csrfToken) {
+                throw new Error("CSRF token not found");
+            }
+
+            // Send DELETE request with CSRF token
+            await axios.delete(`/groups/${groupId}`, {
+                headers: {
+                    "X-CSRF-TOKEN": csrfToken,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
                 },
             });
+
+            alert("Group deleted successfully!");
+            handleCloseModal();
+        } catch (error) {
+            console.error("Error deleting group:", error);
+            alert("Failed to delete group. Please try again.");
         }
     };
 

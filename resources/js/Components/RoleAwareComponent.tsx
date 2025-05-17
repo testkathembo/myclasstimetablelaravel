@@ -37,12 +37,15 @@ export default function RoleAwareComponent({
   const userRoles = auth?.roles || []
   const userPermissions = auth?.permissions || []
 
+  // Allow Admin to bypass all role and permission checks
+  const isAdmin = userRoles.includes("Admin")
+
   // Check if user has any of the required roles
-  const hasRequiredRole = requiredRoles.length === 0 || requiredRoles.some((role) => userRoles.includes(role))
+  const hasRequiredRole = isAdmin || requiredRoles.length === 0 || requiredRoles.some((role) => userRoles.includes(role))
 
   // Check if user has any of the required permissions
   const hasRequiredPermission =
-    requiredPermissions.length === 0 || requiredPermissions.some((permission) => userPermissions.includes(permission))
+    isAdmin || requiredPermissions.length === 0 || requiredPermissions.some((permission) => userPermissions.includes(permission))
 
   // Render children only if user has required role and permission
   if (hasRequiredRole && hasRequiredPermission) {

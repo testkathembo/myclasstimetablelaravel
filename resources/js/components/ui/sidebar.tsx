@@ -21,6 +21,8 @@ import {
   GraduationCap,
   BookMarked,
   UserPlus,
+  FileText,
+  School,
 } from "lucide-react"
 
 export default function Sidebar() {
@@ -73,6 +75,25 @@ export default function Sidebar() {
             },
             { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/units" },
             { name: "Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/timeslots" },
+            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/classes" },
+            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/groups" },
+            {
+              name: "Semester Units",
+              icon: <BookMarked className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bsics/semester-units",
+            },
+            {
+              name: "Manage Enrollments",
+              icon: <UserPlus className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bsics/enrollments",
+            },
+            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/semesters" },
+            {
+              name: "Programs",
+              icon: <GraduationCap className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bsics/programs",
+            },
+            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/units" },
           ],
         },
         {
@@ -103,6 +124,21 @@ export default function Sidebar() {
               icon: <Clock className="mr-3 h-5 w-5" />,
               link: "/schools/sces/bbit/classtimeslot",
             },
+            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/classes" },
+            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/groups" },
+            {
+              name: "Semester Units",
+              icon: <BookMarked className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bbit/semester-units",
+            },
+            {
+              name: "Manage Enrollments",
+              icon: <UserPlus className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bbit/enrollments",
+            },
+            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/semesters" },
+            { name: "Programs", icon: <GraduationCap className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/programs" },
+            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/units" },
           ],
         },
         {
@@ -133,6 +169,25 @@ export default function Sidebar() {
             },
             { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/units" },
             { name: "Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/timeslots" },
+            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/classes" },
+            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/groups" },
+            {
+              name: "Semester Units",
+              icon: <BookMarked className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bseee/semester-units",
+            },
+            {
+              name: "Manage Enrollments",
+              icon: <UserPlus className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bseee/enrollments",
+            },
+            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/semesters" },
+            {
+              name: "Programs",
+              icon: <GraduationCap className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bseee/programs",
+            },
+            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/units" },
           ],
         },
         {
@@ -167,6 +222,25 @@ export default function Sidebar() {
             },
             { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/units" },
             { name: "Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/timeslots" },
+            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/classes" },
+            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/groups" },
+            {
+              name: "Semester Units",
+              icon: <BookMarked className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bscncs/semester-units",
+            },
+            {
+              name: "Manage Enrollments",
+              icon: <UserPlus className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bscncs/enrollments",
+            },
+            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/semesters" },
+            {
+              name: "Programs",
+              icon: <GraduationCap className="mr-3 h-5 w-5" />,
+              link: "/schools/sces/bscncs/programs",
+            },
+            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/units" },
           ],
         },
       ],
@@ -244,7 +318,7 @@ export default function Sidebar() {
           {/* Academic Management Section - For Admin and Academic Staff */}
           <RoleAwareComponent requiredRoles={["Admin", "Academic Staff"]}>
             <div className="pt-4">
-              <button
+              {/* <button
                 onClick={() => toggleSection("academic")}
                 className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
               >
@@ -259,62 +333,7 @@ export default function Sidebar() {
 
               {openSection === "academic" && (
                 <div className="ml-4 mt-1 space-y-1">
-                  <Link
-                    href="/classes"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <Clipboard className="mr-3 h-5 w-5" />
-                    Classes
-                  </Link>
-                  <Link
-                    href="/groups"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <Users className="mr-3 h-5 w-5" />
-                    Groups
-                  </Link>
-                  <Link
-                    href="/semester-units"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <BookMarked className="mr-3 h-5 w-5" />
-                    Semester Units
-                  </Link>
-                  <Link
-                    href="/enrollments"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <UserPlus className="mr-3 h-5 w-5" />
-                    Manage Enrollments
-                  </Link>
-                  {/* <Link
-                    href="/program-groups"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <Users className="mr-3 h-5 w-5" />
-                    Student Groups
-                  </Link> */}
-                  <Link
-                    href="/semesters"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <Calendar className="mr-3 h-5 w-5" />
-                    Semesters
-                  </Link>
-                  <Link
-                    href="/programs"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <GraduationCap className="mr-3 h-5 w-5" />
-                    Programs
-                  </Link>
-                  <Link
-                    href="/units"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <BookOpen className="mr-3 h-5 w-5" />
-                    Units
-                  </Link>
+                  
                   <Link
                     href="/schools"
                     className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
@@ -323,70 +342,7 @@ export default function Sidebar() {
                     Schools
                   </Link>
                 </div>
-              )}
-            </div>
-          </RoleAwareComponent>
-
-          {/* Student Section - Only visible to students */}
-          <RoleAwareComponent requiredRoles={["Student"]}>
-            <div className="pt-4">
-              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Student Portal</p>
-              <Link
-                href="/enroll"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <UserPlus className="mr-3 h-5 w-5" />
-                Enroll in Units
-              </Link>
-              <Link
-                href="/my-enrollments"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <ClipboardList className="mr-3 h-5 w-5" />
-                My Enrollments
-              </Link>
-              <Link
-                href="/my-timetable"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Calendar className="mr-3 h-5 w-5" />
-                My Timetable
-              </Link>
-              <Link
-                href="/my-exams"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <ClipboardCheck className="mr-3 h-5 w-5" />
-                My Exams
-              </Link>
-            </div>
-          </RoleAwareComponent>
-
-          {/* Lecturer Section - Only visible to lecturers */}
-          <RoleAwareComponent requiredRoles={["Lecturer"]}>
-            <div className="pt-4">
-              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lecturer Portal</p>
-              <Link
-                href="/my-classes"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Calendar className="mr-3 h-5 w-5" />
-                My Classes
-              </Link>
-              <Link
-                href="/my-students"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Users className="mr-3 h-5 w-5" />
-                My Students
-              </Link>
-              <Link
-                href="/my-exam-schedule"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <ClipboardCheck className="mr-3 h-5 w-5" />
-                My Exam Schedule
-              </Link>
+              )} */}
             </div>
           </RoleAwareComponent>
 
@@ -443,6 +399,69 @@ export default function Sidebar() {
                 )}
               </div>
             ))}
+          </RoleAwareComponent>
+
+          {/* Student Section - Accessible to Student and Admin */}
+          <RoleAwareComponent requiredRoles={["Student"]}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Student Portal</p>
+              <Link
+                href="/enroll"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <UserPlus className="mr-3 h-5 w-5" />
+                Enroll in Units
+              </Link>
+              <Link
+                href="/my-enrollments"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <ClipboardList className="mr-3 h-5 w-5" />
+                My Enrollments
+              </Link>
+              <Link
+                href="/my-timetable"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                My Timetable
+              </Link>
+              <Link
+                href="/my-exams"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <ClipboardCheck className="mr-3 h-5 w-5" />
+                My Exams
+              </Link>
+            </div>
+          </RoleAwareComponent>
+
+          {/* Lecturer Section - Accessible to Lecturer and Admin */}
+          <RoleAwareComponent requiredRoles={["Lecturer"]}>
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lecturer Portal</p>
+              <Link
+                href="/my-classes"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Calendar className="mr-3 h-5 w-5" />
+                My Classes
+              </Link>
+              <Link
+                href="/my-students"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Users className="mr-3 h-5 w-5" />
+                My Students
+              </Link>
+              <Link
+                href="/my-exam-schedule"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <ClipboardCheck className="mr-3 h-5 w-5" />
+                My Exam Schedule
+              </Link>
+            </div>
           </RoleAwareComponent>
         </nav>
       </div>

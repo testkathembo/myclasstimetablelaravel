@@ -32,6 +32,7 @@ use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\SchoolController;
 use App\Http\Controllers\ClassController;
 use App\Http\Controllers\GroupController;
+
 // Add other controller imports as needed
 
 /*
@@ -513,6 +514,43 @@ Route::get('/debug/units-for-class/{semester_id}/{class_id}', function ($semeste
         'unit_class_mappings' => $unitClassMappings
     ];
 })->middleware('auth');
+
+// Portal Preview Routes - Admin Only
+Route::middleware(['auth', 'role:Admin'])->prefix('portal-preview')->group(function () {
+    // Lecturer Portal Preview
+    Route::prefix('lecturer')->group(function () {
+        Route::get('/classes', [PortalPreviewController::class, 'lecturerClasses'])->name('portal-preview.lecturer.classes');
+        Route::get('/students', [PortalPreviewController::class, 'lecturerStudents'])->name('portal-preview.lecturer.students');
+        Route::get('/exam-schedule', [PortalPreviewController::class, 'lecturerExamSchedule'])->name('portal-preview.lecturer.exam-schedule');
+    });
+    
+    // Student Portal Preview
+    Route::prefix('student')->group(function () {
+        Route::get('/enroll', [PortalPreviewController::class, 'studentEnroll'])->name('portal-preview.student.enroll');
+        Route::get('/enrollments', [PortalPreviewController::class, 'studentEnrollments'])->name('portal-preview.student.enrollments');
+        Route::get('/timetable', [PortalPreviewController::class, 'studentTimetable'])->name('portal-preview.student.timetable');
+        Route::get('/exams', [PortalPreviewController::class, 'studentExams'])->name('portal-preview.student.exams');
+    });
+    
+    // Faculty Admin Portal Preview
+    Route::prefix('faculty-admin')->group(function () {
+        Route::get('/programs', [PortalPreviewController::class, 'facultyAdminPrograms'])->name('portal-preview.faculty-admin.programs');
+        Route::get('/units', [PortalPreviewController::class, 'facultyAdminUnits'])->name('portal-preview.faculty-admin.units');
+        Route::get('/classes', [PortalPreviewController::class, 'facultyAdminClasses'])->name('portal-preview.faculty-admin.classes');
+        Route::get('/lecturers', [PortalPreviewController::class, 'facultyAdminLecturers'])->name('portal-preview.faculty-admin.lecturers');
+    });
+    
+    // Exam Office Portal Preview
+    Route::prefix('exam-office')->group(function () {
+        Route::get('/timetables', [PortalPreviewController::class, 'examOfficeTimetables'])->name('portal-preview.exam-office.timetables');
+        Route::get('/rooms', [PortalPreviewController::class, 'examOfficeRooms'])->name('portal-preview.exam-office.rooms');
+        Route::get('/slots', [PortalPreviewController::class, 'examOfficeSlots'])->name('portal-preview.exam-office.slots');
+        Route::get('/assignments', [PortalPreviewController::class, 'examOfficeAssignments'])->name('portal-preview.exam-office.assignments');
+    });
+});
+
+// Portal Access Guide
+Route::get('/portal-access-guide', [PortalPreviewController::class, 'accessGuide'])->name('portal-access-guide')->middleware(['auth']);
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
