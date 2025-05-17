@@ -287,13 +287,13 @@ export default function Sidebar() {
                     <UserPlus className="mr-3 h-5 w-5" />
                     Manage Enrollments
                   </Link>
-                  <Link
+                  {/* <Link
                     href="/program-groups"
                     className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
                   >
                     <Users className="mr-3 h-5 w-5" />
                     Student Groups
-                  </Link>
+                  </Link> */}
                   <Link
                     href="/semesters"
                     className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"

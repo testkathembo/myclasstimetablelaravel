@@ -219,6 +219,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/semester-units/bulk-assign', [SemesterUnitController::class, 'bulkAssign'])->name('semester-units.bulk-assign');
         Route::put('/semester-units/{semester}/units/{unit}', [SemesterUnitController::class, 'updateUnit'])->name('semester-units.update-unit');
         Route::delete('/semester-units/{semester}/units/{unit}', [SemesterUnitController::class, 'deleteUnit'])->name('semester-units.delete-unit');
+        Route::delete('/semester-units/{semesterId}/units/{unitId}', [SemesterUnitController::class, 'deleteUnit']);
     });
 
     // Programs management

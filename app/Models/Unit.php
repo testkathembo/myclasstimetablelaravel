@@ -80,4 +80,12 @@ class Unit extends Model
     {
         return $this->belongsTo(User::class, 'lecturer_id');
     }
+
+    /**
+     * Define a relationship with the ClassTimetable model.
+     */
+    public function classTimetables()
+    {
+        return $this->hasMany(ClassTimetable::class);
+    }
 }

@@ -56,4 +56,20 @@ class Semester extends Model
     {
         return $this->belongsToMany(ClassModel::class, 'semester_unit', 'semester_id', 'class_id');
     }
+
+    /**
+     * Define a relationship with the ClassTimetable model.
+     */
+    public function classTimetables()
+    {
+        return $this->hasMany(ClassTimetable::class); // Adjust the model name if necessary
+    }
+
+    /**
+     * Define a relationship with the ExamTimetable model.
+     */
+    public function examTimetables()
+    {
+        return $this->hasMany(ExamTimetable::class); // Adjust the model name if necessary
+    }
 }

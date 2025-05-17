@@ -236,8 +236,7 @@ class UnitController extends Controller
         // Check if the unit has any associated data
         if (
             $unit->enrollments()->exists() ||
-            $unit->classTimetables()->exists() ||
-            $unit->examTimetables()->exists()
+            $unit->classTimetables()->exists() // Ensure this method exists in the Unit model
         ) {
             return redirect()->route('units.index')
                 ->with('error', 'Cannot delete unit because it has associated data.');

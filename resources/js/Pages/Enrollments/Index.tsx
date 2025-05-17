@@ -90,7 +90,7 @@ const Enrollments = () => {
     semester_id: number
     class_id: number
     group_id: string
-    unit_id: number
+    unit_ids: number[] // Change from single unit_id to an array of unit_ids
   } | null>(null)
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([])
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([])
@@ -112,7 +112,7 @@ const Enrollments = () => {
       semester_id: 0,
       class_id: 0,
       group_id: "",
-      unit_id: 0,
+      unit_ids: [],
     })
     setIsModalOpen(true)
     setError(null)
@@ -130,7 +130,7 @@ const Enrollments = () => {
       semester_id: semesterId,
       class_id: 0,
       group_id: "",
-      unit_id: 0,
+      unit_ids: [],
     }))
     setFilteredClasses((classes || []).filter((cls) => cls.semester_id === semesterId))
     setFilteredGroups([])
@@ -142,7 +142,7 @@ const Enrollments = () => {
       ...prev!,
       class_id: classId,
       group_id: "",
-      unit_id: 0,
+      unit_ids: [],
     }))
     setFilteredGroups((groups || []).filter((group) => group.class?.id === classId))
     setFilteredUnits([])
@@ -269,8 +269,8 @@ const Enrollments = () => {
         return
       }
 
-      if (!currentEnrollment.unit_id) {
-        setError("Please select a unit")
+      if (!currentEnrollment.unit_ids.length) {
+        setError("Please select at least one unit")
         return
       }
 
@@ -437,25 +437,25 @@ const Enrollments = () => {
                 </select>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Unit</label>
+                <label className="block text-sm font-medium text-gray-700">Units</label>
                 {isLoading ? (
                   <div className="text-center py-2">Loading units...</div>
                 ) : (
                   <select
-                    value={currentEnrollment?.unit_id || ""}
+                    multiple // Allow multiple selection
+                    value={currentEnrollment?.unit_ids || []}
                     onChange={(e) =>
                       setCurrentEnrollment((prev) => ({
                         ...prev!,
-                        unit_id: Number.parseInt(e.target.value, 10),
+                        unit_ids: Array.from(e.target.selectedOptions, (option) =>
+                          Number.parseInt(option.value, 10),
+                        ),
                       }))
                     }
                     className="w-full border rounded p-2"
                     required
                     disabled={!currentEnrollment?.class_id || isLoading}
                   >
-                    <option value="" disabled>
-                      Select a unit
-                    </option>
                     {filteredUnits.length > 0 ? (
                       filteredUnits.map((unit) => (
                         <option key={unit.id} value={unit.id}>
