@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Head, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { toast } from "react-hot-toast"; // Import toast
+import { toast } from 'react-hot-toast';
+import { PlusCircleIcon, PencilIcon, TrashIcon } from '@heroicons/react/outline';
 
 interface Classroom {
     id: number;
@@ -55,23 +56,22 @@ const Classrooms = () => {
         if (modalType === 'create') {
             router.post('/classrooms', currentClassroom, {
                 onSuccess: () => {
-                    toast.success('Classroom created successfully!'); // Use toast
+                    toast.success('Classroom created successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error creating classroom:', errors);
-                    toast.error('Failed to create classroom.'); // Use toast
+                    toast.error('Failed to create classroom.');
                 },
             });
         } else if (modalType === 'edit' && currentClassroom) {
             router.put(`/classrooms/${currentClassroom.id}`, currentClassroom, {
                 onSuccess: () => {
-                    toast.success('Classroom updated successfully!'); // Use toast
+                    toast.success('Classroom updated successfully!');
                     handleCloseModal();
                 },
                 onError: (errors) => {
                     console.error('Error updating classroom:', errors);
-                    toast.error('Failed to update classroom.'); // Use toast
                 },
             });
         } else if (modalType === 'delete' && currentClassroom) {

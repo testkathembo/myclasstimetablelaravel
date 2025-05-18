@@ -7,7 +7,8 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from 'lucide-react'
-import { toast } from "react-hot-toast"; // Import toast
+import { toast } from "react-hot-toast" // Import toast
+import axios from "axios" // Import axios for API calls
 
 interface ClassTimetable {
   id: number
@@ -72,6 +73,11 @@ interface Lecturer {
   name: string
 }
 
+interface Class {
+  id: number
+  name: string
+}
+
 interface PaginationLinks {
   url: string | null
   label: string
@@ -88,7 +94,7 @@ interface PaginatedClassTimetables {
 
 interface FormState {
   id: number
-  day: string  
+  day: string
   enrollment_id: number
   venue: string
   location: string
@@ -97,6 +103,7 @@ interface FormState {
   start_time: string
   end_time: string
   semester_id: number
+  class_id?: number // Added class_id for cascading selection
   unit_id?: number
   unit_code?: string
   unit_name?: string
@@ -149,18 +156,18 @@ const checkLecturerConflict = (
   day: string,
   startTime: string,
   endTime: string,
-  lecturer: string
+  lecturer: string,
 ) => {
   return classTimetables.data.some((classtimetable) => {
-    if (classtimetable.day !== day || classtimetable.lecturer !== lecturer) return false;
+    if (classtimetable.day !== day || classtimetable.lecturer !== lecturer) return false
 
     return (
       (classtimetable.start_time <= startTime && classtimetable.end_time > startTime) ||
       (classtimetable.start_time < endTime && classtimetable.end_time >= endTime) ||
       (classtimetable.start_time >= startTime && classtimetable.end_time <= endTime)
-    );
-  });
-};
+    )
+  })
+}
 
 // Helper function to check for semester time conflicts
 const checkSemesterConflict = (
@@ -168,37 +175,37 @@ const checkSemesterConflict = (
   day: string,
   startTime: string,
   endTime: string,
-  semesterId: number
+  semesterId: number,
 ) => {
   return classTimetables.data.some((classtimetable) => {
-    if (classtimetable.day !== day || classtimetable.semester_id !== semesterId) return false;
+    if (classtimetable.day !== day || classtimetable.semester_id !== semesterId) return false
 
     return (
       (classtimetable.start_time <= startTime && classtimetable.end_time > startTime) ||
       (classtimetable.start_time < endTime && classtimetable.end_time >= endTime) ||
       (classtimetable.start_time >= startTime && classtimetable.end_time <= endTime)
-    );
-  });
-};
+    )
+  })
+}
 
 const ClassTimetable = () => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+    e.preventDefault()
+    setIsSubmitting(true)
 
     try {
       // Simulate an API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      toast.success("Form submitted successfully!");
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      toast.success("Form submitted successfully!")
     } catch (error) {
-      console.error("Error submitting form:", error);
-      toast.error("Error submitting form.");
+      console.error("Error submitting form:", error)
+      toast.error("Error submitting form.")
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   // FIXED: Changed property name from classTimetable to classTimetables to match controller
   const {
@@ -212,6 +219,7 @@ const ClassTimetable = () => {
     classtimeSlots = [],
     units = [],
     lecturers = [],
+    classes = [], // Added classes prop
   } = usePage().props as unknown as {
     classTimetables: PaginatedClassTimetables
     perPage: number
@@ -222,6 +230,7 @@ const ClassTimetable = () => {
     classtimeSlots: ClassTimeSlot[]
     units: Unit[]
     lecturers: Lecturer[]
+    classes: Class[] // Added classes type
     can: {
       create: boolean
       edit: boolean
@@ -245,11 +254,16 @@ const ClassTimetable = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
+  
+  // New state for cascading selection
+  const [availableClasses, setAvailableClasses] = useState<Class[]>([])
+  const [isLoadingClasses, setIsLoadingClasses] = useState(false)
+  const [isLoadingUnits, setIsLoadingUnits] = useState(false)
 
   // Debug data received from server
   useEffect(() => {
-    console.log("Data received from server:", { classTimetables, classtimeSlots, units })
-  }, [classTimetables, classtimeSlots, units])
+    console.log("Data received from server:", { classTimetables, classtimeSlots, units, classes })
+  }, [classTimetables, classtimeSlots, units, classes])
 
   // Initialize available timeslots
   useEffect(() => {
@@ -270,17 +284,17 @@ const ClassTimetable = () => {
   // Debugging: Log the current semester ID
   useEffect(() => {
     if (formState?.semester_id) {
-      console.log(`Current semester ID: ${formState.semester_id}`);
+      console.log(`Current semester ID: ${formState.semester_id}`)
     }
-  }, [formState?.semester_id]);
+  }, [formState?.semester_id])
 
   // Debugging: Log filtered units when they are updated
   useEffect(() => {
-    console.log(`Filtered units count: ${filteredUnits.length}`);
+    console.log(`Filtered units count: ${filteredUnits.length}`)
     if (filteredUnits.length > 0) {
-      console.log("Filtered units:", filteredUnits);
+      console.log("Filtered units:", filteredUnits)
     }
-  }, [filteredUnits]);
+  }, [filteredUnits])
 
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", classtimetable: ClassTimetable | null) => {
     setModalType(type)
@@ -289,11 +303,12 @@ const ClassTimetable = () => {
     setConflictWarning(null)
     setErrorMessage(null)
     setUnitLecturers([])
+    setAvailableClasses([]) // Reset available classes
 
     if (type === "create") {
       setFormState({
         id: 0,
-        day: "",      
+        day: "",
         enrollment_id: 0,
         venue: "",
         location: "",
@@ -302,6 +317,7 @@ const ClassTimetable = () => {
         start_time: "",
         end_time: "",
         semester_id: 0,
+        class_id: 0, // Initialize class_id
         unit_id: 0,
         unit_code: "",
         unit_name: "",
@@ -318,7 +334,7 @@ const ClassTimetable = () => {
       // Find matching classtimeslot
       const classtimeSlot = classtimeSlots.find(
         (ts) =>
-          ts.day === classtimetable.day &&          
+          ts.day === classtimetable.day &&
           ts.start_time === classtimetable.start_time &&
           ts.end_time === classtimetable.end_time,
       )
@@ -336,6 +352,11 @@ const ClassTimetable = () => {
         lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
         lecturer_name: unitEnrollment?.lecturer_name || "",
       })
+
+      // If editing, load classes for the selected semester
+      if (classtimetable.semester_id) {
+        loadClassesForSemester(classtimetable.semester_id)
+      }
 
       // Filter units for the selected semester
       if (classtimetable.semester_id) {
@@ -361,24 +382,25 @@ const ClassTimetable = () => {
     setConflictWarning(null)
     setErrorMessage(null)
     setUnitLecturers([])
+    setAvailableClasses([]) // Reset available classes
   }
 
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this class timetable?")) {
-        try {
-            await router.delete(`/classtimetable/${id}`, {
-                onSuccess: () => toast.success("Class timetable deleted successfully."), // Use toast
-                onError: (errors) => {
-                    console.error("Failed to delete class timetable:", errors);
-                    toast.error("An error occurred while deleting the class timetable."); // Use toast
-                },
-            });
-        } catch (error) {
-            console.error("Unexpected error:", error);
-            toast.error("An unexpected error occurred."); // Use toast
-        }
+      try {
+        await router.delete(`/classtimetable/${id}`, {
+          onSuccess: () => toast.success("Class timetable deleted successfully."), // Use toast
+          onError: (errors) => {
+            console.error("Failed to delete class timetable:", errors)
+            toast.error("An error occurred while deleting the class timetable.") // Use toast
+          },
+        })
+      } catch (error) {
+        console.error("Unexpected error:", error)
+        toast.error("An unexpected error occurred.") // Use toast
+      }
     }
-};
+  }
 
   const checkForConflicts = (
     day: string,
@@ -485,12 +507,82 @@ const ClassTimetable = () => {
     return unitLecturersList.length > 0 ? unitLecturersList[0] : null
   }
 
+  // Function to load classes for a semester
+  const loadClassesForSemester = async (semesterId: number) => {
+    if (!semesterId) return
+    
+    setIsLoadingClasses(true)
+    setErrorMessage(null)
+    
+    try {
+      // First try to get classes from the API
+      const response = await axios.get(`/api/semesters/${semesterId}/classes`)
+      
+      if (response.data.success && response.data.data.length > 0) {
+        console.log(`Found ${response.data.data.length} classes for semester ${semesterId}:`, response.data.data)
+        setAvailableClasses(response.data.data)
+      } else {
+        // If API fails or returns no data, fall back to all classes
+        console.log("No classes found via API, using all available classes")
+        setAvailableClasses(classes || [])
+        
+        if (classes.length === 0) {
+          setErrorMessage(`No classes found for semester ${semesters.find(s => s.id === semesterId)?.name || semesterId}`)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading classes:", error)
+      // Fall back to all classes
+      setAvailableClasses(classes || [])
+      setErrorMessage("Error loading classes. Using all available classes.")
+    } finally {
+      setIsLoadingClasses(false)
+    }
+  }
+
+  // Function to load units for a class in a semester
+  const loadUnitsForClass = async (semesterId: number, classId: number) => {
+    if (!semesterId || !classId) return
+    
+    setIsLoadingUnits(true)
+    setFilteredUnits([])
+    setErrorMessage(null)
+    
+    try {
+      // First try to get units from the API
+      const response = await axios.get(`/api/semesters/${semesterId}/classes/${classId}/units`)
+      
+      if (response.data.success && response.data.data.length > 0) {
+        console.log(`Found ${response.data.data.length} units for class ${classId} in semester ${semesterId}:`, response.data.data)
+        setFilteredUnits(response.data.data)
+      } else {
+        // If API fails or returns no data, fall back to filtering units by semester
+        console.log("No units found via API, filtering by semester")
+        const semesterUnits = units.filter(unit => Number(unit.semester_id) === Number(semesterId))
+        setFilteredUnits(semesterUnits)
+        
+        if (semesterUnits.length === 0) {
+          setErrorMessage(`No units found for class ${availableClasses.find(c => c.id === classId)?.name || classId} in semester ${semesters.find(s => s.id === semesterId)?.name || semesterId}`)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading units:", error)
+      // Fall back to filtering units by semester
+      const semesterUnits = units.filter(unit => Number(unit.semester_id) === Number(semesterId))
+      setFilteredUnits(semesterUnits)
+      setErrorMessage("Error loading units. Using all units for this semester.")
+    } finally {
+      setIsLoadingUnits(false)
+    }
+  }
+
   const handleSemesterChange = (semesterId: number | string) => {
     if (!formState) return
 
     setIsLoading(true)
     setErrorMessage(null)
     setUnitLecturers([])
+    setFilteredUnits([])
 
     // Ensure semesterId is a number
     const numericSemesterId = Number(semesterId)
@@ -502,10 +594,11 @@ const ClassTimetable = () => {
       return
     }
 
-    // Update form state with the new semester_id
+    // Update form state with the new semester_id and reset dependent fields
     setFormState((prev) => ({
       ...prev!,
       semester_id: numericSemesterId,
+      class_id: 0, // Reset class when semester changes
       unit_id: 0,
       unit_code: "",
       unit_name: "",
@@ -516,29 +609,44 @@ const ClassTimetable = () => {
     }))
 
     console.log(`Selected semester ID: ${numericSemesterId}`)
-    console.log("All units:", units)
 
-    // Filter units by semester_id
-    const semesterUnits = units.filter((unit) => {
-      const unitSemesterId = Number(unit.semester_id)
-      const matches = unitSemesterId === numericSemesterId
-      console.log(`Unit ${unit.code} (ID: ${unit.id}): semester_id=${unitSemesterId}, matches=${matches}`)
-      return matches
-    })
-
-    console.log(`Found ${semesterUnits.length} units for semester ID: ${numericSemesterId}`, semesterUnits)
-
-    if (semesterUnits.length === 0) {
-      console.warn(`No units found for semester ID: ${numericSemesterId}`)
-      setErrorMessage(
-        `No units found for semester ${semesters.find((s) => s.id === numericSemesterId)?.name || numericSemesterId}. Please check if units are assigned to this semester.`,
-      )
-    } else {
-      setErrorMessage(null)
-    }
-
-    setFilteredUnits(semesterUnits)
+    // Load classes for this semester
+    loadClassesForSemester(numericSemesterId)
+    
     setIsLoading(false)
+  }
+
+  // Handle class selection
+  const handleClassChange = (classId: number | string) => {
+    if (!formState) return
+    
+    // Ensure classId is a number
+    const numericClassId = Number(classId)
+    
+    if (isNaN(numericClassId)) {
+      console.error("Invalid class ID:", classId)
+      return
+    }
+    
+    // Update form state with the new class_id and reset dependent fields
+    setFormState((prev) => ({
+      ...prev!,
+      class_id: numericClassId,
+      unit_id: 0,
+      unit_code: "",
+      unit_name: "",
+      no: 0,
+      lecturer_id: null,
+      lecturer_name: "",
+      lecturer: "",
+    }))
+    
+    console.log(`Selected class ID: ${numericClassId}`)
+    
+    // Load units for this class and semester
+    if (formState.semester_id) {
+      loadUnitsForClass(formState.semester_id, numericClassId)
+    }
   }
 
   // Add this at the top level of your component, after other useEffect hooks
@@ -562,7 +670,11 @@ const ClassTimetable = () => {
 
   // Add this useEffect to log when filteredUnits changes
   useEffect(() => {
-    console.log("filteredUnits updated:", filteredUnits)
+    console.log(`Filtered units count: ${filteredUnits.length}`)
+    if (filteredUnits.length > 0) {
+      console.log("First few filtered units:", filteredUnits.slice(0, 3))
+      console.log("Total filtered units:", filteredUnits.length)
+    }
   }, [filteredUnits])
 
   // Debugging: Log units received from the backend
@@ -572,28 +684,33 @@ const ClassTimetable = () => {
 
   // Debugging: Log selected unit details
   const handleUnitChange = (unitId: number) => {
-    if (!formState) return;
+    if (!formState) return
 
-    const selectedUnit = units.find((u) => u.id === unitId);
+    const selectedUnit = filteredUnits.find((u) => u.id === unitId) || units.find((u) => u.id === unitId)
     if (selectedUnit) {
-        console.log("Selected unit:", selectedUnit);
+      console.log("Selected unit:", selectedUnit)
 
-        const studentCount = selectedUnit.student_count || 0;
-        const lecturerName = selectedUnit.lecturer_name || "Unknown";
+      const studentCount = selectedUnit.student_count || 0
+      const lecturerName = selectedUnit.lecturer_name || "Unknown"
 
-        console.log(`Student count for unit ${selectedUnit.code}: ${studentCount}`);
-        console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`);
+      console.log(`Student count for unit ${selectedUnit.code}: ${studentCount}`)
+      console.log(`Lecturer for unit ${selectedUnit.code}: ${lecturerName}`)
 
-        setFormState((prev) => ({
-            ...prev!,
-            unit_id: unitId,
-            unit_code: selectedUnit.code,
-            unit_name: selectedUnit.name,
-            no: studentCount,
-            lecturer: lecturerName,
-        }));
+      setFormState((prev) => ({
+        ...prev!,
+        unit_id: unitId,
+        unit_code: selectedUnit.code,
+        unit_name: selectedUnit.name,
+        no: studentCount,
+        lecturer: lecturerName,
+      }))
+
+      // Find lecturers for this unit
+      if (formState.semester_id) {
+        findLecturersForUnit(unitId, formState.semester_id)
+      }
     }
-  };
+  }
 
   const handleLecturerChange = (lecturerId: number) => {
     if (!formState) return
@@ -670,9 +787,9 @@ const ClassTimetable = () => {
       ...data,
       start_time: formatTimeToHi(data.start_time),
       end_time: formatTimeToHi(data.end_time),
-    };
+    }
 
-    console.log("Submitting form data:", formattedData);
+    console.log("Submitting form data:", formattedData)
 
     // Client-side conflict detection for semesters
     const semesterConflictExists = checkSemesterConflict(
@@ -680,12 +797,12 @@ const ClassTimetable = () => {
       formattedData.day,
       formattedData.start_time,
       formattedData.end_time,
-      formattedData.semester_id
-    );
+      formattedData.semester_id,
+    )
 
     if (semesterConflictExists) {
-      toast.error("Conflict detected: Another class is already scheduled for this semester during this time.");
-      return; // Prevent submission
+      toast.error("Conflict detected: Another class is already scheduled for this semester during this time.")
+      return // Prevent submission
     }
 
     // Client-side conflict detection
@@ -694,82 +811,76 @@ const ClassTimetable = () => {
       formattedData.day,
       formattedData.start_time,
       formattedData.end_time,
-      formattedData.lecturer
-    );
+      formattedData.lecturer,
+    )
 
     if (conflictExists) {
-      toast.error("Conflict detected: The lecturer is already assigned to another class during this time.");
-      return; // Prevent submission
+      toast.error("Conflict detected: The lecturer is already assigned to another class during this time.")
+      return // Prevent submission
     }
 
     if (data.id === 0) {
       router.post(`/classtimetable`, formattedData, {
         onSuccess: () => {
-          toast.success("Class timetable created successfully.");
-          handleCloseModal();
-          router.reload({ only: ["classTimetables"] });
+          toast.success("Class timetable created successfully.")
+          handleCloseModal()
+          router.reload({ only: ["classTimetables"] })
         },
         onError: (errors) => {
-          console.error("Creation failed:", errors);
-          toast.error("Failed to create class timetable.");
+          console.error("Creation failed:", errors)
+          toast.error("Failed to create class timetable.")
         },
-      });
+      })
     } else {
       router.put(`/classtimetable/${data.id}`, formattedData, {
         onSuccess: () => {
-          toast.success("Class timetable updated successfully.");
-          handleCloseModal();
-          router.reload({ only: ["classTimetables"] });
+          toast.success("Class timetable updated successfully.")
+          handleCloseModal()
+          router.reload({ only: ["classTimetables"] })
         },
         onError: (errors) => {
-          console.error("Update failed:", errors);
-          toast.error("Failed to update class timetable.");
+          console.error("Update failed:", errors)
+          toast.error("Failed to update class timetable.")
         },
-      });
+      })
     }
-  };
+  }
 
   const handleProcessClassTimetable = () => {
-    toast.promise(
-        router.post("/process-classtimetables", {}),
-        {
-            loading: "Processing class timetable...",
-            success: "Class timetable processed successfully.",
-            error: "Failed to process class timetable.",
-        }
-    );
-};
+    toast.promise(router.post("/process-classtimetables", {}), {
+      loading: "Processing class timetable...",
+      success: "Class timetable processed successfully.",
+      error: "Failed to process class timetable.",
+    })
+  }
 
   const handleSolveConflicts = () => {
-    toast.promise(
-        router.get("/solve-class-conflicts", {}),
-        {
-            loading: "Resolving conflicts...",
-            success: "Conflicts resolved successfully.",
-            error: "Failed to resolve conflicts.",
-        }
-    );
-};
+    toast.promise(router.get("/solve-class-conflicts", {}), {
+      loading: "Resolving conflicts...",
+      success: "Conflicts resolved successfully.",
+      error: "Failed to resolve conflicts.",
+    })
+  }
 
   const handleDownloadClassTimetable = () => {
     toast.promise(
-        new Promise((resolve) => {
-            const link = document.createElement("a");
-            link.href = "/download-classtimetables";
-            link.setAttribute("download", "classtimetable.pdf");
-            link.setAttribute("target", "_blank");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            resolve(true);
-        }),
-        {
-            loading: "Downloading class timetable...",
-            success: "Class timetable downloaded successfully.",
-            error: "Failed to download class timetable.",
-        }
-    );
-};
+      new Promise((resolve) => {
+        const link = document.createElement("a")
+        link.href = "/download-classtimetables"
+        link.setAttribute("download", "classtimetable.pdf")
+        link.setAttribute("target", "_blank")
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        resolve(true)
+      }),
+      {
+        loading: "Downloading class timetable...",
+        success: "Class timetable downloaded successfully.",
+        error: "Failed to download class timetable.",
+      },
+    )
+  }
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchValue(e.target.value)
@@ -859,7 +970,7 @@ const ClassTimetable = () => {
                 <thead className="bg-gray-100 border-b">
                   <tr>
                     <th className="px-3 py-2">ID</th>
-                    <th className="px-3 py-2">Day</th>                   
+                    <th className="px-3 py-2">Day</th>
                     <th className="px-3 py-2">Unit Code</th>
                     <th className="px-3 py-2">Unit Name</th>
                     <th className="px-3 py-2">Semester</th>
@@ -876,7 +987,7 @@ const ClassTimetable = () => {
                   {classTimetables.data.map((classtimetable) => (
                     <tr key={classtimetable.id} className="border-b hover:bg-gray-50">
                       <td className="px-3 py-2">{classtimetable.id}</td>
-                      <td className="px-3 py-2">{classtimetable.day}</td>                    
+                      <td className="px-3 py-2">{classtimetable.day}</td>
                       <td className="px-3 py-2">{classtimetable.unit_code}</td>
                       <td className="px-3 py-2">{classtimetable.unit_name}</td>
                       <td className="px-3 py-2">{classtimetable.semester_name}</td>
@@ -1041,6 +1152,25 @@ const ClassTimetable = () => {
                       )) || null}
                     </select>
 
+                    {/* Class selection - only enabled after semester is selected */}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                    <select
+                      value={formState.class_id || ""}
+                      onChange={(e) => handleClassChange(e.target.value)}
+                      className="w-full border rounded p-2 mb-3"
+                      disabled={!formState.semester_id || isLoadingClasses}
+                    >
+                      <option value="">Select Class</option>
+                      {availableClasses.map((classItem) => (
+                        <option key={classItem.id} value={classItem.id}>
+                          {classItem.name}
+                        </option>
+                      ))}
+                    </select>
+                    {isLoadingClasses && (
+                      <div className="text-sm text-gray-500 mb-3">Loading classes...</div>
+                    )}
+
                     {isLoading && (
                       <div className="text-center py-2 mb-3">
                         <span className="inline-block animate-spin mr-2">⟳</span>
@@ -1049,10 +1179,25 @@ const ClassTimetable = () => {
                     )}
 
                     {errorMessage && (
-                      <Alert className="mb-3 bg-yellow-50 border-yellow-200">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-yellow-600">{errorMessage}</AlertDescription>
-                      </Alert>
+                      <div className="mb-3">
+                        <Alert className="mb-2 bg-yellow-50 border-yellow-200">
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                          <AlertDescription className="text-yellow-600">{errorMessage}</AlertDescription>
+                        </Alert>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            console.log("All units:", units)
+                            console.log("Filtered units:", filteredUnits)
+                            console.log("Current semester ID:", formState.semester_id)
+                            console.log("Current class ID:", formState.class_id)
+                            toast.success("Unit data logged to console for debugging")
+                          }}
+                          className="text-xs bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        >
+                          Debug Units
+                        </Button>
+                      </div>
                     )}
 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
@@ -1060,7 +1205,7 @@ const ClassTimetable = () => {
                       value={formState.unit_id || ""}
                       onChange={(e) => handleUnitChange(Number(e.target.value))}
                       className="w-full border rounded p-2 mb-3"
-                      disabled={!formState.semester_id || isLoading}
+                      disabled={!formState.class_id || isLoadingUnits}
                     >
                       <option value="">Select Unit</option>
                       {filteredUnits && filteredUnits.length > 0 ? (
@@ -1071,10 +1216,13 @@ const ClassTimetable = () => {
                         ))
                       ) : (
                         <option value="" disabled>
-                          No units available for this semester
+                          {isLoadingUnits ? "Loading units..." : "No units available - please select a class"}
                         </option>
                       )}
                     </select>
+                    {isLoadingUnits && (
+                      <div className="text-sm text-gray-500 mb-3">Loading units...</div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1186,11 +1334,7 @@ const ClassTimetable = () => {
                     >
                       Delete
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="bg-gray-400 text-white"
-                    >
+                    <Button type="button" onClick={handleCloseModal} className="bg-gray-400 text-white">
                       Cancel
                     </Button>
                   </div>
@@ -1249,6 +1393,25 @@ const ClassTimetable = () => {
                       )) || null}
                     </select>
 
+                    {/* Class selection - only enabled after semester is selected */}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                    <select
+                      value={formState.class_id || ""}
+                      onChange={(e) => handleClassChange(e.target.value)}
+                      className="w-full border rounded p-2 mb-3"
+                      disabled={!formState.semester_id || isLoadingClasses}
+                    >
+                      <option value="">Select Class</option>
+                      {availableClasses.map((classItem) => (
+                        <option key={classItem.id} value={classItem.id}>
+                          {classItem.name}
+                        </option>
+                      ))}
+                    </select>
+                    {isLoadingClasses && (
+                      <div className="text-sm text-gray-500 mb-3">Loading classes...</div>
+                    )}
+
                     {isLoading && (
                       <div className="text-center py-2 mb-3">
                         <span className="inline-block animate-spin mr-2">⟳</span>
@@ -1257,10 +1420,25 @@ const ClassTimetable = () => {
                     )}
 
                     {errorMessage && (
-                      <Alert className="mb-3 bg-yellow-50 border-yellow-200">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-yellow-600">{errorMessage}</AlertDescription>
-                      </Alert>
+                      <div className="mb-3">
+                        <Alert className="mb-2 bg-yellow-50 border-yellow-200">
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                          <AlertDescription className="text-yellow-600">{errorMessage}</AlertDescription>
+                        </Alert>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            console.log("All units:", units)
+                            console.log("Filtered units:", filteredUnits)
+                            console.log("Current semester ID:", formState.semester_id)
+                            console.log("Current class ID:", formState.class_id)
+                            toast.success("Unit data logged to console for debugging")
+                          }}
+                          className="text-xs bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        >
+                          Debug Units
+                        </Button>
+                      </div>
                     )}
 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
@@ -1268,7 +1446,7 @@ const ClassTimetable = () => {
                       value={formState.unit_id || ""}
                       onChange={(e) => handleUnitChange(Number(e.target.value))}
                       className="w-full border rounded p-2 mb-3"
-                      disabled={!formState.semester_id || isLoading}
+                      disabled={!formState.class_id || isLoadingUnits}
                     >
                       <option value="">Select Unit</option>
                       {filteredUnits && filteredUnits.length > 0 ? (
@@ -1279,10 +1457,13 @@ const ClassTimetable = () => {
                         ))
                       ) : (
                         <option value="" disabled>
-                          No units available for this semester
+                          {isLoadingUnits ? "Loading units..." : "No units available - please select a class"}
                         </option>
                       )}
                     </select>
+                    {isLoadingUnits && (
+                      <div className="text-sm text-gray-500 mb-3">Loading units...</div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>

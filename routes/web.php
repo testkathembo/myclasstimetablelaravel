@@ -127,7 +127,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Classrooms management
-    Route::middleware(['permission:manage-classrooms'])->group(function () {
+    Route::middleware(['auth', 'permission:manage-classrooms'])->group(function () {
         Route::get('/schools/sces/bbit/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
         Route::get('/classrooms/create', [ClassroomController::class, 'create'])->name('classrooms.create');
         Route::post('/classrooms', [ClassroomController::class, 'store'])->name('classrooms.store');
@@ -135,8 +135,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/classrooms/{classroom}/edit', [ClassroomController::class, 'edit'])->name('classrooms.edit');
         Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
         Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
-        // Add a fallback POST route for DELETE method
-        Route::post('/classrooms/{classroom}/delete', [ClassroomController::class, 'destroy'])->name('classrooms.destroy.post');
     });
 
     // ClassTimetable routes
@@ -150,6 +148,12 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy');
         Route::post('/classtimetable/{classtimetable}/delete', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy.post');
         Route::get('/classtimetable/download', [ClassTimetableController::class, 'downloadTimetable'])->name('classtimetable.download');
+        
+        // API routes for cascading dropdowns in class timetable
+        Route::get('/api/semesters/{semesterId}/classes', [ClassTimetableController::class, 'getClassesBySemester'])
+            ->name('api.classes.by-semester');
+        Route::get('/api/semesters/{semesterId}/classes/{classId}/units', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
+            ->name('api.units.by-class-and-semester');
     });
     
     // Exams Rooms
@@ -173,7 +177,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Class Time Slots
-    Route::middleware(['permission:manage-classtimeslots'])->group(function () {
+    Route::middleware(['auth', 'permission:manage-classtimeslots'])->group(function () {
         Route::get('/schools/sces/bbit/classtimeslot', [ClassTimeSlotController::class, 'index'])->name('classtimeslot.index');
         Route::post('/classtimeslot', [ClassTimeSlotController::class, 'store'])->name('classtimeslot.store');
         Route::put('/classtimeslot/{classtimeSlot}', [ClassTimeSlotController::class, 'update'])->name('classtimeslot.update');
@@ -324,7 +328,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Semester Unit Routes
     Route::middleware(['permission:manage-semester-units'])->group(function () {
-        Route::get('/semester-units', [SemesterUnitController::class, 'index'])->name('semester-units.index');
+        Route::get('/schools/sces/bbit/semester-units', [SemesterUnitController::class, 'index'])->name('semester-units.index');
         Route::post('/semester-units', [SemesterUnitController::class, 'store'])->name('semester-units.store');
     });
 });
@@ -515,39 +519,6 @@ Route::get('/debug/units-for-class/{semester_id}/{class_id}', function ($semeste
     ];
 })->middleware('auth');
 
-// Portal Preview Routes - Admin Only
-Route::middleware(['auth', 'role:Admin'])->prefix('portal-preview')->group(function () {
-    // Lecturer Portal Preview
-    Route::prefix('lecturer')->group(function () {
-        Route::get('/classes', [PortalPreviewController::class, 'lecturerClasses'])->name('portal-preview.lecturer.classes');
-        Route::get('/students', [PortalPreviewController::class, 'lecturerStudents'])->name('portal-preview.lecturer.students');
-        Route::get('/exam-schedule', [PortalPreviewController::class, 'lecturerExamSchedule'])->name('portal-preview.lecturer.exam-schedule');
-    });
-    
-    // Student Portal Preview
-    Route::prefix('student')->group(function () {
-        Route::get('/enroll', [PortalPreviewController::class, 'studentEnroll'])->name('portal-preview.student.enroll');
-        Route::get('/enrollments', [PortalPreviewController::class, 'studentEnrollments'])->name('portal-preview.student.enrollments');
-        Route::get('/timetable', [PortalPreviewController::class, 'studentTimetable'])->name('portal-preview.student.timetable');
-        Route::get('/exams', [PortalPreviewController::class, 'studentExams'])->name('portal-preview.student.exams');
-    });
-    
-    // Faculty Admin Portal Preview
-    Route::prefix('faculty-admin')->group(function () {
-        Route::get('/programs', [PortalPreviewController::class, 'facultyAdminPrograms'])->name('portal-preview.faculty-admin.programs');
-        Route::get('/units', [PortalPreviewController::class, 'facultyAdminUnits'])->name('portal-preview.faculty-admin.units');
-        Route::get('/classes', [PortalPreviewController::class, 'facultyAdminClasses'])->name('portal-preview.faculty-admin.classes');
-        Route::get('/lecturers', [PortalPreviewController::class, 'facultyAdminLecturers'])->name('portal-preview.faculty-admin.lecturers');
-    });
-    
-    // Exam Office Portal Preview
-    Route::prefix('exam-office')->group(function () {
-        Route::get('/timetables', [PortalPreviewController::class, 'examOfficeTimetables'])->name('portal-preview.exam-office.timetables');
-        Route::get('/rooms', [PortalPreviewController::class, 'examOfficeRooms'])->name('portal-preview.exam-office.rooms');
-        Route::get('/slots', [PortalPreviewController::class, 'examOfficeSlots'])->name('portal-preview.exam-office.slots');
-        Route::get('/assignments', [PortalPreviewController::class, 'examOfficeAssignments'])->name('portal-preview.exam-office.assignments');
-    });
-});
 
 // Portal Access Guide
 Route::get('/portal-access-guide', [PortalPreviewController::class, 'accessGuide'])->name('portal-access-guide')->middleware(['auth']);
