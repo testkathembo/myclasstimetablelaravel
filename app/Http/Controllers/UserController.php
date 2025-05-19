@@ -23,7 +23,7 @@ class UserController extends Controller
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('faculty', 'like', "%{$search}%");
+                    ->orWhere('schools', 'like', "%{$search}%"); // Replace faculty with schools
             })
             ->with('roles') // Load roles with user
             ->paginate($perPage);
@@ -42,12 +42,11 @@ class UserController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'faculty' => 'required|string|max:255',
+            'schools' => 'required|string|max:255', // Replace faculty with schools
             'phone' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|string|exists:roles,name',
-            'schools' => 'nullable|string',
             'programs' => 'nullable|string',
         ]);
 
@@ -56,11 +55,10 @@ class UserController extends Controller
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'email' => $validated['email'],
-            'faculty' => $validated['faculty'],
+            'schools' => $validated['schools'], // Replace faculty with schools
             'phone' => $validated['phone'],
             'code' => $validated['code'],
             'password' => Hash::make($validated['password']),
-            'schools' => $validated['schools'],
             'programs' => $validated['programs'],
         ]);
 
@@ -80,20 +78,24 @@ class UserController extends Controller
     // ✅ Update user
     public function update(Request $request, User $user)
     {
-        $request->validate([
+        $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'faculty' => 'required|string|max:255',
-            'phone' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:users,code,' . $user->id,
-            'schools' => 'nullable|string',
-            'programs' => 'nullable|string',
+            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:15',
+            'code' => 'required|string|max:50|unique:users,code,' . $user->id,
+            'schools' => 'nullable|string|max:255', // Replace faculty with schools
+            'programs' => 'nullable|string|max:255',
+            'roles' => 'required|array',
+            'roles.*' => 'string|exists:roles,name', // Ensure each role is a string
         ]);
 
-        $user->update($request->only('first_name', 'last_name', 'email', 'faculty', 'phone', 'code', 'schools', 'programs'));
+        $user->update($validated);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully.');
+        // Sync roles
+        $user->syncRoles($validated['roles']);
+
+        return redirect()->route('users.index')->with('success', 'User updated successfully!');
     }
 
     // ✅ Delete user

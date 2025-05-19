@@ -59,6 +59,20 @@ class EnrollmentController extends Controller
         ->orderBy('id', 'desc')
         ->paginate(10);
 
+        $lecturerAssignments = Enrollment::whereNotNull('lecturer_code')
+            ->with('unit:id,name')
+            ->select('unit_id', 'lecturer_code')
+            ->distinct()
+            ->get()
+            ->map(function ($assignment) {
+                return [
+                    'unit_id' => $assignment->unit_id,
+                    'unit_name' => $assignment->unit->name ?? 'N/A',
+                    'lecturer_code' => $assignment->lecturer_code,
+                    'lecturer_name' => User::where('code', $assignment->lecturer_code)->value('first_name') ?? 'N/A',
+                ];
+            });
+
         if ($enrollments->count() > 0) {
             Log::info('First enrollment data for debugging:', [
                 'id' => $enrollments[0]->id,
@@ -79,6 +93,7 @@ class EnrollmentController extends Controller
             'classes' => $classes,
             'groups' => $groups,
             'units' => $units,
+            'lecturerAssignments' => $lecturerAssignments, // Pass lecturer assignments to the frontend
         ]);
     }
 

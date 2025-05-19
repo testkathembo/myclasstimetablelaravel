@@ -31,7 +31,7 @@ interface Unit {
   name: string
   code?: string
   program?: { id: number; name: string }
-  school?: { id: number; name: string }
+  school?: { id: number; name: string } // Replace faculty with school
 }
 
 interface Student {
@@ -67,6 +67,13 @@ interface PaginatedEnrollments {
   current_page: number
 }
 
+interface LecturerAssignment {
+  unit_id: number
+  unit_name: string
+  lecturer_code: string
+  lecturer_name: string
+}
+
 const Enrollments = () => {
   const {
     enrollments,
@@ -74,6 +81,7 @@ const Enrollments = () => {
     groups = [],
     classes = [],
     units = [],
+    lecturerAssignments = [], // Add lecturer assignments from backend
     errors: pageErrors,
   } = usePage().props as {
     enrollments: PaginatedEnrollments | null
@@ -81,6 +89,7 @@ const Enrollments = () => {
     groups: Group[] | null
     classes: Class[] | null
     units: Unit[] | null
+    lecturerAssignments: LecturerAssignment[] // Add type for lecturer assignments
     errors: Record<string, string>
   }
 
@@ -97,6 +106,9 @@ const Enrollments = () => {
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+  const [assignData, setAssignData] = useState<{ unit_id: number; lecturer_code: string } | null>(null)
 
   // Display page errors if any
   useEffect(() => {
@@ -121,6 +133,18 @@ const Enrollments = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setCurrentEnrollment(null)
+    setError(null)
+  }
+
+  const handleOpenAssignModal = () => {
+    setAssignData({ unit_id: 0, lecturer_code: "" })
+    setIsAssignModalOpen(true)
+    setError(null)
+  }
+
+  const handleCloseAssignModal = () => {
+    setIsAssignModalOpen(false)
+    setAssignData(null)
     setError(null)
   }
 
@@ -244,6 +268,44 @@ const Enrollments = () => {
       setIsLoading(false)
     }
   }
+
+  const handleAssignSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (assignData) {
+      if (!assignData.unit_id) {
+        setError("Please select a unit");
+        return;
+      }
+
+      if (!assignData.lecturer_code.trim()) {
+        setError("Lecturer code is required");
+        return;
+      }
+
+      console.log("Assigning unit to lecturer:", assignData);
+
+      router.post("/assign-unit", assignData, {
+        onSuccess: () => {
+          toast.success("Unit assigned to lecturer successfully!");
+          handleCloseAssignModal();
+        },
+        onError: (errors) => {
+          console.error("Error assigning unit:", errors);
+
+          // Extract meaningful error message
+          const errorMessage =
+            errors?.response?.data?.message || // API error message
+            errors?.message || // JavaScript error message
+            "An error occurred during assignment. Please try again.";
+
+          setError(errorMessage);
+          toast.error(errorMessage); // Display error as a toast notification
+        },
+      });
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -306,6 +368,9 @@ const Enrollments = () => {
           <button onClick={handleOpenModal} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
             + Enroll Student
           </button>
+          <button onClick={handleOpenAssignModal} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Assign Unit to Lecturer
+          </button>
         </div>
         <table className="min-w-full border-collapse border border-gray-200">
           <thead className="bg-gray-100">
@@ -347,6 +412,37 @@ const Enrollments = () => {
               <tr>
                 <td colSpan={6} className="text-center py-4">
                   No enrollments found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Lecturer Assignments Section */}
+      <div className="p-6 bg-white rounded-lg shadow-md mt-6">
+        <h2 className="text-xl font-semibold mb-4">Lecturer Assignments</h2>
+        <table className="min-w-full border-collapse border border-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 border">Unit</th>
+              <th className="px-4 py-2 border">Lecturer Code</th>
+              <th className="px-4 py-2 border">Lecturer Name</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lecturerAssignments.length ? (
+              lecturerAssignments.map((assignment) => (
+                <tr key={assignment.unit_id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 border">{assignment.unit_name}</td>
+                  <td className="px-4 py-2 border">{assignment.lecturer_code}</td>
+                  <td className="px-4 py-2 border">{assignment.lecturer_name}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={3} className="text-center py-4">
+                  No lecturer assignments found.
                 </td>
               </tr>
             )}
@@ -484,6 +580,70 @@ const Enrollments = () => {
                   disabled={isLoading}
                 >
                   Enroll
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded shadow-md" style={{ width: "auto", maxWidth: "90%", minWidth: "300px" }}>
+            <h2 className="text-xl font-bold mb-4">Assign Unit to Lecturer</h2>
+            {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
+            <form onSubmit={handleAssignSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Unit</label>
+                <select
+                  value={assignData?.unit_id || ""}
+                  onChange={(e) =>
+                    setAssignData((prev) => ({
+                      ...prev!,
+                      unit_id: Number.parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="w-full border rounded p-2"
+                  required
+                >
+                  <option value="" disabled>
+                    Select a unit
+                  </option>
+                  {units?.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Lecturer Code</label>
+                <input
+                  type="text"
+                  value={assignData?.lecturer_code || ""}
+                  onChange={(e) =>
+                    setAssignData((prev) => ({
+                      ...prev!,
+                      lecturer_code: e.target.value,
+                    }))
+                  }
+                  className="w-full border rounded p-2"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={handleCloseAssignModal}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                  Assign
                 </button>
               </div>
             </form>

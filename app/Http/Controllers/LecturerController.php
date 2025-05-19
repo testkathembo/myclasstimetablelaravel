@@ -50,7 +50,7 @@ class LecturerController extends Controller
       
       // Get all enrollments for this lecturer across all semesters
       $allEnrollments = Enrollment::where('lecturer_code', $user->code)
-          ->with(['unit.faculty', 'semester'])
+          ->with(['unit.school', 'semester']) // Replace faculty with school
           ->get();
           
       // Group units by semester
@@ -77,8 +77,8 @@ class LecturerController extends Controller
                   'id' => $enrollment->unit->id,
                   'code' => $enrollment->unit->code,
                   'name' => $enrollment->unit->name,
-                  'faculty' => $enrollment->unit->faculty ? [
-                      'name' => $enrollment->unit->faculty->name
+                  'school' => $enrollment->unit->school ? [ // Replace faculty with school
+                      'name' => $enrollment->unit->school->name
                   ] : null
               ];
           }
@@ -192,7 +192,7 @@ class LecturerController extends Controller
             // First, get all enrollments for this lecturer in the selected semester
             $enrollments = Enrollment::where('lecturer_code', $user->code)
                 ->where('semester_id', $selectedSemesterId)
-                ->with(['unit.faculty', 'semester'])
+                ->with(['unit.school', 'semester']) // Replace faculty with school
                 ->get();
             
             Log::info('Enrollments found', [
@@ -213,7 +213,7 @@ class LecturerController extends Controller
             // Get the actual unit objects
             $assignedUnits = [];
             if ($unitIds->isNotEmpty()) {
-                $assignedUnits = Unit::whereIn('id', $unitIds)->with('faculty')->get();
+                $assignedUnits = Unit::whereIn('id', $unitIds)->get();
             }
             
             // Count students per unit
@@ -301,7 +301,7 @@ class LecturerController extends Controller
 
         try {
             // Get unit details
-            $unit = Unit::with('faculty')->findOrFail($unitId);
+            $unit = Unit::findOrFail($unitId);
 
             // Get the semester that this unit belongs to
             $unitSemester = Semester::findOrFail($selectedSemesterId);
@@ -414,7 +414,7 @@ class LecturerController extends Controller
           
           // Get all units assigned to this lecturer across all semesters
           $allAssignedUnits = Enrollment::where('lecturer_code', $user->code)
-              ->with('unit.faculty', 'semester')
+              ->with('unit.school', 'semester') // Replace faculty with school
               ->get();
               
           // Extract unique units with their semesters
@@ -441,7 +441,7 @@ class LecturerController extends Controller
           }
           
           // Get all units for the dropdown
-          $assignedUnits = Unit::whereIn('id', $allUnitIds)->with('faculty')->get();
+          $assignedUnits = Unit::whereIn('id', $allUnitIds)->get();
           
           // Get the selected semester (for display purposes)
           $selectedSemester = null;
@@ -673,8 +673,7 @@ class LecturerController extends Controller
       
       try {
           // Get lecturer details with related data
-          $lecturer = User::with(['faculty'])
-              ->where('id', $user->id)
+          $lecturer = User::where('id', $user->id)
               ->first();
               
           return Inertia::render('Lecturer/Profile', [

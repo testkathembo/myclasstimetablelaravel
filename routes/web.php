@@ -331,6 +331,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/schools/sces/bbit/semester-units', [SemesterUnitController::class, 'index'])->name('semester-units.index');
         Route::post('/semester-units', [SemesterUnitController::class, 'store'])->name('semester-units.store');
     });
+
+    // Assign Unit to Lecturer Route
+    Route::post('/assign-unit', [SemesterUnitController::class, 'assignUnitToLecturer'])->name('assign.unit');
 });
 
 // Student download routes

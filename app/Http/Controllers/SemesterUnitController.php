@@ -6,6 +6,7 @@ use App\Models\Unit;
 use App\Models\Semester;
 use App\Models\ClassModel;
 use App\Models\Enrollment;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -870,6 +871,37 @@ class SemesterUnitController extends Controller
             ]);
             
             return redirect()->back()->withErrors(['error' => 'Failed to bulk assign units: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Assign a unit to a lecturer.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function assignUnitToLecturer(Request $request)
+    {
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'lecturer_code' => 'required|exists:users,code',
+        ]);
+
+        try {
+            $lecturer = User::where('code', $validated['lecturer_code'])->firstOrFail();
+
+            // Update the lecturer_code in the enrollments table
+            Enrollment::where('unit_id', $validated['unit_id'])
+                ->update(['lecturer_code' => $lecturer->code]);
+
+            return redirect()->back()->with('success', 'Unit assigned to lecturer successfully!');
+        } catch (\Exception $e) {
+            Log::error('Error assigning unit to lecturer: ' . $e->getMessage(), [
+                'unit_id' => $validated['unit_id'],
+                'lecturer_code' => $validated['lecturer_code'],
+            ]);
+
+            return redirect()->back()->withErrors(['error' => 'Failed to assign unit to lecturer.']);
         }
     }
 }
