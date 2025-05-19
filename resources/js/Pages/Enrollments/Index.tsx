@@ -6,6 +6,7 @@ import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import axios from "axios"
 import { toast } from "react-hot-toast"
+import Pagination from "@/Components/Pagination" // Import the Pagination component
 
 // Define interfaces
 interface Semester {
@@ -81,7 +82,7 @@ const Enrollments = () => {
     groups = [],
     classes = [],
     units = [],
-    lecturerAssignments = [], // Add lecturer assignments from backend
+    lecturerAssignments = { data: [], links: [] }, // Default structure for pagination
     errors: pageErrors,
   } = usePage().props as {
     enrollments: PaginatedEnrollments | null
@@ -89,7 +90,19 @@ const Enrollments = () => {
     groups: Group[] | null
     classes: Class[] | null
     units: Unit[] | null
-    lecturerAssignments: LecturerAssignment[] // Add type for lecturer assignments
+    lecturerAssignments: {
+      data: {
+        unit_id: number
+        unit_name: string
+        lecturer_code: string
+        lecturer_name: string
+      }[]
+      links: {
+        url: string | null
+        label: string
+        active: boolean
+      }[]
+    }
     errors: Record<string, string>
   }
 
@@ -112,6 +125,23 @@ const Enrollments = () => {
   const [assignSemesterId, setAssignSemesterId] = useState<number | null>(null)
   const [assignClassId, setAssignClassId] = useState<number | null>(null)
   const [assignUnits, setAssignUnits] = useState<Unit[]>([]) // Units for the selected class
+
+  const [enrollmentsPage, setEnrollmentsPage] = useState(1) // State for enrollments table pagination
+  const [lecturerAssignmentsPage, setLecturerAssignmentsPage] = useState(1) // State for lecturer assignments table pagination
+
+  const handleEnrollmentsPageChange = (url: string | null) => {
+    if (url) {
+      router.get(url, {}, { preserveState: true, preserveScroll: true })
+      setEnrollmentsPage(new URL(url).searchParams.get("page") || 1)
+    }
+  }
+
+  const handleLecturerAssignmentsPageChange = (url: string | null) => {
+    if (url) {
+      router.get(url, {}, { preserveState: true, preserveScroll: true })
+      setLecturerAssignmentsPage(new URL(url).searchParams.get("page") || 1)
+    }
+  }
 
   // Display page errors if any
   useEffect(() => {
@@ -352,57 +382,63 @@ const Enrollments = () => {
   }
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (currentEnrollment) {
       // Validate form
       if (!currentEnrollment.code.trim()) {
-        setError("Student code is required")
-        return
+        setError("Student code is required");
+        return;
       }
 
       if (!currentEnrollment.semester_id) {
-        setError("Please select a semester")
-        return
+        setError("Please select a semester");
+        return;
       }
 
       if (!currentEnrollment.class_id) {
-        setError("Please select a class")
-        return
+        setError("Please select a class");
+        return;
       }
 
       if (!currentEnrollment.group_id) {
-        setError("Please select a group")
-        return
+        setError("Please select a group");
+        return;
       }
 
       if (!currentEnrollment.unit_ids.length) {
-        setError("Please select at least one unit")
-        return
+        setError("Please select at least one unit");
+        return;
       }
 
-      console.log("Submitting enrollment:", currentEnrollment)
+      // Ensure unit_ids is sent as an array
+      const formattedEnrollment = {
+        ...currentEnrollment,
+        unit_ids: currentEnrollment.unit_ids.map((id) => Number(id)), // Ensure IDs are numbers
+      };
 
-      router.post("/enrollments", currentEnrollment, {
+      console.log("Submitting enrollment:", formattedEnrollment);
+
+      router.post("/enrollments", formattedEnrollment, {
         onSuccess: () => {
-          toast.success("Student enrolled successfully!")
-          handleCloseModal()
+          toast.success("Student enrolled successfully!");
+          handleCloseModal();
         },
         onError: (errors) => {
-          console.error("Enrollment errors:", errors)
+          console.error("Enrollment errors:", errors);
           if (errors.group_id) {
-            setError(errors.group_id)
+            setError(errors.group_id);
           } else if (errors.code) {
-            setError(errors.code)
+            setError(errors.code);
           } else if (errors.error) {
-            setError(errors.error)
+            setError(errors.error);
           } else {
-            setError("An error occurred during enrollment. Please try again.")
+            setError("An error occurred during enrollment. Please try again.");
           }
         },
-      })
+      });
     }
-  }
+  };
 
   return (
     <AuthenticatedLayout>
@@ -462,6 +498,11 @@ const Enrollments = () => {
             )}
           </tbody>
         </table>
+        <Pagination
+          links={enrollments?.links}
+          onPageChange={handleEnrollmentsPageChange}
+          currentPage={enrollmentsPage}
+        />
       </div>
 
       {/* Lecturer Assignments Section */}
@@ -476,8 +517,8 @@ const Enrollments = () => {
             </tr>
           </thead>
           <tbody>
-            {lecturerAssignments.length ? (
-              lecturerAssignments.map((assignment) => (
+            {lecturerAssignments.data.length ? (
+              lecturerAssignments.data.map((assignment) => (
                 <tr key={assignment.unit_id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 border">{assignment.unit_name}</td>
                   <td className="px-4 py-2 border">{assignment.lecturer_code}</td>
@@ -493,6 +534,11 @@ const Enrollments = () => {
             )}
           </tbody>
         </table>
+        <Pagination
+          links={lecturerAssignments.links}
+          onPageChange={handleLecturerAssignmentsPageChange}
+          currentPage={lecturerAssignmentsPage}
+        />
       </div>
 
       {isModalOpen && (

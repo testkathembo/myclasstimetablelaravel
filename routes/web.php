@@ -32,6 +32,7 @@ use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\SchoolController;
 use App\Http\Controllers\ClassController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\LecturerAssignmentController;
 
 // Add other controller imports as needed
 
@@ -136,6 +137,10 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
         Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
     });
+
+    // Classroom routes
+    Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
+    Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
 
     // ClassTimetable routes
     Route::middleware(['permission:manage-classtimetables'])->group(function () {
@@ -338,6 +343,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Assign Unit to Lecturer Route
     Route::post('/assign-unit', [SemesterUnitController::class, 'assignUnitToLecturer'])->name('assign.unit');
+
+    // Lecturer Assignment Routes
+    Route::delete('/lecturer-assignments/{unitId}/{lecturerCode}', [LecturerAssignmentController::class, 'destroy'])
+        ->name('lecturer-assignments.destroy');
 });
 
 // Student download routes

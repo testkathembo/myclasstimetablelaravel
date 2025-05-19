@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from 'lucide-react'
 import { toast } from "react-hot-toast"; // Import toast
+import Pagination from "@/Components/Pagination"; // Import a reusable Pagination component
 
 interface ClassTimetable {
 id: number
@@ -918,28 +919,7 @@ Delete
 </div>
 
 {/* Pagination */}
-{/* FIXED: Changed classTimetable to classTimetables */}
-{classTimetables.links && classTimetables.links.length > 3 && (
-<div className="flex justify-center mt-4">
-<nav className="flex items-center">
-{classTimetables.links.map((link, index) => (
-<button
-key={index}
-onClick={() => {
-if (link.url) {
-router.visit(link.url)
-}
-}}
-className={`px-3 py-1 mx-1 border rounded ${
-link.active ? "bg-blue-500 text-white" : "bg-white text-gray-700"
-} ${!link.url ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
-disabled={!link.url}
-dangerouslySetInnerHTML={{ __html: link.label }}
-/>
-))}
-</nav>
-</div>
-)}
+<Pagination links={classTimetables?.links || []} /> {/* Add pagination controls */}
 </>
 ) : (
 <p className="mt-6 text-gray-600">No class timetables available yet.</p>
