@@ -155,6 +155,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/api/semesters/{semesterId}/classes/{classId}/units', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
             ->name('api.units.by-class-and-semester');
     });
+
+    Route::get('/classtimetable', function () {
+        return Inertia::render('ClassTimetables/Index'); // Ensure the path matches the file location
+    })->name('classtimetable.index');
     
     // Exams Rooms
     Route::middleware(['permission:manage-examrooms'])->group(function () {
