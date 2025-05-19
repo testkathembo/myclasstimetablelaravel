@@ -109,6 +109,9 @@ const Enrollments = () => {
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [assignData, setAssignData] = useState<{ unit_id: number; lecturer_code: string } | null>(null)
+  const [assignSemesterId, setAssignSemesterId] = useState<number | null>(null)
+  const [assignClassId, setAssignClassId] = useState<number | null>(null)
+  const [assignUnits, setAssignUnits] = useState<Unit[]>([]) // Units for the selected class
 
   // Display page errors if any
   useEffect(() => {
@@ -269,42 +272,84 @@ const Enrollments = () => {
     }
   }
 
+  const handleAssignSemesterChange = (semesterId: number) => {
+    setAssignSemesterId(semesterId)
+    setAssignClassId(null) // Reset class selection
+    setAssignUnits([]) // Reset units
+  }
+
+  const handleAssignClassChange = async (classId: number) => {
+    setAssignClassId(classId)
+    setAssignUnits([]) // Reset units
+    setError(null)
+
+    if (assignSemesterId) {
+      try {
+        const response = await axios.post(
+          "/api/units/by-class-and-semester",
+          {
+            semester_id: assignSemesterId,
+            class_id: classId,
+          },
+          {
+            headers: {
+              "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          },
+        )
+
+        if (response.data.units) {
+          setAssignUnits(response.data.units)
+        } else {
+          setAssignUnits(response.data)
+        }
+      } catch (error: any) {
+        console.error("Error fetching units for class:", error.response?.data || error.message)
+        setError("Failed to fetch units for the selected class. Please try again.")
+      }
+    } else {
+      setError("Please select a semester before selecting a class.")
+    }
+  }
+
   const handleAssignSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
     if (assignData) {
       if (!assignData.unit_id) {
-        setError("Please select a unit");
-        return;
+        setError("Please select a unit")
+        return
       }
 
       if (!assignData.lecturer_code.trim()) {
-        setError("Lecturer code is required");
-        return;
+        setError("Lecturer code is required")
+        return
       }
 
-      console.log("Assigning unit to lecturer:", assignData);
+      console.log("Assigning unit to lecturer:", assignData)
 
       router.post("/assign-unit", assignData, {
         onSuccess: () => {
-          toast.success("Unit assigned to lecturer successfully!");
-          handleCloseAssignModal();
+          toast.success("Unit assigned to lecturer successfully!")
+          handleCloseAssignModal()
         },
         onError: (errors) => {
-          console.error("Error assigning unit:", errors);
+          console.error("Error assigning unit:", errors)
 
           // Extract meaningful error message
           const errorMessage =
             errors?.response?.data?.message || // API error message
             errors?.message || // JavaScript error message
-            "An error occurred during assignment. Please try again.";
+            "An error occurred during assignment. Please try again."
 
-          setError(errorMessage);
-          toast.error(errorMessage); // Display error as a toast notification
+          setError(errorMessage)
+          toast.error(errorMessage) // Display error as a toast notification
         },
-      });
+      })
     }
-  };
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -594,6 +639,45 @@ const Enrollments = () => {
             {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
             <form onSubmit={handleAssignSubmit}>
               <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Semester</label>
+                <select
+                  value={assignSemesterId || ""}
+                  onChange={(e) => handleAssignSemesterChange(Number.parseInt(e.target.value, 10))}
+                  className="w-full border rounded p-2"
+                  required
+                >
+                  <option value="" disabled>
+                    Select a semester
+                  </option>
+                  {semesters?.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      {semester.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Class</label>
+                <select
+                  value={assignClassId || ""}
+                  onChange={(e) => handleAssignClassChange(Number.parseInt(e.target.value, 10))}
+                  className="w-full border rounded p-2"
+                  required
+                  disabled={!assignSemesterId}
+                >
+                  <option value="" disabled>
+                    Select a class
+                  </option>
+                  {classes
+                    ?.filter((cls) => cls.semester_id === assignSemesterId)
+                    .map((classItem) => (
+                      <option key={classItem.id} value={classItem.id}>
+                        {classItem.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">Unit</label>
                 <select
                   value={assignData?.unit_id || ""}
@@ -605,11 +689,12 @@ const Enrollments = () => {
                   }
                   className="w-full border rounded p-2"
                   required
+                  disabled={!assignClassId || assignUnits.length === 0}
                 >
                   <option value="" disabled>
                     Select a unit
                   </option>
-                  {units?.map((unit) => (
+                  {assignUnits.map((unit) => (
                     <option key={unit.id} value={unit.id}>
                       {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
                     </option>
