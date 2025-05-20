@@ -108,7 +108,7 @@ class EnrollmentController extends Controller
         // Validate the incoming request
         $validated = $request->validate([
             'group_id' => 'required|exists:groups,id',
-            'code' => 'required|string', // Student code
+            'code' => 'required|string|exists:users,code', // Ensure the student_code exists in the users table
             'unit_ids' => 'required|array', // Allow multiple units
             'unit_ids.*' => 'exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
@@ -184,114 +184,24 @@ class EnrollmentController extends Controller
                 'class_id' => 'required|exists:classes,id',
             ]);
 
-            Log::info('Fetching units for semester_id: ' . $validated['semester_id'] . ' and class_id: ' . $validated['class_id']);
-            
-            // Get the class details for debugging
-            $class = ClassModel::find($validated['class_id']);
-            Log::info('Class details:', [
-                'id' => $class->id,
-                'name' => $class->name
-            ]);
+            // Fetch units directly linked to the selected class and semester
+            $units = DB::table('semester_unit')
+                ->join('units', 'semester_unit.unit_id', '=', 'units.id')
+                ->where('semester_unit.semester_id', $validated['semester_id'])
+                ->where('semester_unit.class_id', $validated['class_id'])
+                ->select('units.*')
+                ->get();
 
-            // First approach: Use the relationship defined in ClassModel to get units for this class and semester
-            $classWithUnits = ClassModel::with(['units' => function($query) use ($validated) {
-                $query->whereHas('semesters', function($q) use ($validated) {
-                    $q->where('semesters.id', $validated['semester_id']);
-                });
-            }])->find($validated['class_id']);
-        
-            if ($classWithUnits && $classWithUnits->units->count() > 0) {
-                Log::info('Found ' . $classWithUnits->units->count() . ' units using relationship');
-                return response()->json($classWithUnits->units);
+            if ($units->isEmpty()) {
+                return response()->json([
+                    'error' => 'No units found for the selected class and semester.',
+                ], 404);
             }
-        
-            // Second approach: Query the semester_unit table directly
-            $unitIds = DB::table('semester_unit')
-                ->where('semester_id', $validated['semester_id'])
-                ->where('class_id', $validated['class_id'])
-                ->pluck('unit_id')
-                ->toArray();
-            
-            if (!empty($unitIds)) {
-                $units = Unit::with(['program', 'school'])
-                    ->whereIn('id', $unitIds)
-                    ->get();
-                
-                if ($units->count() > 0) {
-                    Log::info('Found ' . $units->count() . ' units using direct query');
-                    return response()->json($units);
-                }
-            }
-            
-            // Third approach: Look for units that have been previously enrolled for this class
-            $enrolledUnitIds = DB::table('enrollments')
-                ->join('groups', 'enrollments.group_id', '=', 'groups.id')
-                ->where('groups.class_id', $validated['class_id'])
-                ->where('enrollments.semester_id', $validated['semester_id'])
-                ->distinct()
-                ->pluck('enrollments.unit_id')
-                ->toArray();
-        
-            if (!empty($enrolledUnitIds)) {
-                $units = Unit::with(['program', 'school'])
-                    ->whereIn('id', $enrolledUnitIds)
-                    ->get();
-            
-                if ($units->count() > 0) {
-                    Log::info('Found ' . $units->count() . ' units from previous enrollments');
-                    return response()->json($units);
-                }
-            }
-        
-            // Fourth approach: Try to find units based on class name pattern matching
-            if (preg_match('/(\w+)\s+(\d+\.\d+)/', $class->name, $matches)) {
-                $program = $matches[1]; // e.g., "BBIT"
-                $level = $matches[2];   // e.g., "1.1"
-            
-                // Extract the major level (e.g., "1" from "1.1")
-                $majorLevel = explode('.', $level)[0];
-            
-                try {
-                    // Check if the 'code' column exists
-                    if (Schema::hasColumn('units', 'code')) {
-                        // Look for units with codes that might match this class level
-                        $query = Unit::with(['program', 'school']);
-                    
-                        $query->where(function($q) use ($program, $level, $majorLevel) {
-                            // Look for units with codes that match this specific class
-                            $q->where('code', 'like', $program . $level . '%')
-                              // Or units with codes that match this program and level
-                              ->orWhere('code', 'like', $program . '%' . str_replace('.', '', $level) . '%')
-                              // Or units with codes that match common patterns for this level
-                              ->orWhere('code', 'like', $program . $majorLevel . '%');
-                        });
-                    
-                        $units = $query->get();
-                    
-                        if ($units->count() > 0) {
-                            Log::info('Found ' . $units->count() . ' units using class level pattern matching');
-                            return response()->json($units);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Error in pattern matching approach: ' . $e->getMessage());
-                }
-            }
-        
-            // Last resort: Return all units with a warning
-            $units = Unit::with(['program', 'school'])->get();
-        
-            Log::warning('No specific units found for class ' . $class->name . '. Returning all ' . $units->count() . ' units.');
-        
-            return response()->json([
-                'units' => $units,
-                'warning' => 'No specific units found for this class. Showing all units for the semester.'
-            ]);
-        
+
+            return response()->json($units);
         } catch (\Exception $e) {
-            Log::error('Error in getUnitsByClassAndSemester: ' . $e->getMessage());
-            Log::error($e->getTraceAsString());
-            return response()->json(['error' => 'Failed to fetch units: ' . $e->getMessage()], 500);
+            Log::error('Error fetching units for class and semester: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch units. Please try again.'], 500);
         }
     }
     

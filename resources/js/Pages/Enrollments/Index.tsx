@@ -628,33 +628,71 @@ const Enrollments = () => {
                 {isLoading ? (
                   <div className="text-center py-2">Loading units...</div>
                 ) : (
-                  <select
-                    multiple // Allow multiple selection
-                    value={currentEnrollment?.unit_ids || []}
-                    onChange={(e) =>
-                      setCurrentEnrollment((prev) => ({
-                        ...prev!,
-                        unit_ids: Array.from(e.target.selectedOptions, (option) =>
-                          Number.parseInt(option.value, 10),
-                        ),
-                      }))
-                    }
-                    className="w-full border rounded p-2"
-                    required
-                    disabled={!currentEnrollment?.class_id || isLoading}
-                  >
-                    {filteredUnits.length > 0 ? (
+                    <div>
+                    <div className="flex items-center mb-2">
+                      <input
+                      type="checkbox"
+                      id="selectAllUnits"
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                        setCurrentEnrollment((prev) => ({
+                          ...prev!,
+                          unit_ids: filteredUnits.map((unit) => unit.id),
+                        }))
+                        } else {
+                        setCurrentEnrollment((prev) => ({
+                          ...prev!,
+                          unit_ids: [],
+                        }))
+                        }
+                      }}
+                      checked={
+                        filteredUnits.length > 0 &&
+                        currentEnrollment?.unit_ids.length === filteredUnits.length
+                      }
+                      disabled={!filteredUnits.length || isLoading}
+                      />
+                      <label htmlFor="selectAllUnits" className="ml-2 text-sm">
+                      Select All Units
+                      </label>
+                    </div>
+                    <div className="border rounded p-2 max-h-40 overflow-y-auto">
+                      {filteredUnits.length > 0 ? (
                       filteredUnits.map((unit) => (
-                        <option key={unit.id} value={unit.id}>
+                        <div key={unit.id} className="flex items-center mb-1">
+                        <input
+                          type="checkbox"
+                          id={`unit-${unit.id}`}
+                          value={unit.id}
+                          onChange={(e) => {
+                          const unitId = Number.parseInt(e.target.value, 10)
+                          if (e.target.checked) {
+                            setCurrentEnrollment((prev) => ({
+                            ...prev!,
+                            unit_ids: [...(prev?.unit_ids || []), unitId],
+                            }))
+                          } else {
+                            setCurrentEnrollment((prev) => ({
+                            ...prev!,
+                            unit_ids: (prev?.unit_ids || []).filter((id) => id !== unitId),
+                            }))
+                          }
+                          }}
+                          checked={currentEnrollment?.unit_ids.includes(unit.id)}
+                          disabled={isLoading}
+                        />
+                        <label htmlFor={`unit-${unit.id}`} className="ml-2 text-sm">
                           {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
-                        </option>
+                        </label>
+                        </div>
                       ))
-                    ) : (
-                      <option value="" disabled>
+                      ) : (
+                      <div className="text-sm text-gray-500">
                         No units found for this class and semester.
-                      </option>
-                    )}
-                  </select>
+                      </div>
+                      )}
+                    </div>
+                    </div>
                 )}
               </div>
               <div className="flex justify-end space-x-2">
