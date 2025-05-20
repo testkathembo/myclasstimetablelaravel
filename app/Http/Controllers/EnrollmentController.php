@@ -105,19 +105,46 @@ class EnrollmentController extends Controller
      */
     public function store(Request $request)
     {
+        // Validate the incoming request
         $validated = $request->validate([
             'group_id' => 'required|exists:groups,id',
             'code' => 'required|string', // Student code
-            'unit_ids' => 'required|array', // Validate as an array
-            'unit_ids.*' => 'exists:units,id', // Ensure each ID exists in the units table
+            'unit_ids' => 'required|array', // Allow multiple units
+            'unit_ids.*' => 'exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
         ]);
 
-        // Process each unit_id in the array
+        // Check if the group exists
+        $group = Group::findOrFail($validated['group_id']);
+
+        // Count the number of unique students already enrolled in the group
+        $currentEnrollmentCount = Enrollment::where('group_id', $group->id)
+            ->distinct('student_code')
+            ->count('student_code');
+
+        // Check if adding this student would exceed the group's capacity
+        if ($currentEnrollmentCount >= $group->capacity) {
+            return redirect()->back()->withErrors([
+                'group_id' => "This group is already full. Capacity: {$group->capacity}",
+            ]);
+        }
+
+        // Check if the student is already enrolled in the group
+        $studentAlreadyEnrolled = Enrollment::where('group_id', $group->id)
+            ->where('student_code', $validated['code'])
+            ->exists();
+
+        if ($studentAlreadyEnrolled) {
+            return redirect()->back()->withErrors([
+                'code' => 'This student is already enrolled in the selected group.',
+            ]);
+        }
+
+        // Create enrollments for each unit
         foreach ($validated['unit_ids'] as $unitId) {
             Enrollment::create([
                 'student_code' => $validated['code'],
-                'group_id' => $validated['group_id'],
+                'group_id' => $group->id,
                 'unit_id' => $unitId,
                 'semester_id' => $validated['semester_id'],
             ]);

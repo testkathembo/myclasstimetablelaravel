@@ -332,8 +332,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Classes and Groups routes
     Route::resource('classes', ClassController::class);
-    Route::resource('groups', GroupController::class);
+    Route::resource('schools/sces/bbit/groups', GroupController::class);
     Route::resource('enrollments', EnrollmentController::class);
+    Route::resource('groups', GroupController::class);
 
     // Semester Unit Routes
     Route::middleware(['permission:manage-semester-units'])->group(function () {
