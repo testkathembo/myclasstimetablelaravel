@@ -17,6 +17,8 @@ class Semester extends Model
     protected $fillable = [
         'name',
         'is_active',
+        'start_date',
+        'end_date',
         // Add any other fields your semester model has
     ];
 

@@ -142,7 +142,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Semesters management
     Route::middleware(['permission:manage-semesters'])->group(function () {
-        Route::resource('semesters', SemesterController::class);
+        Route::get('/schools/sces/bbit/semesters', [SemesterController::class, 'index'])->name('units.index');
         Route::get('/semesters/{semester}/edit', [SemesterController::class, 'edit'])->name('semesters.edit');
         Route::match(['PUT', 'PATCH'], '/semesters/{semester}', [SemesterController::class, 'update'])->name('semesters.update');
         Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
@@ -252,7 +252,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Programs management
     Route::middleware(['permission:manage-programs'])->group(function () {
-        Route::get('/programs', [ProgramController::class, 'index'])->name('programs.index');
+        Route::get('/schools/sces/bbit/programs', [ProgramController::class, 'index'])->name('programs.index');
         Route::get('/programs/create', [ProgramController::class, 'create'])->name('programs.create');
         Route::post('/programs', [ProgramController::class, 'store'])->name('programs.store');
         Route::get('/programs/{program}', [ProgramController::class, 'show'])->name('programs.show');

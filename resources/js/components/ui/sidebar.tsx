@@ -114,11 +114,11 @@ export default function Sidebar() {
               link: "/schools/sces/bbit/examtimetable",
             },
             {
-              name: "Enrollments",
-              icon: <ClipboardList className="mr-3 h-5 w-5" />,
+              name: "Manage Enrollments",
+              icon: <UserPlus className="mr-3 h-5 w-5" />,
               link: "/schools/sces/bbit/enrollments",
             },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/units" },
+            
             {
               name: "Class Time Slots",
               icon: <Clock className="mr-3 h-5 w-5" />,
@@ -131,11 +131,7 @@ export default function Sidebar() {
               icon: <BookMarked className="mr-3 h-5 w-5" />,
               link: "/schools/sces/bbit/semester-units",
             },
-            {
-              name: "Manage Enrollments",
-              icon: <UserPlus className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bbit/enrollments",
-            },
+            
             { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/semesters" },
             { name: "Programs", icon: <GraduationCap className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/programs" },
             { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/units" },
