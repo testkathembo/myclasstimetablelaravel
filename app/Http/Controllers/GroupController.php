@@ -46,8 +46,28 @@ class GroupController extends Controller
 
     public function destroy(Group $group)
     {
-        $group->delete();
+        try {
+            $group->delete();
 
-        return redirect()->back()->with('success', 'Group deleted successfully!');
+            // Return JSON response for AJAX requests
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Group deleted successfully!',
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Group deleted successfully!');
+        } catch (\Exception $e) {
+            // Return JSON error response for AJAX requests
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to delete group. Please try again.',
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', 'Failed to delete group. Please try again.');
+        }
     }
 }

@@ -22,6 +22,7 @@ class Unit extends Model
         'program_id',
         'school_id',
         'credits',
+        'credit_hours', // Ensure this is included
         'is_active',
     ];
 

@@ -91,24 +91,16 @@ const Groups = () => {
 
     const deleteGroup = async (groupId: number) => {
         try {
-            // Get CSRF token from meta tag
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            // Close the modal before refreshing the page
+            handleCloseModal();
 
-            if (!csrfToken) {
-                throw new Error("CSRF token not found");
-            }
-
-            // Send DELETE request with CSRF token
-            await axios.delete(`/groups/${groupId}`, {
-                headers: {
-                    "X-CSRF-TOKEN": csrfToken,
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                },
-            });
+            // Send DELETE request
+            await axios.delete(`/groups/${groupId}`);
 
             alert("Group deleted successfully!");
-            handleCloseModal();
+
+            // Reload the page to reflect changes
+            router.reload();
         } catch (error) {
             console.error("Error deleting group:", error);
             alert("Failed to delete group. Please try again.");

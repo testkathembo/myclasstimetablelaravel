@@ -114,10 +114,13 @@ const Classes = () => {
                     >
                         + Add Class
                     </button>
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        router.get('/classes', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
-                    }} className="flex items-center space-x-2">
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            router.get('/classes', { search: searchQuery, per_page: itemsPerPage }, { preserveState: true });
+                        }}
+                        className="flex items-center space-x-2"
+                    >
                         <input
                             type="text"
                             value={searchQuery}

@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\CarStickerApplicationController;
+
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\FacultyController;
@@ -29,23 +29,20 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ClassController;
 use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\ClassTimetableController;
+use App\Http\Controllers\ClassTimeSlotController;
 use App\Http\Controllers\ExamOfficeController;
 use App\Http\Controllers\ExamroomController;
 use App\Http\Controllers\ExamTimetableController;
 use App\Http\Controllers\StaffDashboardController;
+use App\Http\Controllers\UnitController;
 use Carbon\Carbon;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Modules\CarStickers\App\Http\Controllers\CarStickerApplications;
-use Modules\CarStickers\App\Http\Controllers\CarStickersDashboardController;
-use Modules\CarStickers\App\Http\Controllers\StickerController;
-use Modules\CarStickers\App\Http\Controllers\CarStickersController;
-use Modules\VisitorManagement\App\Http\Controllers\VisitorController;
-use Modules\VisitorManagement\App\Http\Controllers\VisitorChartController;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\PortalPreviewController;
+use Illuminate\Http\Request;
 
 $moduleRoutes = glob(base_path('Modules/*/routes/web.php'));
 
@@ -64,17 +61,16 @@ Route::get('/test-login', function () {
     ]);
 });
 
-// Unified Authentication Routes - Using LoginController for both regular and LDAP
-Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
-Route::post('/login', [AuthenticatedSessionController::class, 'store']);
-Route::get('/ldap-login', [AuthenticatedSessionController::class, 'create'])->name('ldap.login');
-Route::post('/ldap-login', [AuthenticatedSessionController::class, 'store']);
-Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
-Route::post('/ldap-logout', [AuthenticatedSessionController::class, 'destroy'])->name('ldap.logout');
+// Debug route to log all incoming requests
+Route::any('/debug', function (Request $request) {
+    \Log::info('Request received', [
+        'method' => $request->method(),
+        'uri' => $request->path(),
+    ]);
+    return response()->json(['message' => 'Debug route']);
+});
 
-// Public routes
-Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::post('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+// Unified Authentication Routes - Using LoginController for both regular and LDAP
 require __DIR__.'/auth.php';
 
 // Authenticated routes
@@ -122,7 +118,7 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
         Route::get('/users/{user}/edit-role', [UserController::class, 'editRole'])->name('users.editRole');
-        Route::put('/users/{user}/update-role', [UserController::class, 'updateRole'])->name('users.updateRole');
+        Route::put('/users/{user}', [UserController::class, 'updateRole'])->name('users.updateRole');
     });
 
     // Schools management
@@ -349,7 +345,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/schools', [SchoolController::class, 'index'])->name('schools.index');
 
     // Classes and Groups routes
-    Route::resource('classes', ClassController::class);
+    Route::resource('/schools/sces/bbit/classes', ClassController::class);
     Route::resource('schools/sces/bbit/groups', GroupController::class);
     Route::resource('enrollments', EnrollmentController::class);
     Route::resource('groups', GroupController::class);
@@ -441,6 +437,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Portal Access Guide
     Route::get('/portal-access-guide', [PortalPreviewController::class, 'accessGuide'])->name('portal-access-guide')->middleware(['auth']);
+
+    Route::resource('units', UnitController::class);
+    Route::resource('classes', ClassController::class);
+    Route::resource('groups', GroupController::class);
 });
 
 // Admin Routes - Admin role bypasses permission checks
@@ -549,6 +549,9 @@ Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(functio
 Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
     Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
 });
+
+// Example: Update the route to accept POST requests
+Route::post('/classes', [ClassController::class, 'store'])->name('classes.store');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

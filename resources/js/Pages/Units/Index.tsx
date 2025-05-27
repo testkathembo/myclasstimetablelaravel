@@ -69,13 +69,15 @@ const Units = () => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        console.log('Submitting:', currentUnit); // Debug the currentUnit object
+
         if (modalType === 'create') {
             if (currentUnit) {
                 router.post('/units', {
                     name: currentUnit.name,
                     code: currentUnit.code,
-                    credit_hours: currentUnit.credit_hours,
-                    program_id: currentUnit.program_id, // Ensure program_id is sent
+                    credit_hours: currentUnit.credit_hours, // Ensure this field is sent
+                    program_id: currentUnit.program_id,
                 }, {
                     onSuccess: () => {
                         alert('Unit created successfully!');
@@ -90,8 +92,8 @@ const Units = () => {
             router.put(`/units/${currentUnit.id}`, {
                 name: currentUnit.name,
                 code: currentUnit.code,
-                credit_hours: currentUnit.credit_hours,
-                program_id: currentUnit.program_id, // Ensure program_id is sent
+                credit_hours: currentUnit.credit_hours, // Ensure this field is sent
+                program_id: currentUnit.program_id,
             }, {
                 onSuccess: () => {
                     alert('Unit updated successfully!');

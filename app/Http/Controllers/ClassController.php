@@ -36,6 +36,8 @@ class ClassController extends Controller
 
     public function update(Request $request, ClassModel $class)
     {
+        \Log::info('Updating class:', $request->all());
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'semester_id' => 'required|exists:semesters,id',
@@ -49,6 +51,8 @@ class ClassController extends Controller
 
     public function destroy(ClassModel $class)
     {
+        \Log::info('Deleting class:', ['id' => $class->id]);
+
         $class->delete();
 
         return redirect()->back()->with('success', 'Class deleted successfully!');
