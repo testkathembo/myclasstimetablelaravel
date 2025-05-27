@@ -658,7 +658,6 @@ class ClassTimetableController extends Controller
         // Handle both GET (query parameters) and POST (request body) methods
         $classId = $request->input('class_id') ?? $request->get('class_id');
         $semesterId = $request->input('semester_id') ?? $request->get('semester_id');
-        $groupId = $request->input('group_id') ?? $request->get('group_id'); // Optional group filter
 
         // Validate the input
         if (!$classId) {
@@ -693,33 +692,13 @@ class ClassTimetableController extends Controller
             return response()->json(['error' => 'Semester not found.'], 404);
         }
 
-        // Check if group exists (if provided)
-        if ($groupId) {
-            $group = Group::find($groupId);
-            if (!$group) {
-                \Log::warning('Group not found', ['group_id' => $groupId]);
-                return response()->json(['error' => 'Group not found.'], 404);
-            }
-            
-            // Verify group belongs to the class
-            if ($group->class_id != $classId) {
-                \Log::warning('Group does not belong to class', [
-                    'group_id' => $groupId,
-                    'class_id' => $classId,
-                    'group_class_id' => $group->class_id
-                ]);
-                return response()->json(['error' => 'Group does not belong to the selected class.'], 400);
-            }
-        }
-
         \Log::info('Fetching units for class', [
             'class_id' => $classId,
             'semester_id' => $semesterId,
-            'group_id' => $groupId,
             'method' => $request->method()
         ]);
 
-        // First, try using the semester_unit pivot table (same as enrollment system)
+        // Try using the semester_unit pivot table first (same as enrollment system)
         $hasSemesterUnitTable = DB::getSchemaBuilder()->hasTable('semester_unit');
         
         if ($hasSemesterUnitTable) {
@@ -728,23 +707,17 @@ class ClassTimetableController extends Controller
         
             if (in_array('class_id', $semesterUnitColumns)) {
                 // Use the same approach as enrollment system
-                $query = DB::table('semester_unit')
+                $units = DB::table('semester_unit')
                     ->join('units', 'semester_unit.unit_id', '=', 'units.id')
                     ->where('semester_unit.semester_id', $semesterId)
-                    ->where('semester_unit.class_id', $classId);
-                
-                // Add group filter if provided and if semester_unit has group_id column
-                if ($groupId && in_array('group_id', $semesterUnitColumns)) {
-                    $query->where('semester_unit.group_id', $groupId);
-                }
-                
-                $units = $query->select('units.id', 'units.name', 'units.code')->get();
+                    ->where('semester_unit.class_id', $classId)
+                    ->select('units.id', 'units.name', 'units.code')
+                    ->get();
                 
                 \Log::info('Units fetched from semester_unit table', [
                     'units_count' => $units->count(),
                     'class_id' => $classId,
-                    'semester_id' => $semesterId,
-                    'group_id' => $groupId
+                    'semester_id' => $semesterId
                 ]);
             } else {
                 // Fallback: semester_unit table exists but no class_id column
@@ -760,91 +733,59 @@ class ClassTimetableController extends Controller
                 ]);
             }
         } else {
-            // If group is specified, use group_unit relationship
-            if ($groupId) {
-                // Check if group_unit pivot table exists
-                if (DB::getSchemaBuilder()->hasTable('group_unit')) {
-                    $units = DB::table('group_unit')
-                        ->join('units', 'group_unit.unit_id', '=', 'units.id')
-                        ->where('group_unit.group_id', $groupId)
-                        ->select('units.id', 'units.name', 'units.code')
-                        ->get();
-                    
-                    \Log::info('Units fetched from group_unit table', [
-                        'units_count' => $units->count(),
-                        'group_id' => $groupId
-                    ]);
-                } else {
-                    // Fallback: Check if units table has direct group_id column
-                    $unitColumns = DB::getSchemaBuilder()->getColumnListing('units');
-                    
-                    if (in_array('group_id', $unitColumns)) {
-                        $units = DB::table('units')
-                            ->where('group_id', $groupId)
-                            ->select('id', 'name', 'code')
-                            ->get();
-                    } else {
-                        $units = collect(); // Empty collection
-                    }
-                }
+            // Fallback: Check if units table has direct class_id and semester_id columns
+            $unitColumns = DB::getSchemaBuilder()->getColumnListing('units');
+        
+            if (in_array('class_id', $unitColumns) && in_array('semester_id', $unitColumns)) {
+                // Direct query on units table
+                $units = DB::table('units')
+                    ->where('semester_id', $semesterId)
+                    ->where('class_id', $classId)
+                    ->select('id', 'name', 'code')
+                    ->get();
+                
+                \Log::info('Units fetched from units table directly', [
+                    'units_count' => $units->count(),
+                    'class_id' => $classId,
+                    'semester_id' => $semesterId
+                ]);
             } else {
-                // No group specified, get units by class
-                $unitColumns = DB::getSchemaBuilder()->getColumnListing('units');
-            
-                if (in_array('class_id', $unitColumns) && in_array('semester_id', $unitColumns)) {
-                    // Direct query on units table
-                    $units = DB::table('units')
-                        ->where('semester_id', $semesterId)
-                        ->where('class_id', $classId)
-                        ->select('id', 'name', 'code')
-                        ->get();
-                    
-                    \Log::info('Units fetched from units table directly', [
-                        'units_count' => $units->count(),
-                        'class_id' => $classId,
-                        'semester_id' => $semesterId
-                    ]);
-                } else {
-                    // Last fallback: Get units through group_unit relationships for all groups in the class
-                    $units = DB::table('groups')
-                        ->join('group_unit', 'groups.id', '=', 'group_unit.group_id')
-                        ->join('units', 'group_unit.unit_id', '=', 'units.id')
-                        ->where('groups.class_id', $classId)
-                        ->select('units.id', 'units.name', 'units.code')
-                        ->distinct()
-                        ->get();
-                    
-                    \Log::info('Units fetched through group_unit relationships', [
-                        'units_count' => $units->count(),
-                        'class_id' => $classId
-                    ]);
-                }
+                // Last fallback: Get units through group_unit relationships for all groups in the class
+                $units = DB::table('groups')
+                    ->join('group_unit', 'groups.id', '=', 'group_unit.group_id')
+                    ->join('units', 'group_unit.unit_id', '=', 'units.id')
+                    ->where('groups.class_id', $classId)
+                    ->select('units.id', 'units.name', 'units.code')
+                    ->distinct()
+                    ->get();
+                
+                \Log::info('Units fetched through group_unit relationships', [
+                    'units_count' => $units->count(),
+                    'class_id' => $classId
+                ]);
             }
         }
 
         if ($units->isEmpty()) {
-            $errorMessage = $groupId 
-                ? 'No units found for the selected group in this semester.'
-                : 'No units found for the selected class in this semester.';
-            
-            \Log::warning('No units found', [
+            \Log::warning('No units found for class', [
                 'class_id' => $classId,
                 'semester_id' => $semesterId,
-                'group_id' => $groupId,
                 'class_name' => $class->name
             ]);
-            return response()->json(['error' => $errorMessage], 404);
+            return response()->json(['error' => 'No units found for the selected class in this semester.'], 404);
         }
 
         // Enhance units with student count and lecturer information
-        $enhancedUnits = $units->map(function ($unit) use ($semesterId, $groupId) {
-            // Get student count for this unit in the specified semester
+        // Get total counts for the class (not filtered by group)
+        $enhancedUnits = $units->map(function ($unit) use ($semesterId, $classId) {
+            // Get student count for this unit in the specified semester and class
             $enrollmentQuery = Enrollment::where('unit_id', $unit->id)
                 ->where('semester_id', $semesterId);
             
-            // Filter by group if specified
-            if ($groupId) {
-                $enrollmentQuery->where('group_id', $groupId);
+            // If enrollments table has class_id, filter by it
+            $enrollmentColumns = DB::getSchemaBuilder()->getColumnListing('enrollments');
+            if (in_array('class_id', $enrollmentColumns)) {
+                $enrollmentQuery->where('class_id', $classId);
             }
             
             $enrollments = $enrollmentQuery->get();
@@ -872,8 +813,7 @@ class ClassTimetableController extends Controller
         \Log::info('Units fetched successfully for class', [
             'count' => $enhancedUnits->count(),
             'class_id' => $classId,
-            'semester_id' => $semesterId,
-            'group_id' => $groupId
+            'semester_id' => $semesterId
         ]);
 
         return response()->json($enhancedUnits);
@@ -882,7 +822,6 @@ class ClassTimetableController extends Controller
         \Log::error('Error fetching units for class: ' . $e->getMessage(), [
             'class_id' => $request->input('class_id') ?? $request->get('class_id'),
             'semester_id' => $request->input('semester_id') ?? $request->get('semester_id'),
-            'group_id' => $request->input('group_id') ?? $request->get('group_id'),
             'method' => $request->method(),
             'trace' => $e->getTraceAsString(),
         ]);

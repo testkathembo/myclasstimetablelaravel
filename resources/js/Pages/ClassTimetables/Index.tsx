@@ -465,7 +465,7 @@ const ClassTimetable = () => {
     setFormState((prev) => ({
       ...prev!,
       class_id: classId,
-      group_id: 0,
+      group_id: 0, // Reset group selection
       unit_id: 0,
       unit_code: "",
       unit_name: "",
@@ -473,16 +473,15 @@ const ClassTimetable = () => {
       lecturer: "",
     }))
 
-    // Filter groups based on the selected class
+    // Simple fetch of groups for the selected class (no unit filtering)
     const filteredGroupsForClass = groups.filter((group) => group.class_id === classId)
     setFilteredGroups(filteredGroupsForClass)
 
-    // Fetch units directly for the selected class (without group filter)
+    // Fetch ALL units for the selected class (regardless of group)
     setIsLoading(true)
     setErrorMessage(null)
 
     try {
-      // Use the new API endpoint to fetch units by class
       const response = await axios.get("/api/units/by-class", {
         params: {
           class_id: classId,
@@ -512,74 +511,16 @@ const ClassTimetable = () => {
     }
   }
 
-  const handleGroupChange = async (groupId: number) => {
+  const handleGroupChange = (groupId: number) => {
     if (!formState) return
 
+    // Simple group selection - doesn't affect unit filtering
     setFormState((prev) => ({
       ...prev!,
       group_id: groupId,
-      unit_id: 0,
-      unit_code: "",
-      unit_name: "",
-      no: 0,
-      lecturer: "",
     }))
 
-    setIsLoading(true)
-    setErrorMessage(null)
-
-    try {
-      // If a group is selected, fetch units for that specific group
-      if (groupId > 0) {
-        // Use the group-specific API endpoint
-        const response = await axios.post("/api/units/by-group-or-class", {
-          group_id: groupId,
-          semester_id: formState.semester_id,
-        })
-
-        if (response.data && response.data.length > 0) {
-          const unitsWithDetails = response.data.map((unit: any) => ({
-            ...unit,
-            student_count: unit.student_count || 0,
-            lecturer_name: unit.lecturer_name || "",
-          }))
-
-          setFilteredUnits(unitsWithDetails)
-          setErrorMessage(null)
-        } else {
-          setFilteredUnits([])
-          setErrorMessage("No units found for the selected group in this semester.")
-        }
-      } else {
-        // If no group selected (group_id = 0), fetch all units for the class
-        const response = await axios.get("/api/units/by-class", {
-          params: {
-            class_id: formState.class_id,
-            semester_id: formState.semester_id,
-          },
-        })
-
-        if (response.data && response.data.length > 0) {
-          const unitsWithDetails = response.data.map((unit: any) => ({
-            ...unit,
-            student_count: unit.student_count || 0,
-            lecturer_name: unit.lecturer_name || "",
-          }))
-
-          setFilteredUnits(unitsWithDetails)
-          setErrorMessage(null)
-        } else {
-          setFilteredUnits([])
-          setErrorMessage("No units found for the selected class in this semester.")
-        }
-      }
-    } catch (error: any) {
-      console.error("Error fetching units for group:", error.response?.data || error.message)
-      setErrorMessage("Failed to fetch units for the selected group. Please try again.")
-      setFilteredUnits([])
-    } finally {
-      setIsLoading(false)
-    }
+    // No need to refetch units - group selection is independent
   }
 
   const handleUnitChange = (unitId: number) => {
@@ -1023,7 +964,7 @@ const ClassTimetable = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Group{" "}
                       <span className="text-sm text-gray-500">
-                        (Optional - Leave empty to show all units for the class)
+                        (Optional - Select which group this timetable is for)
                       </span>
                     </label>
                     <select
@@ -1032,7 +973,7 @@ const ClassTimetable = () => {
                       className="w-full border rounded p-2 mb-3"
                       disabled={!formState.class_id}
                     >
-                      <option value="">All Groups (Show all units for this class)</option>
+                      <option value="">No specific group (applies to all groups)</option>
                       {filteredGroups.map((group) => (
                         <option key={group.id} value={group.id}>
                           {group.name}
@@ -1040,13 +981,13 @@ const ClassTimetable = () => {
                       ))}
                     </select>
 
-                    {/* Show info about current selection */}
+                    {/* Update the info section */}
                     {formState.class_id && (
                       <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
                         <p className="text-blue-700">
                           {formState.group_id
-                            ? `Showing units for ${classes.find((c) => c.id === formState.class_id)?.name} - Group ${filteredGroups.find((g) => g.id === formState.group_id)?.name}`
-                            : `Showing all units for ${classes.find((c) => c.id === formState.class_id)?.name} (all groups)`}
+                            ? `This timetable will be assigned to ${classes.find((c) => c.id === formState.class_id)?.name} - Group ${filteredGroups.find((g) => g.id === formState.group_id)?.name}`
+                            : `This timetable will apply to all groups in ${classes.find((c) => c.id === formState.class_id)?.name}`}
                         </p>
                       </div>
                     )}
