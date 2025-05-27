@@ -64,9 +64,29 @@ class ClassroomController extends Controller
 
     public function destroy(Classroom $classroom)
     {
-        $classroom->delete();
-
-        return redirect()->route('classrooms.index')
-                         ->with('success', 'Classroom deleted successfully.');
+        try {
+            $classroom->delete();
+            
+            // Return JSON response for AJAX requests
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Classroom deleted successfully!'
+                ]);
+            }
+            
+            return redirect()->back()->with('success', 'Classroom deleted successfully!');
+            
+        } catch (\Exception $e) {
+            // Return JSON error response for AJAX requests
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to delete classroom. Please try again.'
+                ], 500);
+            }
+            
+            return redirect()->back()->with('error', 'Failed to delete classroom. Please try again.');
+        }
     }
 }

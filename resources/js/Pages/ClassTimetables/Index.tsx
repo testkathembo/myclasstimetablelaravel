@@ -104,6 +104,8 @@ unit_name?: string
 classtimeslot_id?: number
 lecturer_id?: number | null
 lecturer_name?: string | null
+class_id?: number
+group_id?: number
 }
 
 // Helper function to ensure time is in H:i format
@@ -213,6 +215,8 @@ classrooms = [],
 classtimeSlots = [],
 units = [],
 lecturers = [],
+classes = [],
+groups = [],
 } = usePage().props as unknown as {
 classTimetables: PaginatedClassTimetables
 perPage: number
@@ -223,6 +227,8 @@ classrooms: Classroom[]
 classtimeSlots: ClassTimeSlot[]
 units: Unit[]
 lecturers: Lecturer[]
+classes: { id: number; name: string }[]
+groups: { id: number; name: string; class_id: number }[]
 can: {
 create: boolean
 edit: boolean
@@ -246,6 +252,7 @@ const [conflictWarning, setConflictWarning] = useState<string | null>(null)
 const [isLoading, setIsLoading] = useState(false)
 const [errorMessage, setErrorMessage] = useState<string | null>(null)
 const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
+const [filteredGroups, setFilteredGroups] = useState<{ id: number; name: string; class_id: number }[]>([])
 
 // Debug data received from server
 useEffect(() => {
@@ -309,6 +316,8 @@ unit_name: "",
 classtimeslot_id: 0,
 lecturer_id: null,
 lecturer_name: "",
+class_id: 0,
+group_id: 0,
 })
 // Reset filtered units
 setFilteredUnits([])
@@ -336,6 +345,8 @@ unit_id: unit?.id || 0,
 classtimeslot_id: classtimeSlot?.id || 0,
 lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
 lecturer_name: unitEnrollment?.lecturer_name || "",
+class_id: classtimetable.class_id || 0,
+group_id: classtimetable.group_id || 0,
 })
 
 // Filter units for the selected semester
@@ -347,6 +358,12 @@ setFilteredUnits(semesterUnits)
 if (unit) {
 findLecturersForUnit(unit.id, classtimetable.semester_id)
 }
+}
+
+// Filter groups for the selected class
+if (classtimetable.class_id) {
+const filteredGroups = groups.filter((group) => group.class_id === classtimetable.class_id)
+setFilteredGroups(filteredGroups)
 }
 }
 
@@ -362,6 +379,7 @@ setCapacityWarning(null)
 setConflictWarning(null)
 setErrorMessage(null)
 setUnitLecturers([])
+setFilteredGroups([])
 }
 
 const handleDelete = async (id: number) => {
@@ -664,6 +682,29 @@ lecturer: value as string,
 }))
 }
 }
+
+const handleClassChange = (classId: number) => {
+if (!formState) return;
+
+setFormState((prev) => ({
+...prev!,
+class_id: classId,
+group_id: 0, // Reset group selection
+}));
+
+// Filter groups based on the selected class
+const filteredGroups = groups.filter((group) => group.class_id === classId);
+setFilteredGroups(filteredGroups);
+};
+
+const handleGroupChange = (groupId: number) => {
+if (!formState) return;
+
+setFormState((prev) => ({
+...prev!,
+group_id: groupId,
+}));
+};
 
 // FIXED: Updated handleSubmitForm to include date field and use correct property name
 const handleSubmitForm = (data: FormState) => {
@@ -1131,6 +1172,37 @@ className="w-full border rounded p-2 mb-3 bg-gray-50"
 readOnly
 />
 
+<label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+<select
+value={formState.class_id || ""}
+onChange={(e) => handleClassChange(Number(e.target.value))}
+className="w-full border rounded p-2 mb-3"
+required
+>
+<option value="">Select Class</option>
+{classes.map((classItem) => (
+<option key={classItem.id} value={classItem.id}>
+{classItem.name}
+</option>
+))}
+</select>
+
+<label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+<select
+value={formState.group_id || ""}
+onChange={(e) => handleGroupChange(Number(e.target.value))}
+className="w-full border rounded p-2 mb-3"
+required
+disabled={!formState.class_id}
+>
+<option value="">Select Group</option>
+{filteredGroups.map((group) => (
+<option key={group.id} value={group.id}>
+{group.name}
+</option>
+))}
+</select>
+
 <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
 <input
 type="text"
@@ -1338,6 +1410,37 @@ value={formState.location}
 className="w-full border rounded p-2 mb-3 bg-gray-50"
 readOnly
 />
+
+<label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+<select
+value={formState.class_id || ""}
+onChange={(e) => handleClassChange(Number(e.target.value))}
+className="w-full border rounded p-2 mb-3"
+required
+>
+<option value="">Select Class</option>
+{classes.map((classItem) => (
+<option key={classItem.id} value={classItem.id}>
+{classItem.name}
+</option>
+))}
+</select>
+
+<label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+<select
+value={formState.group_id || ""}
+onChange={(e) => handleGroupChange(Number(e.target.value))}
+className="w-full border rounded p-2 mb-3"
+required
+disabled={!formState.class_id}
+>
+<option value="">Select Group</option>
+{filteredGroups.map((group) => (
+<option key={group.id} value={group.id}>
+{group.name}
+</option>
+))}
+</select>
 
 <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
 <input

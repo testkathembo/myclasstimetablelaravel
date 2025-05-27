@@ -1,58 +1,83 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\FacultyController;
-use App\Http\Controllers\UnitController;
-use App\Http\Controllers\ClassroomController;
-use App\Http\Controllers\SemesterController;
-use App\Http\Controllers\EnrollmentController;
-use App\Http\Controllers\TimeSlotController;
-use App\Http\Controllers\ClassTimeSlotController;
-use App\Http\Controllers\ExamTimetableController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\LecturerController;
-use App\Http\Controllers\StudentController;
-use App\Http\Controllers\AdminController;
+use App\Http\Controllers\CarStickerApplicationController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ExamOfficeController;
-use App\Http\Controllers\ExamroomController;
-use App\Http\Controllers\ClassTimetableController;
+use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\FacultyController;
+use App\Http\Controllers\GroupController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LecturerAssignmentController;
+use App\Http\Controllers\LecturerController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\SemesterUnitController;
-use App\Http\Controllers\StudentEnrollmentController;
-use App\Http\Controllers\ProgramGroupController;
+use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProgramController;
-use App\Http\Controllers\SchoolController;
+use App\Http\Controllers\ProgramGroupController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SemesterController;
+use App\Http\Controllers\SemesterUnitController;
+use App\Http\Controllers\Settings;
+use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentDashboardController;
+use App\Http\Controllers\StudentEnrollmentController;
+use App\Http\Controllers\TimeSlotController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserGuideController;
+use App\Http\Controllers\UserSignatureController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ClassController;
-use App\Http\Controllers\GroupController;
-use App\Http\Controllers\LecturerAssignmentController;
+use App\Http\Controllers\ClassroomController;
+use App\Http\Controllers\ClassTimetableController;
+use App\Http\Controllers\ExamOfficeController;
+use App\Http\Controllers\ExamroomController;
+use App\Http\Controllers\ExamTimetableController;
+use App\Http\Controllers\StaffDashboardController;
+use Carbon\Carbon;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+use Modules\CarStickers\App\Http\Controllers\CarStickerApplications;
+use Modules\CarStickers\App\Http\Controllers\CarStickersDashboardController;
+use Modules\CarStickers\App\Http\Controllers\StickerController;
+use Modules\CarStickers\App\Http\Controllers\CarStickersController;
+use Modules\VisitorManagement\App\Http\Controllers\VisitorController;
+use Modules\VisitorManagement\App\Http\Controllers\VisitorChartController;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\PortalPreviewController;
 
-// Add other controller imports as needed
+$moduleRoutes = glob(base_path('Modules/*/routes/web.php'));
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
-*/
+foreach ($moduleRoutes as $routeFile) {
+    if (file_exists($routeFile)) {
+        require $routeFile;
+    }
+}
 
-// ✅ Public routes
+// Debug route to test if new component is working
+Route::get('/test-login', function () {
+    return Inertia::render('Auth/Login', [
+        'canLogin' => true,
+        'canResetPassword' => true,
+        'status' => 'Testing new login component',
+    ]);
+});
+
+// Unified Authentication Routes - Using LoginController for both regular and LDAP
+Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+Route::get('/ldap-login', [AuthenticatedSessionController::class, 'create'])->name('ldap.login');
+Route::post('/ldap-login', [AuthenticatedSessionController::class, 'store']);
+Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+Route::post('/ldap-logout', [AuthenticatedSessionController::class, 'destroy'])->name('ldap.logout');
+
+// Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::post('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
 require __DIR__.'/auth.php';
 
-// ✅ Authenticated routes
+// Authenticated routes
 Route::middleware(['auth'])->group(function () {
 
     // Logout route
@@ -127,9 +152,10 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/semesters/{semester}', [SemesterController::class, 'destroy'])->name('semesters.destroy');
     });
 
-    // Classrooms management
-    Route::middleware(['auth', 'permission:manage-classrooms'])->group(function () {
+    // FIXED: Consolidated Classrooms management - Remove duplicates and conflicts
+    Route::middleware(['permission:manage-classrooms'])->group(function () {
         Route::get('/schools/sces/bbit/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
+        Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index.alt'); // Alternative route
         Route::get('/classrooms/create', [ClassroomController::class, 'create'])->name('classrooms.create');
         Route::post('/classrooms', [ClassroomController::class, 'store'])->name('classrooms.store');
         Route::get('/classrooms/{classroom}', [ClassroomController::class, 'show'])->name('classrooms.show');
@@ -138,32 +164,26 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy'])->name('classrooms.destroy');
     });
 
-    // Classroom routes
-    Route::get('/classrooms', [ClassroomController::class, 'index'])->name('classrooms.index');
-    Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update'])->name('classrooms.update');
-
     // ClassTimetable routes
-    Route::middleware(['permission:manage-classtimetables'])->group(function () {
-        Route::get('/schools/sces/bbit/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index');
-        Route::get('/classtimetable/create', [ClassTimetableController::class, 'create'])->name('classtimetable.create');
-        Route::post('/classtimetable', [ClassTimetableController::class, 'store'])->name('classtimetable.store');
-        Route::get('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'show'])->name('classtimetable.show');
-        Route::get('/classtimetable/{classtimetable}/edit', [ClassTimetableController::class, 'edit'])->name('classtimetable.edit');
-        Route::put('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'update'])->name('classtimetable.update');
-        Route::delete('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy');
-        Route::post('/classtimetable/{classtimetable}/delete', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy.post');
-        Route::get('/classtimetable/download', [ClassTimetableController::class, 'downloadTimetable'])->name('classtimetable.download');
-        
-        // API routes for cascading dropdowns in class timetable
-        Route::get('/api/semesters/{semesterId}/classes', [ClassTimetableController::class, 'getClassesBySemester'])
-            ->name('api.classes.by-semester');
-        Route::get('/api/semesters/{semesterId}/classes/{classId}/units', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
-            ->name('api.units.by-class-and-semester');
-    });
+    Route::get('/schools/sces/bbit/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index');
+    Route::get('/classtimetable/create', [ClassTimetableController::class, 'create'])->name('classtimetable.create');
+    Route::post('/classtimetable', [ClassTimetableController::class, 'store'])->name('classtimetable.store');
+    Route::get('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'show'])->name('classtimetable.show');
+    Route::get('/classtimetable/{classtimetable}/edit', [ClassTimetableController::class, 'edit'])->name('classtimetable.edit');
+    Route::put('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'update'])->name('classtimetable.update');
+    Route::delete('/classtimetable/{classtimetable}', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy');
+    Route::post('/classtimetable/{classtimetable}/delete', [ClassTimetableController::class, 'destroy'])->name('classtimetable.destroy.post');
+    Route::get('/classtimetable/download', [ClassTimetableController::class, 'downloadTimetable'])->name('classtimetable.download');
+    
+    // API routes for cascading dropdowns in class timetable
+    Route::get('/api/semesters/{semesterId}/classes', [ClassTimetableController::class, 'getClassesBySemester'])
+        ->name('api.classes.by-semester');
+    Route::get('/api/semesters/{semesterId}/classes/{classId}/units', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
+        ->name('api.units.by-class-and-semester');
 
     Route::get('/classtimetable', function () {
-        return Inertia::render('ClassTimetables/Index'); // Ensure the path matches the file location
-    })->name('classtimetable.index');
+        return Inertia::render('ClassTimetables/Index');
+    })->name('classtimetable.index.alt');
     
     // Exams Rooms
     Route::middleware(['permission:manage-examrooms'])->group(function () {
@@ -202,9 +222,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/examtimetable/{id}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
         Route::put('/examtimetable/{id}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
         Route::delete('/examtimetable/{id}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
-        // Add AJAX delete route as fallback
         Route::post('/examtimetable/{id}/ajax-delete', [ExamTimetableController::class, 'ajaxDestroy'])->name('examtimetable.ajax-destroy');
-        // Add API endpoint for lecturer information
         Route::get('/lecturer-for-unit/{unitId}/{semesterId}', [ExamTimetableController::class, 'getLecturerForUnit'])->name('api.lecturer-for-unit');
     });
 
@@ -348,20 +366,81 @@ Route::middleware(['auth'])->group(function () {
     // Lecturer Assignment Routes
     Route::delete('/lecturer-assignments/{unitId}/{lecturerCode}', [LecturerAssignmentController::class, 'destroy'])
         ->name('lecturer-assignments.destroy');
-});
 
-// Student download routes
-Route::middleware(['auth', 'role:Student'])->group(function () {
-    Route::get('/my-class/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
-        ->name('student.classes.download');
-    Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
-        ->name('student.exams.download');
-});
+    // Student download routes
+    Route::middleware(['auth', 'role:Student'])->group(function () {
+        Route::get('/my-class/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
+            ->name('student.classes.download');
+        Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
+            ->name('student.exams.download');
+    });
 
-// Lecturer download route
-Route::middleware(['auth', 'permission:download-own-timetable'])->group(function () {
-    Route::get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])
-        ->name('lecturer.timetable.download');
+    // Lecturer download route
+    Route::middleware(['auth', 'permission:download-own-timetable'])->group(function () {
+        Route::get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])
+            ->name('lecturer.timetable.download');
+    });
+
+    // Settings routes - accessible to users with manage-settings permission
+    Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
+        Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
+        Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
+    });
+
+    // Notification routes
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/send', [NotificationController::class, 'sendReminders'])->name('notifications.send');
+        Route::get('/notifications/preview/{exam}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
+        
+        // User notification center
+        Route::get('/my-notifications', [NotificationController::class, 'userNotifications'])
+            ->name('notifications.user');
+        Route::post('/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead'])
+            ->name('notifications.mark-read');
+        Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])
+            ->name('notifications.mark-all-read');
+        
+        // Notification logs with filtering
+        Route::get('/notifications/logs', [NotificationController::class, 'filterLogs'])
+            ->name('notifications.logs')
+            ->middleware('can:view-notification-logs');
+    });
+
+    // Debug route to test if new component is working
+    Route::get('/debug/units-for-class/{semester_id}/{class_id}', function ($semesterId, $classId) {
+        // Check if the units table has the expected structure
+        $unitColumns = Schema::getColumnListing('units');
+        
+        // Get all units assigned to this class and semester
+        $units = DB::table('units')
+            ->where('semester_id', $semesterId)
+            ->where('class_id', $classId)
+            ->get();
+        
+        // Check if there's a unit_classes table that maps units to classes
+        $hasUnitClassesTable = Schema::hasTable('unit_classes');
+        
+        $unitClassMappings = [];
+        if ($hasUnitClassesTable) {
+            $unitClassMappings = DB::table('unit_classes')
+                ->where('class_id', $classId)
+                ->get();
+        }
+        
+        return [
+            'semester_id' => $semesterId,
+            'class_id' => $classId,
+            'unit_table_columns' => $unitColumns,
+            'units_count' => count($units),
+            'units' => $units,
+            'has_unit_classes_table' => $hasUnitClassesTable,
+            'unit_class_mappings' => $unitClassMappings
+        ];
+    })->middleware('auth');
+
+    // Portal Access Guide
+    Route::get('/portal-access-guide', [PortalPreviewController::class, 'accessGuide'])->name('portal-access-guide')->middleware(['auth']);
 });
 
 // Admin Routes - Admin role bypasses permission checks
@@ -457,13 +536,6 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
         ->name('student.timetable');
 });
 
-// API routes that should be accessible without API middleware
-Route::get('/units/by-semester/{semester_id}', [UnitController::class, 'getBySemester'])->name('units.by-semester');
-
-Route::post('/api/units/by-class-and-semester', [EnrollmentController::class, 'getUnitsByClassAndSemester'])
-    ->middleware('web') // Ensure the 'web' middleware is applied
-    ->name('api.units.by-class-and-semester');
-
 // Faculty-specific exam timetable downloads
 Route::middleware(['auth', 'permission:download-faculty-examtimetables'])->group(function () {
     Route::get('/examtimetable/faculty/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])->name('examtimetable.faculty.download');
@@ -477,68 +549,6 @@ Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(functio
 Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
     Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
 });
-
-// Settings routes - accessible to users with manage-settings permission
-Route::middleware(['auth', 'permission:manage-settings'])->group(function () {
-    Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
-    Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
-});
-
-// Notification routes
-Route::middleware(['auth'])->group(function () {
-    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('/notifications/send', [NotificationController::class, 'sendReminders'])->name('notifications.send');
-    Route::get('/notifications/preview/{exam}', [NotificationController::class, 'previewNotifications'])->name('notifications.preview');
-    
-    // User notification center
-    Route::get('/my-notifications', [NotificationController::class, 'userNotifications'])
-        ->name('notifications.user');
-    Route::post('/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead'])
-        ->name('notifications.mark-read');
-    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])
-        ->name('notifications.mark-all-read');
-    
-    // Notification logs with filtering
-    Route::get('/notifications/logs', [NotificationController::class, 'filterLogs'])
-        ->name('notifications.logs')
-        ->middleware('can:view-notification-logs');
-});
-
-// Add this to your routes/web.php
-Route::get('/debug/units-for-class/{semester_id}/{class_id}', function ($semesterId, $classId) {
-    // Check if the units table has the expected structure
-    $unitColumns = Schema::getColumnListing('units');
-    
-    // Get all units assigned to this class and semester
-    $units = DB::table('units')
-        ->where('semester_id', $semesterId)
-        ->where('class_id', $classId)
-        ->get();
-    
-    // Check if there's a unit_classes table that maps units to classes
-    $hasUnitClassesTable = Schema::hasTable('unit_classes');
-    
-    $unitClassMappings = [];
-    if ($hasUnitClassesTable) {
-        $unitClassMappings = DB::table('unit_classes')
-            ->where('class_id', $classId)
-            ->get();
-    }
-    
-    return [
-        'semester_id' => $semesterId,
-        'class_id' => $classId,
-        'unit_table_columns' => $unitColumns,
-        'units_count' => count($units),
-        'units' => $units,
-        'has_unit_classes_table' => $hasUnitClassesTable,
-        'unit_class_mappings' => $unitClassMappings
-    ];
-})->middleware('auth');
-
-
-// Portal Access Guide
-Route::get('/portal-access-guide', [PortalPreviewController::class, 'accessGuide'])->name('portal-access-guide')->middleware(['auth']);
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

@@ -192,6 +192,8 @@ $request->validate([
 'day' => 'required|string',
 'unit_id' => 'required|exists:units,id',
 'semester_id' => 'required|exists:semesters,id',
+'class_id' => 'required|exists:classes,id',
+'group_id' => 'required|exists:groups,id',
 'venue' => 'required|string',
 'location' => 'required|string',
 'no' => 'required|integer',
@@ -235,10 +237,12 @@ if ($semesterConflict) {
 return redirect()->back()->with('error', 'Time conflict detected: Another class is already scheduled for this semester during this time.');
 }
 
-$classTimetable = ClassTimetable::create([
+ClassTimetable::create([
 'day' => $request->day,
 'unit_id' => $request->unit_id,
 'semester_id' => $request->semester_id,
+'class_id' => $request->class_id,
+'group_id' => $request->group_id,
 'venue' => $request->venue,
 'location' => $request->location,
 'no' => $request->no,
@@ -293,6 +297,8 @@ $request->validate([
 'day' => 'required|string', 
 'unit_id' => 'required|exists:units,id',
 'semester_id' => 'required|exists:semesters,id',
+'class_id' => 'required|exists:classes,id',
+'group_id' => 'required|exists:groups,id',
 'venue' => 'required|string',
 'location' => 'required|string',
 'no' => 'required|integer',
@@ -343,6 +349,8 @@ $classTimetable->update([
 'day' => $request->day, 
 'unit_id' => $request->unit_id,
 'semester_id' => $request->semester_id,
+'class_id' => $request->class_id,
+'group_id' => $request->group_id,
 'venue' => $request->venue,
 'location' => $request->location,
 'no' => $request->no,
