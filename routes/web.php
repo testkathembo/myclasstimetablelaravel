@@ -176,6 +176,22 @@ Route::middleware(['auth'])->group(function () {
         ->name('api.classes.by-semester');
     Route::get('/api/semesters/{semesterId}/classes/{classId}/units', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
         ->name('api.units.by-class-and-semester');
+    
+    // FIXED: Updated route to handle both GET and POST methods properly
+    Route::match(['GET', 'POST'], '/api/units/by-group-or-class', [ClassTimetableController::class, 'getUnitsByGroupOrClass'])
+        ->name('api.units.by-group-or-class');
+    
+    // Additional API routes for groups
+    Route::get('/api/classes/{classId}/groups', [ClassTimetableController::class, 'getGroupsByClass'])
+        ->name('api.groups.by-class');
+
+    // NEW: API route for fetching units directly by class (bypassing groups)
+    Route::match(['GET', 'POST'], '/api/units/by-class', [ClassTimetableController::class, 'getUnitsByClass'])
+        ->name('api.units.by-class');
+
+    // NEW: API route for fetching units by class and semester (same as enrollment system)
+    Route::match(['GET', 'POST'], '/api/units/by-class-and-semester', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
+        ->name('api.units.by-class-and-semester');
 
     Route::get('/classtimetable', function () {
         return Inertia::render('ClassTimetables/Index');

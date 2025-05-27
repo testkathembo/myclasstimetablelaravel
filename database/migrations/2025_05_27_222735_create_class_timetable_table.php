@@ -12,17 +12,17 @@ return new class extends Migration
             $table->id();
             $table->foreignId('semester_id')->constrained()->onDelete('cascade');
             $table->foreignId('unit_id')->constrained()->onDelete('cascade');
+            $table->foreignId('class_id')->nullable()->constrained()->onDelete('cascade'); // Add class_id
+            $table->foreignId('group_id')->nullable()->constrained('groups')->onDelete('cascade'); // Add group_id
             $table->string('day');
             $table->time('start_time');
             $table->time('end_time');
             $table->string('venue')->nullable();
             $table->string('location')->nullable();
             $table->integer('no')->nullable(); // Number of students
-            $table->string('lecturer')->nullable();
-            $table->string('group', 1)->nullable(); // Added group field to match with enrollments
+            $table->string('lecturer')->nullable();          
             $table->foreignId('program_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('school_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('group_id')->nullable()->constrained()->onDelete('cascade'); // Add group_id
             $table->timestamps();
         });
     }
