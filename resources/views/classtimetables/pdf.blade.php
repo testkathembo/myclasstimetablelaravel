@@ -108,11 +108,12 @@
             <thead>
                 <tr>
                     <th>Day</th>
+                    <th>Date</th>
+                    <th>Time</th>
                     <th>Unit Code</th>
                     <th>Unit Name</th>
                     <th>Semester</th>
                     <th>Venue</th>
-                    <th>Time</th>
                     <th>Number of Students</th>
                     <th>Mode of Teaching</th>
                     <th>Lecturer</th>
@@ -122,18 +123,19 @@
                 @forelse($classTimetables as $class)
                 <tr>
                     <td>{{ $class->day }}</td>
+                    <td>{{ \Carbon\Carbon::parse($class->start_time)->format('Y-m-d') }}</td> <!-- Extract date -->
+                    <td>{{ \Carbon\Carbon::parse($class->start_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($class->end_time)->format('H:i') }}</td> <!-- Extract time -->
                     <td>{{ $class->unit_code }}</td>
                     <td>{{ $class->unit_name }}</td>
                     <td>{{ $class->semester_name }}</td>
                     <td>{{ $class->venue }} ({{ $class->location }})</td>
-                    <td>{{ $class->start_time }} - {{ $class->end_time }}</td>
                     <td>{{ $class->no }}</td>
                     <td>{{ $class->mode_of_teaching ?? 'N/A' }}</td>
                     <td>{{ $class->lecturer }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" style="text-align: center;">No class timetables available</td>
+                    <td colspan="10" style="text-align: center;">No class timetables available</td>
                 </tr>
                 @endforelse
             </tbody>
