@@ -93,8 +93,8 @@
 <body>
     <div class="container">
         <div class="header">
-        <div class="title">
-            <img src="{{ public_path('images/strathmore.png') }}" alt="Strathmore University Logo" class="logo">           
+            <div class="title">
+                <img src="{{ public_path('images/strathmore.png') }}" alt="Strathmore University Logo" class="logo">
                 <h1>Strathmore University</h1>
                 <p>{{ $title }}</p>
             </div>
@@ -108,14 +108,12 @@
             <thead>
                 <tr>
                     <th>Day</th>
-                    <th>Date</th>
                     <th>Time</th>
                     <th>Unit Code</th>
                     <th>Unit Name</th>
                     <th>Semester</th>
                     <th>Venue</th>
-                    <th>Number of Students</th>
-                    <th>Mode of Teaching</th>
+                    <th>Location</th>
                     <th>Lecturer</th>
                 </tr>
             </thead>
@@ -123,19 +121,17 @@
                 @forelse($classTimetables as $class)
                 <tr>
                     <td>{{ $class->day }}</td>
-                    <td>{{ \Carbon\Carbon::parse($class->start_time)->format('Y-m-d') }}</td> <!-- Extract date -->
-                    <td>{{ \Carbon\Carbon::parse($class->start_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($class->end_time)->format('H:i') }}</td> <!-- Extract time -->
+                    <td>{{ $class->start_time }} - {{ $class->end_time }}</td>
                     <td>{{ $class->unit_code }}</td>
                     <td>{{ $class->unit_name }}</td>
                     <td>{{ $class->semester_name }}</td>
-                    <td>{{ $class->venue }} ({{ $class->location }})</td>
-                    <td>{{ $class->no }}</td>
-                    <td>{{ $class->mode_of_teaching ?? 'N/A' }}</td>
+                    <td>{{ $class->venue }}</td>
+                    <td>{{ $class->location }}</td>
                     <td>{{ $class->lecturer }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="10" style="text-align: center;">No class timetables available</td>
+                    <td colspan="8" style="text-align: center;">No class timetables available</td>
                 </tr>
                 @endforelse
             </tbody>

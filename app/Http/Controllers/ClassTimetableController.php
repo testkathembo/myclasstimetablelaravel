@@ -42,7 +42,7 @@ class ClassTimetableController extends Controller
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search', '');
 
-        // Fetch class timetables with related data
+        // Fetch class timetables with related data, including lecturer names
         $classTimetables = ClassTimetable::query()
             ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
             ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
@@ -53,15 +53,16 @@ class ClassTimetableController extends Controller
                     ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
                     ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
             })
+            ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer') // Correct join condition
             ->select(
-                'class_timetable.id', 
+                'class_timetable.id',
                 'class_timetable.day',
                 'class_timetable.start_time',
                 'class_timetable.end_time',
                 'class_timetable.venue',
                 'class_timetable.location',
                 'class_timetable.no',
-                'class_timetable.lecturer',
+                DB::raw("IF(users.id IS NOT NULL, CONCAT(users.first_name, ' ', users.last_name), class_timetable.lecturer) as lecturer"), // Fallback to lecturer code if name is unavailable
                 'class_timetable.class_id',
                 'class_timetable.group_id',
                 'units.name as unit_name',
@@ -74,11 +75,11 @@ class ClassTimetableController extends Controller
             )
             ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
                 $search = $request->search;
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('class_timetable.day', 'like', "%{$search}%")
                       ->orWhere('units.code', 'like', "%{$search}%")
                       ->orWhere('units.name', 'like', "%{$search}%")
-                      ->orWhere('class_timetable.lecturer', 'like', "%{$search}%")
+                      ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%") // Search by lecturer name
                       ->orWhere('class_timetable.venue', 'like', "%{$search}%");
                 });
             })
@@ -155,6 +156,11 @@ class ClassTimetableController extends Controller
         $classes = ClassModel::select('id', 'name')->get();
         $groups = Group::select('id', 'name', 'class_id')->get();
 
+        // Fetch programs from the programs table
+        $programs = DB::table('programs')
+            ->select('id', 'code', 'name')
+            ->get();
+
         // Log the data being passed for debugging
         \Log::info('Class Timetable Index Data:', [
             'classes_count' => $classes->count(),
@@ -175,6 +181,7 @@ class ClassTimetableController extends Controller
             'enrollments' => $allEnrollments,
             'classes' => $classes,
             'groups' => $groups,
+            'programs' => $programs,
             'can' => [
                 'create' => $user->can('create-classtimetables'),
                 'edit' => $user->can('update-classtimetables'),
@@ -1046,19 +1053,83 @@ public function getUnitsByClassAndSemester(Request $request)
      */
     public function process(Request $request)
     {
+        $request->validate([
+            'semester_id' => 'required|exists:semesters,id',
+            'program_id' => 'required|exists:programs,id',
+            'class_id' => 'required|exists:classes,id',
+            'group_id' => 'nullable|exists:groups,id',
+        ]);
+
         try {
-            // Implementation of timetable processing logic
-            // This would typically involve complex algorithms to optimize the timetable
-            \Log::info('Processing class timetable');
-            
-            // Example processing logic (you can implement your own algorithm here)
-            $conflicts = $this->detectConflicts();
-            $optimizations = $this->optimizeTimetable();
-            
-            return redirect()->back()->with('success', 'Class timetable processed successfully.');
+            $semesterId = $request->semester_id;
+            $programId = $request->program_id;
+            $classId = $request->class_id;
+            $groupId = $request->group_id;
+
+            // Log the incoming request for debugging
+            \Log::info('Processing class timetable', [
+                'semester_id' => $semesterId,
+                'program_id' => $programId,
+                'class_id' => $classId,
+                'group_id' => $groupId,
+            ]);
+
+            // Fetch units for the class and semester
+            $units = DB::table('class_unit')
+                ->join('units', 'class_unit.unit_id', '=', 'units.id')
+                ->where('class_unit.class_id', $classId)
+                ->where('class_unit.semester_id', $semesterId)
+                ->select('units.id', 'units.name', 'units.code')
+                ->get();
+
+            if ($units->isEmpty()) {
+                \Log::warning('No units found for the specified class and semester', [
+                    'semester_id' => $semesterId,
+                    'class_id' => $classId,
+                ]);
+                return response()->json(['message' => 'No units found for the specified class and semester.'], 422);
+            }
+
+            // Fetch available time slots
+            $timeSlots = DB::table('class_time_slots')->get();
+
+            if ($timeSlots->isEmpty()) {
+                \Log::warning('No time slots available');
+                return response()->json(['message' => 'No time slots available.'], 422);
+            }
+
+            // Fetch classrooms
+            $classrooms = DB::table('classrooms')->get();
+
+            if ($classrooms->isEmpty()) {
+                \Log::warning('No classrooms available');
+                return response()->json(['message' => 'No classrooms available.'], 422);
+            }
+
+            // Randomly assign units to time slots and classrooms
+            foreach ($units as $unit) {
+                $randomTimeSlot = $timeSlots->random();
+                $randomClassroom = $classrooms->random();
+
+                ClassTimetable::create([
+                    'day' => $randomTimeSlot->day,
+                    'start_time' => $randomTimeSlot->start_time,
+                    'end_time' => $randomTimeSlot->end_time,
+                    'unit_id' => $unit->id,
+                    'semester_id' => $semesterId,
+                    'class_id' => $classId,
+                    'group_id' => $groupId,
+                    'venue' => $randomClassroom->name,
+                    'location' => $randomClassroom->location,
+                    'no' => Enrollment::where('unit_id', $unit->id)->where('semester_id', $semesterId)->count(),
+                    'lecturer' => Enrollment::where('unit_id', $unit->id)->where('semester_id', $semesterId)->value('lecturer_code'),
+                ]);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Class timetable processed successfully.']);
         } catch (\Exception $e) {
             \Log::error('Failed to process class timetable: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to process class timetable: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to process class timetable.'], 500);
         }
     }
 
@@ -1104,19 +1175,18 @@ public function getUnitsByClassAndSemester(Request $request)
                 ->join('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
                 ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
                 ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
-                ->leftJoin('class_time_slots', function ($join) {
-                    $join->on('class_timetable.day', '=', 'class_time_slots.day')
-                        ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
-                        ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
-                })
                 ->select(
-                    'class_timetable.*',
-                    'units.name as unit_name',
+                    'class_timetable.day',
+                    'class_timetable.start_time',
+                    'class_timetable.end_time',
+                    'class_timetable.venue',
+                    'class_timetable.location',
+                    'class_timetable.lecturer',
                     'units.code as unit_code',
+                    'units.name as unit_name',
                     'semesters.name as semester_name',
                     'classes.name as class_name',
-                    'groups.name as group_name',
-                    'class_time_slots.status as mode_of_teaching'
+                    'groups.name as group_name'
                 );
 
             if ($request->has('semester_id')) {
@@ -1152,8 +1222,15 @@ public function getUnitsByClassAndSemester(Request $request)
             // Set paper size and orientation
             $pdf->setPaper('a4', 'landscape');
 
-            // Return the PDF for download
-            return $pdf->download('class-timetable-' . now()->format('Y-m-d') . '.pdf');
+            // Return the PDF for download with correct headers
+            return response()->streamDownload(
+                fn () => print($pdf->output()),
+                'class-timetable-' . now()->format('Y-m-d') . '.pdf',
+                [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="class-timetable-' . now()->format('Y-m-d') . '.pdf"',
+                ]
+            );
         } catch (\Exception $e) {
             // Log detailed error information
             \Log::error('Failed to generate PDF: ' . $e->getMessage(), [

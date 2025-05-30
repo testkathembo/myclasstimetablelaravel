@@ -202,6 +202,7 @@ const ClassTimetable = () => {
     lecturers = [],
     classes = [],
     groups = [],
+    programs = [],
   } = usePage().props as unknown as {
     classTimetables: PaginatedClassTimetables
     perPage: number
@@ -214,6 +215,7 @@ const ClassTimetable = () => {
     lecturers: Lecturer[]
     classes: Class[]
     groups: Group[]
+    programs: { id: number; name: string }[]
     can: {
       create: boolean
       edit: boolean
@@ -667,13 +669,37 @@ const ClassTimetable = () => {
     }
   }
 
-  const handleProcessClassTimetable = () => {
-    toast.promise(router.post("/process-classtimetables", {}), {
-      loading: "Processing class timetable...",
-      success: "Class timetable processed successfully.",
-      error: "Failed to process class timetable.",
-    })
-  }
+  const handleProcessClassTimetable = async () => {
+    try {
+      // Show a loading toast
+      toast.loading("Processing class timetable...");
+
+      // Make the POST request
+      const response = await axios.post("/process-classtimetables");
+
+      // Handle success
+      toast.dismiss(); // Dismiss the loading toast
+      toast.success(response.data.message || "Class timetable processed successfully.");
+      router.reload({ only: ["classTimetables"] });
+    } catch (error: any) {
+      // Handle errors
+      toast.dismiss(); // Dismiss the loading toast
+
+      if (error.response) {
+        // Server responded with a status code outside the 2xx range
+        console.error("Error response:", error.response.data);
+        toast.error(error.response.data.message || "Failed to process class timetable.");
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error("Error request:", error.request);
+        toast.error("No response received from the server. Please try again.");
+      } else {
+        // Something else happened
+        console.error("Error:", error.message);
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+    }
+  };
 
   const handleSolveConflicts = () => {
     toast.promise(router.get("/solve-class-conflicts", {}), {

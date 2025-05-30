@@ -244,6 +244,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/solve-exam-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('examtimetables.conflicts');
     });
 
+    // Process ClassTimetable Route
+    Route::middleware(['permission:process-classtimetables'])->group(function () {
+        Route::post('/process-classtimetables', [ClassTimetableController::class, 'process'])->name('classtimetables.process');
+        Route::get('/solve-class-conflicts', [ClassTimetableController::class, 'solveConflicts'])->name('classtimetables.conflicts');
+    });
+
     // Download exam timetable route
     Route::get('/download-examtimetables', [ExamTimetableController::class, 'downloadPDF'])
         ->middleware(['permission:download-examtimetables'])
