@@ -210,7 +210,31 @@ class ClassTimetableController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
-    public function store(Request $request)
+    /**
+ * Determine teaching mode and location based on venue
+ *
+ * @param string $venue
+ * @return array
+ */
+private function determineTeachingModeAndLocation($venue)
+{
+    // Only treat 'Remote' (case-insensitive, trimmed) as online
+    if (strtolower(trim($venue)) === 'remote') {
+        return [
+            'teaching_mode' => 'online',
+            'location' => 'online'
+        ];
+    }
+    // All other venues are physical
+    $classroom = Classroom::where('name', $venue)->first();
+    $location = $classroom ? $classroom->location : 'Physical';
+    return [
+        'teaching_mode' => 'physical',
+        'location' => $location
+    ];
+}
+
+public function store(Request $request)
 {
     $request->validate([
         'day' => 'required|string',
@@ -218,7 +242,7 @@ class ClassTimetableController extends Controller
         'semester_id' => 'required|exists:semesters,id',
         'class_id' => 'required|exists:classes,id',
         'group_id' => 'required|exists:groups,id',
-        'venue' => 'nullable|string', // Make venue nullable for random assignment
+        'venue' => 'nullable|string',
         'location' => 'nullable|string',
         'no' => 'required|integer|min:1',
         'lecturer' => 'required|string',
@@ -231,11 +255,11 @@ class ClassTimetableController extends Controller
         // Handle venue assignment (random or specified)
         $venue = $request->venue;
         $location = $request->location;
-        
+
         // If no venue is specified, assign a random one
         if (empty($venue) || $venue === 'Random Venue (auto-assign)') {
             $randomVenueResult = $this->assignRandomVenue($request->no, $request->day, $request->start_time, $request->end_time);
-            
+
             if (!$randomVenueResult['success']) {
                 if ($request->expectsJson()) {
                     return response()->json([
@@ -244,15 +268,27 @@ class ClassTimetableController extends Controller
                         'errors' => ['venue' => $randomVenueResult['message']]
                     ], 422);
                 }
-                
+
                 return redirect()->back()
                     ->withErrors(['venue' => $randomVenueResult['message']])
                     ->withInput()
                     ->with('error', $randomVenueResult['message']);
             }
-            
+
             $venue = $randomVenueResult['venue'];
             $location = $randomVenueResult['location'];
+        }
+
+        // Determine teaching mode and location based on venue
+        $venueInfo = $this->determineTeachingModeAndLocation($venue);
+        $teachingMode = $venueInfo['teaching_mode'];
+
+        // Override location if it's an online venue
+        if ($teachingMode === 'online') {
+            $location = 'online';
+        } else if (empty($location)) {
+            $classroom = Classroom::where('name', $venue)->first();
+            $location = $classroom ? $classroom->location : $venueInfo['location'];
         }
 
         // Enhanced conflict detection with better logging
@@ -262,6 +298,8 @@ class ClassTimetableController extends Controller
             'start_time' => $request->start_time,
             'end_time' => $request->end_time,
             'venue' => $venue,
+            'location' => $location,
+            'teaching_mode' => $teachingMode,
             'semester_id' => $request->semester_id,
             'class_id' => $request->class_id
         ]);
@@ -271,12 +309,10 @@ class ClassTimetableController extends Controller
             ->where('lecturer', $request->lecturer)
             ->where(function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
-                    // Overlapping time slots
                     $q->where('start_time', '<', $request->end_time)
                       ->where('end_time', '>', $request->start_time);
                 })
                 ->orWhere(function ($q) use ($request) {
-                    // Exact time boundary conflicts (end time = start time)
                     $q->where('end_time', $request->start_time)
                       ->orWhere('start_time', $request->end_time);
                 });
@@ -288,7 +324,7 @@ class ClassTimetableController extends Controller
                 'conflicting_record' => $lecturerConflict->toArray(),
                 'new_request' => $request->only(['day', 'lecturer', 'start_time', 'end_time'])
             ]);
-            
+
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
@@ -296,7 +332,7 @@ class ClassTimetableController extends Controller
                     'errors' => ['conflict' => 'Lecturer time conflict detected']
                 ], 422);
             }
-            
+
             return redirect()->back()
                 ->withErrors(['conflict' => 'Time conflict: The lecturer has another class that conflicts with this time slot.'])
                 ->withInput()
@@ -309,12 +345,10 @@ class ClassTimetableController extends Controller
             ->where('class_id', $request->class_id)
             ->where(function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
-                    // Overlapping time slots
                     $q->where('start_time', '<', $request->end_time)
                       ->where('end_time', '>', $request->start_time);
                 })
                 ->orWhere(function ($q) use ($request) {
-                    // Exact time boundary conflicts (end time = start time)
                     $q->where('end_time', $request->start_time)
                       ->orWhere('start_time', $request->end_time);
                 });
@@ -326,7 +360,7 @@ class ClassTimetableController extends Controller
                 'conflicting_record' => $semesterConflict->toArray(),
                 'new_request' => $request->only(['day', 'semester_id', 'class_id', 'start_time', 'end_time'])
             ]);
-            
+
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
@@ -334,25 +368,23 @@ class ClassTimetableController extends Controller
                     'errors' => ['conflict' => 'Class time conflict detected']
                 ], 422);
             }
-            
+
             return redirect()->back()
                 ->withErrors(['conflict' => 'Time conflict: This class already has another subject scheduled at this time.'])
                 ->withInput()
                 ->with('error', 'Time conflict: This class already has another subject scheduled at this time.');
         }
 
-        // Check for venue conflicts (only if venue is specified)
-        if (!empty($venue)) {
+        // Check for venue conflicts (only for physical venues, not remote)
+        if (!empty($venue) && $teachingMode !== 'online') {
             $venueConflict = ClassTimetable::where('day', $request->day)
                 ->where('venue', $venue)
                 ->where(function ($query) use ($request) {
                     $query->where(function ($q) use ($request) {
-                        // Overlapping time slots
                         $q->where('start_time', '<', $request->end_time)
                           ->where('end_time', '>', $request->start_time);
                     })
                     ->orWhere(function ($q) use ($request) {
-                        // Exact time boundary conflicts (end time = start time)
                         $q->where('end_time', $request->start_time)
                           ->orWhere('start_time', $request->end_time);
                     });
@@ -364,15 +396,16 @@ class ClassTimetableController extends Controller
                     'conflicting_record' => $venueConflict->toArray(),
                     'new_request' => $request->only(['day', 'venue', 'start_time', 'end_time'])
                 ]);
-                
+
                 if ($request->expectsJson()) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Time conflict: The venue is already booked for another class at this time.',
-                        'errors' => ['conflict' => 'Venue time conflict detected']
+                        'errors' => ['conflict' => 'Venue time conflict detected'
+                        ]
                     ], 422);
                 }
-                
+
                 return redirect()->back()
                     ->withErrors(['conflict' => 'Time conflict: The venue is already booked for another class at this time.'])
                     ->withInput()
@@ -388,11 +421,12 @@ class ClassTimetableController extends Controller
             'class_id' => $request->class_id,
             'group_id' => $request->group_id,
             'venue' => $venue,
-            'location' => $location,
+            'location' => $location, // This will be 'online' for remote venues
             'no' => $request->no,
             'lecturer' => $request->lecturer,
             'start_time' => $request->start_time,
             'end_time' => $request->end_time,
+            'teaching_mode' => $teachingMode,
         ]);
 
         \Log::info('Class timetable created successfully', [
@@ -400,6 +434,8 @@ class ClassTimetableController extends Controller
             'day' => $request->day,
             'unit_id' => $request->unit_id,
             'venue' => $venue,
+            'location' => $location,
+            'teaching_mode' => $teachingMode,
             'start_time' => $request->start_time,
             'end_time' => $request->end_time
         ]);
@@ -413,13 +449,12 @@ class ClassTimetableController extends Controller
         }
 
         return redirect()->back()->with('success', 'Class timetable created successfully.');
-        
     } catch (\Exception $e) {
         \Log::error('Failed to create class timetable: ' . $e->getMessage(), [
             'request_data' => $request->all(),
             'exception' => $e->getTraceAsString()
         ]);
-        
+
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => false,
@@ -427,7 +462,7 @@ class ClassTimetableController extends Controller
                 'errors' => ['error' => $e->getMessage()]
             ], 500);
         }
-        
+
         return redirect()->back()
             ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
             ->withInput()
@@ -437,72 +472,102 @@ class ClassTimetableController extends Controller
 
 /**
  * Assign a random venue with sufficient capacity and no conflicts
+ * Updated to properly handle location mapping and teaching mode
  *
  * @param int $studentCount
  * @param string $day
  * @param string $startTime
  * @param string $endTime
+ * @param string|null $preferredMode
  * @return array
  */
-private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
+private function assignRandomVenue($studentCount, $day, $startTime, $endTime, $preferredMode = null)
 {
     try {
         // Get all classrooms with sufficient capacity
         $availableClassrooms = Classroom::where('capacity', '>=', $studentCount)->get();
-        
+
         if ($availableClassrooms->isEmpty()) {
             return [
                 'success' => false,
                 'message' => "No venues available with sufficient capacity for {$studentCount} students."
             ];
         }
-        
+
+        // Filter classrooms based on preferred teaching mode if specified
+        if ($preferredMode) {
+            $availableClassrooms = $availableClassrooms->filter(function ($classroom) use ($preferredMode) {
+                $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
+                return $venueInfo['teaching_mode'] === $preferredMode;
+            });
+
+            if ($availableClassrooms->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No {$preferredMode} venues available with sufficient capacity for {$studentCount} students."
+                ];
+            }
+        }
+
         // Filter out classrooms that have conflicts at the specified time
+        // Note: Remote venues can have multiple classes at the same time
         $conflictFreeClassrooms = $availableClassrooms->filter(function ($classroom) use ($day, $startTime, $endTime) {
+            $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
+
+            // If classroom is 'Remote', allow multiple classes at the same time
+            if ($venueInfo['teaching_mode'] === 'online') {
+                return true;
+            }
+
+            // Physical venues need conflict checking
             $hasConflict = ClassTimetable::where('day', $day)
                 ->where('venue', $classroom->name)
                 ->where(function ($query) use ($startTime, $endTime) {
                     $query->where(function ($q) use ($startTime, $endTime) {
-                        // Overlapping time slots
                         $q->where('start_time', '<', $endTime)
                           ->where('end_time', '>', $startTime);
                     })
                     ->orWhere(function ($q) use ($startTime, $endTime) {
-                        // Exact time boundary conflicts
                         $q->where('end_time', $startTime)
                           ->orWhere('start_time', $endTime);
                     });
                 })
                 ->exists();
-                
+
             return !$hasConflict;
         });
-        
+
         if ($conflictFreeClassrooms->isEmpty()) {
             return [
                 'success' => false,
                 'message' => "No venues available without scheduling conflicts for the specified time slot."
             ];
         }
-        
+
         // Randomly select from available conflict-free classrooms
         $selectedClassroom = $conflictFreeClassrooms->random();
-        
+        $venueInfo = $this->determineTeachingModeAndLocation($selectedClassroom->name);
+
+        // Set location based on venue type
+        $location = $venueInfo['location'];
+
         \Log::info('Random venue assigned', [
             'venue' => $selectedClassroom->name,
             'capacity' => $selectedClassroom->capacity,
             'student_count' => $studentCount,
+            'teaching_mode' => $venueInfo['teaching_mode'],
+            'location' => $location,
             'day' => $day,
             'time' => "{$startTime} - {$endTime}"
         ]);
-        
+
         return [
             'success' => true,
             'venue' => $selectedClassroom->name,
-            'location' => $selectedClassroom->location,
-            'message' => "Random venue '{$selectedClassroom->name}' assigned successfully."
+            'location' => $location,
+            'teaching_mode' => $venueInfo['teaching_mode'],
+            'message' => "Random {$venueInfo['teaching_mode']} venue '{$selectedClassroom->name}' assigned successfully."
         ];
-        
     } catch (\Exception $e) {
         \Log::error('Error in random venue assignment: ' . $e->getMessage());
         return [
@@ -549,7 +614,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
     public function update(Request $request, $id)
     {
         $request->validate([
-            'day' => 'required|string', 
+            'day' => 'required|string',
             'unit_id' => 'required|exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
             'class_id' => 'required|exists:classes,id',
@@ -620,7 +685,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
 
             $classTimetable = ClassTimetable::findOrFail($id);
             $classTimetable->update([
-                'day' => $request->day, 
+                'day' => $request->day,
                 'unit_id' => $request->unit_id,
                 'semester_id' => $request->semester_id,
                 'class_id' => $request->class_id,
@@ -779,7 +844,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                     \Log::warning('Semester not found', ['semester_id' => $semesterId]);
                     return response()->json(['error' => 'Semester not found.'], 404);
                 }
-                
+
                 $unitsQuery->where('units.semester_id', $semesterId);
             }
 
@@ -805,14 +870,14 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                 // Get student count for this unit in the specified semester
                 $studentCount = 0;
                 $lecturerName = '';
-                
+
                 if ($semesterId) {
                     $enrollments = Enrollment::where('unit_id', $unit->id)
                         ->where('semester_id', $semesterId)
                         ->get();
-                    
+
                     $studentCount = $enrollments->count();
-                    
+
                     // Get lecturer information
                     $lecturerEnrollment = $enrollments->whereNotNull('lecturer_code')->first();
                     if ($lecturerEnrollment) {
@@ -824,7 +889,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                 } else {
                     // If no semester specified, get total enrollments for this unit
                     $studentCount = Enrollment::where('unit_id', $unit->id)->count();
-                    
+
                     // Get any lecturer for this unit
                     $lecturerEnrollment = Enrollment::where('unit_id', $unit->id)
                         ->whereNotNull('lecturer_code')
@@ -853,7 +918,6 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
             ]);
 
             return response()->json($enhancedUnits);
-
         } catch (\Exception $e) {
             \Log::error('Error fetching units for group: ' . $e->getMessage(), [
                 'group_id' => $request->input('group_id') ?? $request->get('group_id'),
@@ -920,11 +984,11 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
 
         // Try using the semester_unit pivot table first (same as enrollment system)
         $hasSemesterUnitTable = DB::getSchemaBuilder()->hasTable('semester_unit');
-        
+
         if ($hasSemesterUnitTable) {
             // Check if semester_unit table has class_id column
             $semesterUnitColumns = DB::getSchemaBuilder()->getColumnListing('semester_unit');
-        
+
             if (in_array('class_id', $semesterUnitColumns)) {
                 // Use the same approach as enrollment system
                 $units = DB::table('semester_unit')
@@ -933,7 +997,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                     ->where('semester_unit.class_id', $classId)
                     ->select('units.id', 'units.name', 'units.code')
                     ->get();
-                
+
                 \Log::info('Units fetched from semester_unit table', [
                     'units_count' => $units->count(),
                     'class_id' => $classId,
@@ -946,7 +1010,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                     ->where('semester_unit.semester_id', $semesterId)
                     ->select('units.id', 'units.name', 'units.code')
                     ->get();
-                
+
                 \Log::info('Units fetched from semester_unit table (no class filter)', [
                     'units_count' => $units->count(),
                     'semester_id' => $semesterId
@@ -955,7 +1019,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
         } else {
             // Fallback: Check if units table has direct class_id and semester_id columns
             $unitColumns = DB::getSchemaBuilder()->getColumnListing('units');
-        
+
             if (in_array('class_id', $unitColumns) && in_array('semester_id', $unitColumns)) {
                 // Direct query on units table
                 $units = DB::table('units')
@@ -963,7 +1027,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                     ->where('class_id', $classId)
                     ->select('id', 'name', 'code')
                     ->get();
-                
+
                 \Log::info('Units fetched from units table directly', [
                     'units_count' => $units->count(),
                     'class_id' => $classId,
@@ -978,7 +1042,7 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
                     ->select('units.id', 'units.name', 'units.code')
                     ->distinct()
                     ->get();
-                
+
                 \Log::info('Units fetched through group_unit relationships', [
                     'units_count' => $units->count(),
                     'class_id' => $classId
@@ -1001,16 +1065,16 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
             // Get student count for this unit in the specified semester and class
             $enrollmentQuery = Enrollment::where('unit_id', $unit->id)
                 ->where('semester_id', $semesterId);
-            
+
             // If enrollments table has class_id, filter by it
             $enrollmentColumns = DB::getSchemaBuilder()->getColumnListing('enrollments');
             if (in_array('class_id', $enrollmentColumns)) {
                 $enrollmentQuery->where('class_id', $classId);
             }
-            
+
             $enrollments = $enrollmentQuery->get();
             $studentCount = $enrollments->count();
-            
+
             // Get lecturer information
             $lecturerName = '';
             $lecturerEnrollment = $enrollments->whereNotNull('lecturer_code')->first();
@@ -1037,7 +1101,6 @@ private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
         ]);
 
         return response()->json($enhancedUnits);
-
     } catch (\Exception $e) {
         \Log::error('Error fetching units for class: ' . $e->getMessage(), [
             'class_id' => $request->input('class_id') ?? $request->get('class_id'),
@@ -1093,14 +1156,14 @@ public function getUnitsByClassAndSemester(Request $request)
         $enhancedUnits = $units->map(function ($unit) use ($validated) {
             $enrollmentQuery = Enrollment::where('unit_id', $unit->id)
                 ->where('semester_id', $validated['semester_id']);
-            
+
             if (!empty($validated['group_id'])) {
                 $enrollmentQuery->where('group_id', $validated['group_id']);
             }
-            
+
             $enrollments = $enrollmentQuery->get();
             $studentCount = $enrollments->count();
-            
+
             // Get lecturer information
             $lecturerName = '';
             $lecturerEnrollment = $enrollments->whereNotNull('lecturer_code')->first();
@@ -1246,9 +1309,9 @@ public function getUnitsByClassAndSemester(Request $request)
         try {
             // Implementation of conflict resolution logic
             \Log::info('Solving class timetable conflicts');
-            
+
             $conflicts = $this->detectAndResolveConflicts();
-            
+
             return redirect()->back()->with('success', 'Class conflicts resolved successfully.');
         } catch (\Exception $e) {
             \Log::error('Failed to solve class conflicts: ' . $e->getMessage());
@@ -1356,7 +1419,7 @@ public function getUnitsByClassAndSemester(Request $request)
         $user = auth()->user();
         $lecturerCode = $user->code;
         $semesters = Semester::all();
-        
+
         $semesterId = $request->input('semester_id');
         if (!$semesterId) {
             $currentSemester = Semester::where('is_active', true)->first();
@@ -1395,7 +1458,7 @@ public function getUnitsByClassAndSemester(Request $request)
         try {
             $user = auth()->user();
             $semesterId = $request->input('semester_id');
-            
+
             if (!$semesterId) {
                 $currentSemester = Semester::where('is_active', true)->first();
                 $semesterId = $currentSemester ? $currentSemester->id : null;
@@ -1406,7 +1469,7 @@ public function getUnitsByClassAndSemester(Request $request)
             }
 
             $semester = Semester::find($semesterId);
-            
+
             $classTimetables = ClassTimetable::where('lecturer', 'like', '%' . $user->first_name . '%')
                 ->orWhere('lecturer', 'like', '%' . $user->last_name . '%')
                 ->where('semester_id', $semesterId)
@@ -1439,13 +1502,13 @@ public function getUnitsByClassAndSemester(Request $request)
     {
         $user = auth()->user();
         $semesterId = $request->input('semester_id');
-        
+
         if (!$semesterId) {
             $currentSemester = Semester::where('is_active', true)->first();
             if (!$currentSemester) {
                 $currentSemester = Semester::latest()->first();
             }
-            
+
             $studentSemesters = Enrollment::where('student_code', $user->code)
                 ->distinct('semester_id')
                 ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
@@ -1492,7 +1555,7 @@ public function getUnitsByClassAndSemester(Request $request)
         try {
             $user = auth()->user();
             $semesterId = $request->input('semester_id');
-            
+
             if (!$semesterId) {
                 $currentSemester = Semester::where('is_active', true)->first();
                 $semesterId = $currentSemester ? $currentSemester->id : null;
@@ -1587,7 +1650,7 @@ public function getUnitsByClassAndSemester(Request $request)
     private function detectConflicts()
     {
         $conflicts = [];
-        
+
         // Detect lecturer conflicts
         $lecturerConflicts = DB::select("
             SELECT lecturer, day, start_time, end_time, COUNT(*) as conflict_count
@@ -1595,7 +1658,7 @@ public function getUnitsByClassAndSemester(Request $request)
             GROUP BY lecturer, day, start_time, end_time
             HAVING COUNT(*) > 1
         ");
-        
+
         // Detect venue conflicts
         $venueConflicts = DB::select("
             SELECT venue, day, start_time, end_time, COUNT(*) as conflict_count
@@ -1603,7 +1666,7 @@ public function getUnitsByClassAndSemester(Request $request)
             GROUP BY venue, day, start_time, end_time
             HAVING COUNT(*) > 1
         ");
-        
+
         return [
             'lecturer_conflicts' => $lecturerConflicts,
             'venue_conflicts' => $venueConflicts
@@ -1631,10 +1694,10 @@ public function getUnitsByClassAndSemester(Request $request)
     {
         $conflicts = $this->detectConflicts();
         $resolved = 0;
-        
+
         // Implementation of conflict resolution logic
         // This could include automatic rescheduling, venue reassignment, etc.
-        
+
         return ['conflicts_resolved' => $resolved];
     }
 }

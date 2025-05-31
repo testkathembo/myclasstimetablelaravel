@@ -1037,6 +1037,7 @@ const ClassTimetable = () => {
                       <td className="px-3 py-2">{classtimetable.unit_name}</td>
                       <td className="px-3 py-2">{classtimetable.semester_name}</td>
                       <td className="px-3 py-2">{classtimetable.venue}</td>
+                        {/* Time column */}
                       <td className="px-3 py-2">
                         {classtimetable.start_time} - {classtimetable.end_time}
                       </td>
