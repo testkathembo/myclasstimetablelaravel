@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-
+use App\Http\Controllers\AutoGenerateTimetableController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\FacultyController;
@@ -43,6 +43,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\PortalPreviewController;
 use Illuminate\Http\Request;
+
 
 $moduleRoutes = glob(base_path('Modules/*/routes/web.php'));
 
@@ -463,6 +464,18 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('units', UnitController::class);
     Route::resource('classes', ClassController::class);
     Route::resource('groups', GroupController::class);
+
+    // Enhanced Auto-Generate Timetable Routes
+    Route::middleware(['auth', 'can:manage-classtimetables'])->group(function () {
+        Route::get('/auto-generate-timetable', [AutoGenerateTimetableController::class, 'index'])->name('auto-generate-timetable.index');
+        Route::post('/auto-generate-timetable', [AutoGenerateTimetableController::class, 'autoGenerate'])->name('auto-generate-timetable.generate');
+        Route::get('/auto-generate-timetable/download', [AutoGenerateTimetableController::class, 'downloadPDF'])->name('auto-generate-timetable.download');
+        
+        // NEW: API routes for enhanced auto-generation
+        Route::get('/api/auto-generate/classes', [AutoGenerateTimetableController::class, 'getClassesByProgramAndSemester'])->name('api.auto-generate.classes');
+        Route::get('/api/auto-generate/groups', [AutoGenerateTimetableController::class, 'getGroupsByClass'])->name('api.auto-generate.groups');
+        Route::get('/api/auto-generate/timetable-data', [AutoGenerateTimetableController::class, 'getTimetableData'])->name('api.auto-generate.timetable-data');
+    });
 });
 
 // Admin Routes - Admin role bypasses permission checks
@@ -579,3 +592,20 @@ Route::post('/classes', [ClassController::class, 'store'])->name('classes.store'
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');
 })->where('any', '.*')->name('not-found');
+
+
+
+// Add these routes to your existing web.php file, inside the authenticated middleware group
+
+// Enhanced Auto-Generate Timetable Routes
+Route::middleware(['auth', 'can:manage-classtimetables'])->group(function () {
+    Route::get('/auto-generate-timetable', [AutoGenerateTimetableController::class, 'index'])->name('auto-generate-timetable.index');
+    Route::post('/auto-generate-timetable', [AutoGenerateTimetableController::class, 'autoGenerate'])->name('auto-generate-timetable.generate');
+    Route::get('/auto-generate-timetable/download', [AutoGenerateTimetableController::class, 'downloadPDF'])->name('auto-generate-timetable.download');
+    
+    // API routes for dynamic dropdowns - FIXED ROUTES
+    Route::get('/api/auto-generate-timetable/programs', [AutoGenerateTimetableController::class, 'getProgramsBySemester'])->name('api.auto-generate.programs');
+    Route::get('/api/auto-generate-timetable/classes', [AutoGenerateTimetableController::class, 'getClassesByProgramAndSemester'])->name('api.auto-generate.classes');
+    Route::get('/api/auto-generate-timetable/groups', [AutoGenerateTimetableController::class, 'getGroupsByClass'])->name('api.auto-generate.groups');
+    Route::get('/api/auto-generate-timetable/timetable-data', [AutoGenerateTimetableController::class, 'getTimetableData'])->name('api.auto-generate.timetable-data');
+});

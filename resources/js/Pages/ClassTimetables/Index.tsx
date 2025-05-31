@@ -87,6 +87,12 @@ interface Group {
   class_id: number
 }
 
+interface Program {
+  id: number
+  code: string
+  name: string
+}
+
 interface PaginationLinks {
   url: string | null
   label: string
@@ -189,21 +195,7 @@ const checkSemesterConflict = (
 const ClassTimetable = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const {
-    classTimetables = { data: [] },
-    perPage = 10,
-    search = "",
-    semesters = [],
-    can = { create: false, edit: false, delete: false, process: false, solve_conflicts: false, download: false },
-    enrollments = [],
-    classrooms = [],
-    classtimeSlots = [],
-    units = [],
-    lecturers = [],
-    classes = [],
-    groups = [],
-    programs = [],
-  } = usePage().props as unknown as {
+  const pageProps = usePage().props as unknown as {
     classTimetables: PaginatedClassTimetables
     perPage: number
     search: string
@@ -215,7 +207,7 @@ const ClassTimetable = () => {
     lecturers: Lecturer[]
     classes: Class[]
     groups: Group[]
-    programs: { id: number; name: string }[]
+    programs: Program[]
     can: {
       create: boolean
       edit: boolean
@@ -225,6 +217,24 @@ const ClassTimetable = () => {
       download: boolean
     }
   }
+
+  const {
+    classTimetables = { data: [] },
+    perPage = 10,
+    search = "",
+    semesters = [],
+    can = { create: false, edit: false, delete: false, process: false, solve_conflicts: false, download: false },
+    enrollments = [],
+    classrooms = [],
+    classtimeSlots = [],
+    units = [],
+    lecturers = [],
+  } = pageProps
+
+  // Defensive: always use array for programs, classes, groups
+  const programs = Array.isArray(pageProps.programs) ? pageProps.programs : []
+  const classes = Array.isArray(pageProps.classes) ? pageProps.classes : []
+  const groups = Array.isArray(pageProps.groups) ? pageProps.groups : []
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalType, setModalType] = useState<"view" | "edit" | "delete" | "create" | "">("")
@@ -240,6 +250,19 @@ const ClassTimetable = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([])
+  const [isAutoGenerateModalOpen, setIsAutoGenerateModalOpen] = useState(false)
+  const [autoGenerateFormState, setAutoGenerateFormState] = useState({
+    semester_id: "",
+    program_id: "",
+    class_id: "",
+    group_id: "",
+  })
+
+  // State for dynamic dropdowns in auto-generate modal
+  const [autoPrograms, setAutoProgramsRaw] = useState<Program[]>([])
+  const [autoClasses, setAutoClassesRaw] = useState<Class[]>([])
+  const [autoGroups, setAutoGroupsRaw] = useState<Group[]>([])
+  const [autoLoading, setAutoLoading] = useState(false)
 
   // Initialize available timeslots
   useEffect(() => {
@@ -247,6 +270,110 @@ const ClassTimetable = () => {
       setAvailableClassTimeSlots(classtimeSlots)
     }
   }, [classtimeSlots])
+
+  // Fetch programs when semester changes
+  useEffect(() => {
+    if (autoGenerateFormState.semester_id) {
+      setAutoLoading(true)
+      console.log("Fetching programs for semester:", autoGenerateFormState.semester_id)
+
+      axios
+        .get("/api/auto-generate-timetable/programs", {
+          params: { semester_id: autoGenerateFormState.semester_id },
+        })
+        .then((res) => {
+          console.log("Programs response:", res.data)
+          setAutoProgramsRaw(Array.isArray(res.data) ? res.data : [])
+        })
+        .catch((error) => {
+          console.error("Error fetching programs:", error)
+          setAutoProgramsRaw([])
+        })
+        .finally(() => setAutoLoading(false))
+
+      // Reset dependent fields
+      setAutoGenerateFormState((prev) => ({
+        ...prev,
+        program_id: "",
+        class_id: "",
+        group_id: "",
+      }))
+      setAutoClassesRaw([])
+      setAutoGroupsRaw([])
+    } else {
+      setAutoProgramsRaw([])
+      setAutoClassesRaw([])
+      setAutoGroupsRaw([])
+    }
+  }, [autoGenerateFormState.semester_id])
+
+  // Fetch classes when program or semester changes
+  useEffect(() => {
+    if (autoGenerateFormState.semester_id && autoGenerateFormState.program_id) {
+      setAutoLoading(true)
+      console.log("Fetching classes for:", {
+        semester_id: autoGenerateFormState.semester_id,
+        program_id: autoGenerateFormState.program_id,
+      })
+
+      axios
+        .get("/api/auto-generate-timetable/classes", {
+          params: {
+            semester_id: autoGenerateFormState.semester_id,
+            program_id: autoGenerateFormState.program_id,
+          },
+        })
+        .then((res) => {
+          console.log("Classes response:", res.data)
+          setAutoClassesRaw(Array.isArray(res.data) ? res.data : [])
+        })
+        .catch((error) => {
+          console.error("Error fetching classes:", error)
+          setAutoClassesRaw([])
+        })
+        .finally(() => setAutoLoading(false))
+
+      // Reset dependent fields
+      setAutoGenerateFormState((prev) => ({
+        ...prev,
+        class_id: "",
+        group_id: "",
+      }))
+      setAutoGroupsRaw([])
+    } else {
+      setAutoClassesRaw([])
+      setAutoGroupsRaw([])
+    }
+  }, [autoGenerateFormState.semester_id, autoGenerateFormState.program_id])
+
+  // Fetch groups when class changes
+  useEffect(() => {
+    if (autoGenerateFormState.class_id) {
+      setAutoLoading(true)
+      console.log("Fetching groups for class:", autoGenerateFormState.class_id)
+
+      axios
+        .get("/api/auto-generate-timetable/groups", {
+          params: { class_id: autoGenerateFormState.class_id },
+        })
+        .then((res) => {
+          console.log("Groups response:", res.data)
+          setAutoGroupsRaw(Array.isArray(res.data) ? res.data : [])
+        })
+        .catch((error) => {
+          console.error("Error fetching groups:", error)
+          setAutoGroupsRaw([])
+        })
+        .finally(() => setAutoLoading(false))
+
+      setAutoGenerateFormState((prev) => ({
+        ...prev,
+        group_id: "",
+      }))
+    } else {
+      setAutoGroupsRaw([])
+    }
+  }, [autoGenerateFormState.class_id])
 
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", classtimetable: ClassTimetable | null) => {
     setModalType(type)
@@ -672,34 +799,34 @@ const ClassTimetable = () => {
   const handleProcessClassTimetable = async () => {
     try {
       // Show a loading toast
-      toast.loading("Processing class timetable...");
+      toast.loading("Processing class timetable...")
 
       // Make the POST request
-      const response = await axios.post("/process-classtimetables");
+      const response = await axios.post("/process-classtimetables")
 
       // Handle success
-      toast.dismiss(); // Dismiss the loading toast
-      toast.success(response.data.message || "Class timetable processed successfully.");
-      router.reload({ only: ["classTimetables"] });
+      toast.dismiss() // Dismiss the loading toast
+      toast.success(response.data.message || "Class timetable processed successfully.")
+      router.reload({ only: ["classTimetables"] })
     } catch (error: any) {
       // Handle errors
-      toast.dismiss(); // Dismiss the loading toast
+      toast.dismiss() // Dismiss the loading toast
 
       if (error.response) {
         // Server responded with a status code outside the 2xx range
-        console.error("Error response:", error.response.data);
-        toast.error(error.response.data.message || "Failed to process class timetable.");
+        console.error("Error response:", error.response.data)
+        toast.error(error.response.data.message || "Failed to process class timetable.")
       } else if (error.request) {
         // Request was made but no response received
-        console.error("Error request:", error.request);
-        toast.error("No response received from the server. Please try again.");
+        console.error("Error request:", error.request)
+        toast.error("No response received from the server. Please try again.")
       } else {
         // Something else happened
-        console.error("Error:", error.message);
-        toast.error("An unexpected error occurred. Please try again.");
+        console.error("Error:", error.message)
+        toast.error("An unexpected error occurred. Please try again.")
       }
     }
-  };
+  }
 
   const handleSolveConflicts = () => {
     toast.promise(router.get("/solve-class-conflicts", {}), {
@@ -744,6 +871,81 @@ const ClassTimetable = () => {
     router.get("/classtimetable", { search: searchValue, perPage: newPerPage })
   }
 
+  const handleOpenAutoGenerateModal = () => {
+    setIsAutoGenerateModalOpen(true)
+    // Reset form state when opening modal
+    setAutoGenerateFormState({
+      semester_id: "",
+      program_id: "",
+      class_id: "",
+      group_id: "",
+    })
+    setAutoProgramsRaw([])
+    setAutoClassesRaw([])
+    setAutoGroupsRaw([])
+  }
+
+  const handleCloseAutoGenerateModal = () => {
+    setIsAutoGenerateModalOpen(false)
+    setAutoGenerateFormState({
+      semester_id: "",
+      program_id: "",
+      class_id: "",
+      group_id: "",
+    })
+    setAutoProgramsRaw([])
+    setAutoClassesRaw([])
+    setAutoGroupsRaw([])
+  }
+
+  const handleAutoGenerateChange = (field: string, value: string) => {
+    setAutoGenerateFormState((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleAutoGenerateSubmit = async () => {
+    try {
+      // Validate form
+      if (!autoGenerateFormState.semester_id || !autoGenerateFormState.program_id || !autoGenerateFormState.class_id) {
+        toast.error("Please fill in all required fields")
+        return
+      }
+
+      // Show loading toast
+      const loadingToast = toast.loading("Generating timetable...")
+
+      // Make the request using axios for better error handling
+      const response = await axios.post("/auto-generate-timetable", autoGenerateFormState)
+
+      // Dismiss loading toast
+      toast.dismiss(loadingToast)
+
+      if (response.data.success) {
+        toast.success(response.data.message || "Timetable generated successfully.")
+        handleCloseAutoGenerateModal()
+        router.reload({ only: ["classTimetables"] })
+      } else {
+        toast.error(response.data.message || "Failed to generate timetable.")
+      }
+    } catch (error: any) {
+      // Dismiss loading toast
+      toast.dismiss()
+
+      console.error("Auto-generate error:", error)
+
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message)
+      } else if (error.response?.data?.errors) {
+        const errorMessages = Object.values(error.response.data.errors).flat()
+        toast.error(Array.isArray(errorMessages) ? errorMessages.join(", ") : "Validation failed")
+      } else {
+        toast.error("An unexpected error occurred while generating the timetable.")
+      }
+    }
+  }
+
   return (
     <AuthenticatedLayout>
       <Head title="Class Timetable" />
@@ -773,6 +975,12 @@ const ClassTimetable = () => {
             {can.download && (
               <Button onClick={handleDownloadClassTimetable} className="bg-indigo-500 hover:bg-indigo-600">
                 Download
+              </Button>
+            )}
+
+            {can.create && (
+              <Button onClick={handleOpenAutoGenerateModal} className="bg-orange-500 hover:bg-orange-600">
+                Auto-Generate
               </Button>
             )}
           </div>
@@ -871,7 +1079,97 @@ const ClassTimetable = () => {
           <p className="mt-6 text-gray-600">No class timetables available yet.</p>
         )}
 
-        {/* Modal */}
+        {/* Auto-Generate Modal */}
+        {isAutoGenerateModalOpen && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white p-6 rounded shadow-md w-[500px] max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-semibold mb-4">Auto-Generate Timetable</h2>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleAutoGenerateSubmit()
+                }}
+              >
+                <label className="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
+                <select
+                  value={autoGenerateFormState.semester_id}
+                  onChange={(e) => handleAutoGenerateChange("semester_id", e.target.value)}
+                  className="w-full border rounded p-2 mb-3"
+                  required
+                >
+                  <option value="">Select Semester</option>
+                  {semesters.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      {semester.name}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="block text-sm font-medium text-gray-700 mb-1">Program *</label>
+                <select
+                  value={autoGenerateFormState.program_id}
+                  onChange={(e) => handleAutoGenerateChange("program_id", e.target.value)}
+                  className="w-full border rounded p-2 mb-3"
+                  required
+                  disabled={!autoGenerateFormState.semester_id || autoLoading}
+                >
+                  <option value="">
+                    {autoGenerateFormState.semester_id ? "Select Program" : "Select Semester First"}
+                  </option>
+                  {autoPrograms.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.code} - {program.name}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+                <select
+                  value={autoGenerateFormState.class_id}
+                  onChange={(e) => handleAutoGenerateChange("class_id", e.target.value)}
+                  className="w-full border rounded p-2 mb-3"
+                  required
+                  disabled={!autoGenerateFormState.program_id || autoLoading}
+                >
+                  <option value="">{autoGenerateFormState.program_id ? "Select Class" : "Select Program First"}</option>
+                  {autoClasses.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="block text-sm font-medium text-gray-700 mb-1">Group (Optional)</label>
+                <select
+                  value={autoGenerateFormState.group_id}
+                  onChange={(e) => handleAutoGenerateChange("group_id", e.target.value)}
+                  className="w-full border rounded p-2 mb-3"
+                  disabled={!autoGenerateFormState.class_id || autoLoading}
+                >
+                  <option value="">All Groups</option>
+                  {autoGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+
+                {autoLoading && <div className="text-blue-600 text-sm mb-2">Loading...</div>}
+
+                <div className="mt-4 flex justify-end space-x-2">
+                  <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white">
+                    Generate
+                  </Button>
+                  <Button type="button" onClick={handleCloseAutoGenerateModal} className="bg-gray-400 text-white">
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Regular Modal for Create/Edit/View/Delete */}
         {isModalOpen && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="bg-white p-6 rounded shadow-md w-[500px] max-h-[90vh] overflow-y-auto">
@@ -1098,15 +1396,18 @@ const ClassTimetable = () => {
                       value={formState.venue}
                       onChange={(e) => handleVenueChange(e.target.value)}
                       className="w-full border rounded p-2 mb-3"
-                      required
+                      // Remove required to allow random assignment
                     >
-                      <option value="">Select Venue</option>
+                      <option value="">Random Venue (auto-assign)</option>
                       {classrooms?.map((classroom) => (
                         <option key={classroom.id} value={classroom.name}>
                           {classroom.name} (Capacity: {classroom.capacity})
                         </option>
                       )) || null}
                     </select>
+                    <span className="text-xs text-gray-500 block mb-2">
+                      Leave blank to assign a random available venue with enough capacity.
+                    </span>
 
                     {capacityWarning && (
                       <Alert className="mb-3 bg-red-50 border-red-200">

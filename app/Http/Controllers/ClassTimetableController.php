@@ -211,114 +211,140 @@ class ClassTimetableController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
-    {
-        $request->validate([
-            'day' => 'required|string',
-            'unit_id' => 'required|exists:units,id',
-            'semester_id' => 'required|exists:semesters,id',
-            'class_id' => 'required|exists:classes,id',
-            'group_id' => 'required|exists:groups,id',
-            'venue' => 'required|string',
-            'location' => 'required|string',
-            'no' => 'required|integer|min:1',
-            'lecturer' => 'required|string',
-            'start_time' => 'required|string',
-            'end_time' => 'required|string',
-            'classtimeslot_id' => 'nullable|exists:class_time_slots,id',
+{
+    $request->validate([
+        'day' => 'required|string',
+        'unit_id' => 'required|exists:units,id',
+        'semester_id' => 'required|exists:semesters,id',
+        'class_id' => 'required|exists:classes,id',
+        'group_id' => 'required|exists:groups,id',
+        'venue' => 'nullable|string', // Make venue nullable for random assignment
+        'location' => 'nullable|string',
+        'no' => 'required|integer|min:1',
+        'lecturer' => 'required|string',
+        'start_time' => 'required|string',
+        'end_time' => 'required|string',
+        'classtimeslot_id' => 'nullable|exists:class_time_slots,id',
+    ]);
+
+    try {
+        // Handle venue assignment (random or specified)
+        $venue = $request->venue;
+        $location = $request->location;
+        
+        // If no venue is specified, assign a random one
+        if (empty($venue) || $venue === 'Random Venue (auto-assign)') {
+            $randomVenueResult = $this->assignRandomVenue($request->no, $request->day, $request->start_time, $request->end_time);
+            
+            if (!$randomVenueResult['success']) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $randomVenueResult['message'],
+                        'errors' => ['venue' => $randomVenueResult['message']]
+                    ], 422);
+                }
+                
+                return redirect()->back()
+                    ->withErrors(['venue' => $randomVenueResult['message']])
+                    ->withInput()
+                    ->with('error', $randomVenueResult['message']);
+            }
+            
+            $venue = $randomVenueResult['venue'];
+            $location = $randomVenueResult['location'];
+        }
+
+        // Enhanced conflict detection with better logging
+        \Log::info('Checking for conflicts', [
+            'day' => $request->day,
+            'lecturer' => $request->lecturer,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+            'venue' => $venue,
+            'semester_id' => $request->semester_id,
+            'class_id' => $request->class_id
         ]);
 
-        try {
-            // Enhanced conflict detection with better logging
-            \Log::info('Checking for conflicts', [
-                'day' => $request->day,
-                'lecturer' => $request->lecturer,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
-                'venue' => $request->venue,
-                'semester_id' => $request->semester_id,
-                'class_id' => $request->class_id
+        // Check for lecturer time conflicts
+        $lecturerConflict = ClassTimetable::where('day', $request->day)
+            ->where('lecturer', $request->lecturer)
+            ->where(function ($query) use ($request) {
+                $query->where(function ($q) use ($request) {
+                    // Overlapping time slots
+                    $q->where('start_time', '<', $request->end_time)
+                      ->where('end_time', '>', $request->start_time);
+                })
+                ->orWhere(function ($q) use ($request) {
+                    // Exact time boundary conflicts (end time = start time)
+                    $q->where('end_time', $request->start_time)
+                      ->orWhere('start_time', $request->end_time);
+                });
+            })
+            ->first();
+
+        if ($lecturerConflict) {
+            \Log::warning('Lecturer conflict detected', [
+                'conflicting_record' => $lecturerConflict->toArray(),
+                'new_request' => $request->only(['day', 'lecturer', 'start_time', 'end_time'])
             ]);
-
-            // Check for lecturer time conflicts with improved logic
-            $lecturerConflict = ClassTimetable::where('day', $request->day)
-                ->where('lecturer', $request->lecturer)
-                ->where(function ($query) use ($request) {
-                    $query->where(function ($q) use ($request) {
-                        // Overlapping time slots
-                        $q->where('start_time', '<', $request->end_time)
-                          ->where('end_time', '>', $request->start_time);
-                    })
-                    ->orWhere(function ($q) use ($request) {
-                        // Exact time boundary conflicts (end time = start time)
-                        $q->where('end_time', $request->start_time)
-                          ->orWhere('start_time', $request->end_time);
-                    });
-                })
-                ->first(); // Get the conflicting record for better error messages
-
-            if ($lecturerConflict) {
-                \Log::warning('Lecturer conflict detected', [
-                    'conflicting_record' => $lecturerConflict->toArray(),
-                    'new_request' => $request->only(['day', 'lecturer', 'start_time', 'end_time'])
-                ]);
-                
-                // Return JSON response for AJAX requests
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Time conflict: The lecturer has another class that conflicts with this time slot.',
-                        'errors' => ['conflict' => 'Lecturer time conflict detected']
-                    ], 422);
-                }
-                
-                return redirect()->back()
-                    ->withErrors(['conflict' => 'Time conflict: The lecturer has another class that conflicts with this time slot.'])
-                    ->withInput()
-                    ->with('error', 'Time conflict: The lecturer has another class that conflicts with this time slot.');
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Time conflict: The lecturer has another class that conflicts with this time slot.',
+                    'errors' => ['conflict' => 'Lecturer time conflict detected']
+                ], 422);
             }
+            
+            return redirect()->back()
+                ->withErrors(['conflict' => 'Time conflict: The lecturer has another class that conflicts with this time slot.'])
+                ->withInput()
+                ->with('error', 'Time conflict: The lecturer has another class that conflicts with this time slot.');
+        }
 
-            // Check for class/semester time conflicts
-            $semesterConflict = ClassTimetable::where('day', $request->day)
-                ->where('semester_id', $request->semester_id)
-                ->where('class_id', $request->class_id)
-                ->where(function ($query) use ($request) {
-                    $query->where(function ($q) use ($request) {
-                        // Overlapping time slots
-                        $q->where('start_time', '<', $request->end_time)
-                          ->where('end_time', '>', $request->start_time);
-                    })
-                    ->orWhere(function ($q) use ($request) {
-                        // Exact time boundary conflicts (end time = start time)
-                        $q->where('end_time', $request->start_time)
-                          ->orWhere('start_time', $request->end_time);
-                    });
+        // Check for class/semester time conflicts
+        $semesterConflict = ClassTimetable::where('day', $request->day)
+            ->where('semester_id', $request->semester_id)
+            ->where('class_id', $request->class_id)
+            ->where(function ($query) use ($request) {
+                $query->where(function ($q) use ($request) {
+                    // Overlapping time slots
+                    $q->where('start_time', '<', $request->end_time)
+                      ->where('end_time', '>', $request->start_time);
                 })
-                ->first();
+                ->orWhere(function ($q) use ($request) {
+                    // Exact time boundary conflicts (end time = start time)
+                    $q->where('end_time', $request->start_time)
+                      ->orWhere('start_time', $request->end_time);
+                });
+            })
+            ->first();
 
-            if ($semesterConflict) {
-                \Log::warning('Class time conflict detected', [
-                    'conflicting_record' => $semesterConflict->toArray(),
-                    'new_request' => $request->only(['day', 'semester_id', 'class_id', 'start_time', 'end_time'])
-                ]);
-                
-                // Return JSON response for AJAX requests
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Time conflict: This class already has another subject scheduled at this time.',
-                        'errors' => ['conflict' => 'Class time conflict detected']
-                    ], 422);
-                }
-                
-                return redirect()->back()
-                    ->withErrors(['conflict' => 'Time conflict: This class already has another subject scheduled at this time.'])
-                    ->withInput()
-                    ->with('error', 'Time conflict: This class already has another subject scheduled at this time.');
+        if ($semesterConflict) {
+            \Log::warning('Class time conflict detected', [
+                'conflicting_record' => $semesterConflict->toArray(),
+                'new_request' => $request->only(['day', 'semester_id', 'class_id', 'start_time', 'end_time'])
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Time conflict: This class already has another subject scheduled at this time.',
+                    'errors' => ['conflict' => 'Class time conflict detected']
+                ], 422);
             }
+            
+            return redirect()->back()
+                ->withErrors(['conflict' => 'Time conflict: This class already has another subject scheduled at this time.'])
+                ->withInput()
+                ->with('error', 'Time conflict: This class already has another subject scheduled at this time.');
+        }
 
-            // Check for venue conflicts
+        // Check for venue conflicts (only if venue is specified)
+        if (!empty($venue)) {
             $venueConflict = ClassTimetable::where('day', $request->day)
-                ->where('venue', $request->venue)
+                ->where('venue', $venue)
                 ->where(function ($query) use ($request) {
                     $query->where(function ($q) use ($request) {
                         // Overlapping time slots
@@ -339,7 +365,6 @@ class ClassTimetableController extends Controller
                     'new_request' => $request->only(['day', 'venue', 'start_time', 'end_time'])
                 ]);
                 
-                // Return JSON response for AJAX requests
                 if ($request->expectsJson()) {
                     return response()->json([
                         'success' => false,
@@ -353,62 +378,139 @@ class ClassTimetableController extends Controller
                     ->withInput()
                     ->with('error', 'Time conflict: The venue is already booked for another class at this time.');
             }
-
-            // If no conflicts, create the timetable entry
-            $classTimetable = ClassTimetable::create([
-                'day' => $request->day,
-                'unit_id' => $request->unit_id,
-                'semester_id' => $request->semester_id,
-                'class_id' => $request->class_id,
-                'group_id' => $request->group_id,
-                'venue' => $request->venue,
-                'location' => $request->location,
-                'no' => $request->no,
-                'lecturer' => $request->lecturer,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
-            ]);
-
-            \Log::info('Class timetable created successfully', [
-                'id' => $classTimetable->id,
-                'day' => $request->day,
-                'unit_id' => $request->unit_id,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time
-            ]);
-
-            // Return JSON response for AJAX requests
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Class timetable created successfully.',
-                    'data' => $classTimetable
-                ]);
-            }
-
-            return redirect()->back()->with('success', 'Class timetable created successfully.');
-            
-        } catch (\Exception $e) {
-            \Log::error('Failed to create class timetable: ' . $e->getMessage(), [
-                'request_data' => $request->all(),
-                'exception' => $e->getTraceAsString()
-            ]);
-            
-            // Return JSON response for AJAX requests
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to create class timetable: ' . $e->getMessage(),
-                    'errors' => ['error' => $e->getMessage()]
-                ], 500);
-            }
-            
-            return redirect()->back()
-                ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
-                ->withInput()
-                ->with('error', 'Failed to create class timetable: ' . $e->getMessage());
         }
+
+        // If no conflicts, create the timetable entry
+        $classTimetable = ClassTimetable::create([
+            'day' => $request->day,
+            'unit_id' => $request->unit_id,
+            'semester_id' => $request->semester_id,
+            'class_id' => $request->class_id,
+            'group_id' => $request->group_id,
+            'venue' => $venue,
+            'location' => $location,
+            'no' => $request->no,
+            'lecturer' => $request->lecturer,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+        ]);
+
+        \Log::info('Class timetable created successfully', [
+            'id' => $classTimetable->id,
+            'day' => $request->day,
+            'unit_id' => $request->unit_id,
+            'venue' => $venue,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Class timetable created successfully.',
+                'data' => $classTimetable
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Class timetable created successfully.');
+        
+    } catch (\Exception $e) {
+        \Log::error('Failed to create class timetable: ' . $e->getMessage(), [
+            'request_data' => $request->all(),
+            'exception' => $e->getTraceAsString()
+        ]);
+        
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create class timetable: ' . $e->getMessage(),
+                'errors' => ['error' => $e->getMessage()]
+            ], 500);
+        }
+        
+        return redirect()->back()
+            ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
+            ->withInput()
+            ->with('error', 'Failed to create class timetable: ' . $e->getMessage());
     }
+}
+
+/**
+ * Assign a random venue with sufficient capacity and no conflicts
+ *
+ * @param int $studentCount
+ * @param string $day
+ * @param string $startTime
+ * @param string $endTime
+ * @return array
+ */
+private function assignRandomVenue($studentCount, $day, $startTime, $endTime)
+{
+    try {
+        // Get all classrooms with sufficient capacity
+        $availableClassrooms = Classroom::where('capacity', '>=', $studentCount)->get();
+        
+        if ($availableClassrooms->isEmpty()) {
+            return [
+                'success' => false,
+                'message' => "No venues available with sufficient capacity for {$studentCount} students."
+            ];
+        }
+        
+        // Filter out classrooms that have conflicts at the specified time
+        $conflictFreeClassrooms = $availableClassrooms->filter(function ($classroom) use ($day, $startTime, $endTime) {
+            $hasConflict = ClassTimetable::where('day', $day)
+                ->where('venue', $classroom->name)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        // Overlapping time slots
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    })
+                    ->orWhere(function ($q) use ($startTime, $endTime) {
+                        // Exact time boundary conflicts
+                        $q->where('end_time', $startTime)
+                          ->orWhere('start_time', $endTime);
+                    });
+                })
+                ->exists();
+                
+            return !$hasConflict;
+        });
+        
+        if ($conflictFreeClassrooms->isEmpty()) {
+            return [
+                'success' => false,
+                'message' => "No venues available without scheduling conflicts for the specified time slot."
+            ];
+        }
+        
+        // Randomly select from available conflict-free classrooms
+        $selectedClassroom = $conflictFreeClassrooms->random();
+        
+        \Log::info('Random venue assigned', [
+            'venue' => $selectedClassroom->name,
+            'capacity' => $selectedClassroom->capacity,
+            'student_count' => $studentCount,
+            'day' => $day,
+            'time' => "{$startTime} - {$endTime}"
+        ]);
+        
+        return [
+            'success' => true,
+            'venue' => $selectedClassroom->name,
+            'location' => $selectedClassroom->location,
+            'message' => "Random venue '{$selectedClassroom->name}' assigned successfully."
+        ];
+        
+    } catch (\Exception $e) {
+        \Log::error('Error in random venue assignment: ' . $e->getMessage());
+        return [
+            'success' => false,
+            'message' => 'Failed to assign random venue: ' . $e->getMessage()
+        ];
+    }
+}
 
 
     /**
