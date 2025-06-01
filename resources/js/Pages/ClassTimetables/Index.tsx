@@ -107,6 +107,7 @@ interface PaginatedClassTimetables {
   current_page: number
 }
 
+// ✅ Updated FormState interface to allow null values
 interface FormState {
   id: number
   day: string
@@ -124,8 +125,8 @@ interface FormState {
   classtimeslot_id?: number
   lecturer_id?: number | null
   lecturer_name?: string | null
-  class_id?: number
-  group_id?: number
+  class_id?: number | null  // ✅ Allow null
+  group_id?: number | null  // ✅ Allow null
 }
 
 // Helper function to ensure time is in H:i format
@@ -402,8 +403,8 @@ const ClassTimetable = () => {
         classtimeslot_id: 0,
         lecturer_id: null,
         lecturer_name: "",
-        class_id: 0,
-        group_id: 0,
+        class_id: null,  // ✅ Initialize as null instead of 0
+        group_id: null,  // ✅ Initialize as null instead of 0
       })
       setFilteredUnits([])
     } else if (classtimetable) {
@@ -425,8 +426,8 @@ const ClassTimetable = () => {
         classtimeslot_id: classtimeSlot?.id || 0,
         lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
         lecturer_name: unitEnrollment?.lecturer_name || "",
-        class_id: classtimetable.class_id || 0,
-        group_id: classtimetable.group_id || 0,
+        class_id: classtimetable.class_id || null,  // ✅ Use null instead of 0
+        group_id: classtimetable.group_id || null,  // ✅ Use null instead of 0
       })
 
       if (classtimetable.semester_id) {
@@ -571,8 +572,8 @@ const ClassTimetable = () => {
     setFormState((prev) => ({
       ...prev!,
       semester_id: numericSemesterId,
-      class_id: 0,
-      group_id: 0,
+      class_id: null,  // ✅ Reset to null instead of 0
+      group_id: null,  // ✅ Reset to null instead of 0
       unit_id: 0,
       unit_code: "",
       unit_name: "",
@@ -588,13 +589,17 @@ const ClassTimetable = () => {
     setIsLoading(false)
   }
 
-  const handleClassChange = async (classId: number) => {
+  // ✅ NEW: Added handleClassChange function
+  const handleClassChange = async (classId: number | string) => {
     if (!formState) return
+
+    // Convert string to number, handle empty string properly
+    const numericClassId = classId === "" ? null : Number(classId)
 
     setFormState((prev) => ({
       ...prev!,
-      class_id: classId,
-      group_id: 0, // Reset group selection
+      class_id: numericClassId,  // ✅ Store null for empty selection
+      group_id: null, // Reset group selection to null
       unit_id: 0,
       unit_code: "",
       unit_name: "",
@@ -602,18 +607,25 @@ const ClassTimetable = () => {
       lecturer: "",
     }))
 
-    // Simple fetch of groups for the selected class (no unit filtering)
-    const filteredGroupsForClass = groups.filter((group) => group.class_id === classId)
+    // Only proceed if valid class selected
+    if (numericClassId === null) {
+      setFilteredGroups([])
+      setFilteredUnits([])
+      return
+    }
+
+    // Simple fetch of groups for the selected class
+    const filteredGroupsForClass = groups.filter((group) => group.class_id === numericClassId)
     setFilteredGroups(filteredGroupsForClass)
 
-    // Fetch ALL units for the selected class (regardless of group)
+    // Fetch ALL units for the selected class
     setIsLoading(true)
     setErrorMessage(null)
 
     try {
       const response = await axios.get("/api/units/by-class", {
         params: {
-          class_id: classId,
+          class_id: numericClassId,
           semester_id: formState.semester_id,
         },
       })
@@ -640,16 +652,17 @@ const ClassTimetable = () => {
     }
   }
 
-  const handleGroupChange = (groupId: number) => {
+  // ✅ UPDATED: handleGroupChange function to handle null properly
+  const handleGroupChange = (groupId: number | string) => {
     if (!formState) return
 
-    // Simple group selection - doesn't affect unit filtering
+    // Convert string to number, handle empty string properly
+    const numericGroupId = groupId === "" ? null : Number(groupId)
+
     setFormState((prev) => ({
       ...prev!,
-      group_id: groupId,
+      group_id: numericGroupId,  // ✅ Store null for empty selection
     }))
-
-    // No need to refetch units - group selection is independent
   }
 
   const handleUnitChange = (unitId: number) => {
@@ -734,12 +747,38 @@ const ClassTimetable = () => {
     }))
   }
 
+  // ✅ UPDATED: handleSubmitForm with validation and proper null handling
   const handleSubmitForm = (data: FormState) => {
-    const formattedData = {
+    console.log('Raw form data received:', data);
+    console.log('class_id:', data.class_id, 'type:', typeof data.class_id);
+    console.log('group_id:', data.group_id, 'type:', typeof data.group_id);
+    
+    // ✅ Add frontend validation
+    if (!data.class_id) {
+      toast.error("Please select a class before submitting.")
+      return
+    }
+    
+    // Remove undefined/null fields that are not in the DB table
+    const formattedData: any = {
       ...data,
       start_time: formatTimeToHi(data.start_time),
       end_time: formatTimeToHi(data.end_time),
-    }
+    };
+
+    // Only send fields that exist in the DB table
+    // Remove fields like unit_code, unit_name, classtimeslot_id, lecturer_id, lecturer_name, enrollment_id
+    delete formattedData.unit_code;
+    delete formattedData.unit_name;
+    delete formattedData.classtimeslot_id;
+    delete formattedData.lecturer_id;
+    delete formattedData.lecturer_name;
+    delete formattedData.enrollment_id;
+
+    // Remove any undefined fields (especially group_id/class_id if not set)
+    Object.keys(formattedData).forEach(
+      (key) => (formattedData[key] === undefined ? delete formattedData[key] : undefined)
+    );
 
     // Client-side conflict detection for semesters
     const semesterConflictExists = checkSemesterConflict(
@@ -776,9 +815,21 @@ const ClassTimetable = () => {
           handleCloseModal()
           router.reload({ only: ["classTimetables"] })
         },
-        onError: (errors) => {
-          console.error("Creation failed:", errors)
-          toast.error("Failed to create class timetable.")
+        onError: (errors: any) => {
+          // Show all error messages from Laravel validation or SQL errors
+          let msg = "Failed to create class timetable."
+          if (errors && typeof errors === "object") {
+            if (errors.error) {
+              msg = errors.error
+            } else {
+              const errorMsgs = Object.values(errors)
+                .flat()
+                .filter(Boolean)
+                .join(" ")
+              if (errorMsgs) msg = errorMsgs
+            }
+          }
+          toast.error(msg)
         },
       })
     } else {
@@ -788,9 +839,20 @@ const ClassTimetable = () => {
           handleCloseModal()
           router.reload({ only: ["classTimetables"] })
         },
-        onError: (errors) => {
-          console.error("Update failed:", errors)
-          toast.error("Failed to update class timetable.")
+        onError: (errors: any) => {
+          let msg = "Failed to update class timetable."
+          if (errors && typeof errors === "object") {
+            if (errors.error) {
+              msg = errors.error
+            } else {
+              const errorMsgs = Object.values(errors)
+                .flat()
+                .filter(Boolean)
+                .join(" ")
+              if (errorMsgs) msg = errorMsgs
+            }
+          }
+          toast.error(msg)
         },
       })
     }

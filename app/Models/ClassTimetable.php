@@ -12,9 +12,12 @@ class ClassTimetable extends Model
 
     protected $table = 'class_timetable';
 
+    // ✅ FIXED: Updated fillable array with correct field names
     protected $fillable = [
         'semester_id',
         'unit_id',
+        'class_id',      // ✅ FIXED: was missing
+        'group_id',      // ✅ FIXED: was 'group' instead of 'group_id'
         'day',
         'start_time',
         'end_time',
@@ -22,9 +25,9 @@ class ClassTimetable extends Model
         'location',
         'no',
         'lecturer',
-        'group',
         'program_id',
         'school_id',
+        'teaching_mode', // ✅ ADDED: for teaching mode functionality
     ];
 
     protected $casts = [
@@ -46,6 +49,22 @@ class ClassTimetable extends Model
     public function semester(): BelongsTo
     {
         return $this->belongsTo(Semester::class);
+    }
+
+    /**
+     * ✅ ADDED: Get the class that owns the class timetable.
+     */
+    public function class(): BelongsTo
+    {
+        return $this->belongsTo(ClassModel::class, 'class_id');
+    }
+
+    /**
+     * ✅ ADDED: Get the group that owns the class timetable.
+     */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class, 'group_id');
     }
 
     /**
