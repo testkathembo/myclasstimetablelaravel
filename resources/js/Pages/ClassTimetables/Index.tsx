@@ -127,6 +127,7 @@ interface FormState {
   lecturer_name?: string | null
   class_id?: number | null  // ✅ Allow null
   group_id?: number | null  // ✅ Allow null
+  school_id?: number | null // ✅ Allow null
 }
 
 // Helper function to ensure time is in H:i format
@@ -209,6 +210,7 @@ const ClassTimetable = () => {
     classes: Class[]
     groups: Group[]
     programs: Program[]
+    schools: { id: number, code: string, name: string }[] // Add schools here
     can: {
       create: boolean
       edit: boolean
@@ -230,6 +232,7 @@ const ClassTimetable = () => {
     classtimeSlots = [],
     units = [],
     lecturers = [],
+    schools = [],
   } = pageProps
 
   // Defensive: always use array for programs, classes, groups
@@ -405,6 +408,7 @@ const ClassTimetable = () => {
         lecturer_name: "",
         class_id: null,  // ✅ Initialize as null instead of 0
         group_id: null,  // ✅ Initialize as null instead of 0
+        school_id: null, // ✅ Initialize as null instead of 0
       })
       setFilteredUnits([])
     } else if (classtimetable) {
@@ -1317,6 +1321,23 @@ const ClassTimetable = () => {
                       </div>
                     </div>
 
+                    {/* --- SCHOOL SELECT DROPDOWN --- */}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
+                    <select
+                      value={formState.school_id || ""}
+                      onChange={e => handleCreateChange("school_id", e.target.value ? Number(e.target.value) : null)}
+                      className="w-full border rounded p-2 mb-3"
+                      required
+                    >
+                      <option value="">Select School</option>
+                      {schools.map((school) => (
+                        <option key={school.id} value={school.id}>
+                          {school.code ? `${school.code} - ` : ""}{school.name}
+                        </option>
+                      ))}
+                    </select>
+
+
                     <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
                     <select
                       value={formState.semester_id || ""}
@@ -1504,6 +1525,7 @@ const ClassTimetable = () => {
                       required
                     />
 
+                    
                     <div className="mt-4 flex justify-end space-x-2">
                       <Button
                         type="submit"

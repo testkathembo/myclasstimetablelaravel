@@ -11,6 +11,7 @@ use App\Models\ClassTimeSlot;
 use App\Models\Classroom;
 use App\Models\ClassModel;
 use App\Models\Group;
+use App\Models\Program;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -158,6 +159,10 @@ class ClassTimetableController extends Controller
             ->select('id', 'code', 'name')
             ->get();
 
+         $schools = DB::table('schools')
+            ->select('id', 'name', 'code')
+            ->get();
+
         return Inertia::render('ClassTimetables/Index', [
             'classTimetables' => $classTimetables,
             'lecturers' => $lecturers,
@@ -171,6 +176,7 @@ class ClassTimetableController extends Controller
             'classes' => $classes,
             'groups' => $groups,
             'programs' => $programs,
+            'schools' => $schools,  // ✅ ADDED: Include schools
             'can' => [
                 'create' => $user->can('create-classtimetables'),
                 'edit' => $user->can('update-classtimetables'),
@@ -1005,5 +1011,82 @@ class ClassTimetableController extends Controller
         // This could include automatic rescheduling, venue reassignment, etc.
 
         return ['conflicts_resolved' => $resolved];
+    }
+
+    /**
+     * ✅ NEW: Smart school_id determination
+     */
+    private function determineSchoolId($request, $class)
+    {
+        // Priority: Request > Class > Program > Default
+        if ($request->school_id) {
+            return $request->school_id;
+        }
+
+        if ($class && $class->school_id) {
+            return $class->school_id;
+        }
+
+        if ($class && $class->program_id) {
+            $program = Program::find($class->program_id);
+            if ($program && $program->school_id) {
+                return $program->school_id;
+            }
+        }
+
+        // Fallback to first school if none found
+        $defaultSchool = DB::table('schools')->first();
+        return $defaultSchool ? $defaultSchool->id : null;
+    }
+
+    /**
+     * ✅ NEW: Smart program_id determination
+     */
+    private function determineProgramId($request, $class)
+    {
+        // Priority: Request > Class > Default
+        if ($request->program_id) {
+            return $request->program_id;
+        }
+
+        if ($class && $class->program_id) {
+            return $class->program_id;
+        }
+
+        return null;
+    }
+
+    /**
+     * ✅ NEW: API endpoint to get programs by school
+     */
+    public function getProgramsBySchool($schoolId)
+    {
+        try {
+            $programs = Program::where('school_id', $schoolId)
+                ->select('id', 'name', 'code')
+                ->get();
+
+            return response()->json($programs);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching programs for school: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch programs.'], 500);
+        }
+    }
+
+    /**
+     * ✅ NEW: API endpoint to get classes by program
+     */
+    public function getClassesByProgram($programId)
+    {
+        try {
+            $classes = ClassModel::where('program_id', $programId)
+                ->select('id', 'name')
+                ->get();
+
+            return response()->json($classes);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching classes for program: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch classes.'], 500);
+        }
     }
 }
