@@ -13,20 +13,30 @@ import axios from "axios"
 
 interface ClassTimetable {
   id: number
+  semester_id: number
+  unit_id: number
+  class_id?: number | null
+  group_id?: number | null
   day: string
-  unit_code: string
-  unit_name: string
-  venue: string
-  location: string
-  no: number
-  lecturer: string
   start_time: string
   end_time: string
-  semester_id: number
-  semester_name: string
-  status: string
-  class_id?: number
-  group_id?: number
+  teaching_mode?: string | null
+  venue?: string | null
+  location?: string | null
+  no?: number | null
+  lecturer?: string | null
+  program_id?: number | null
+  school_id?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+
+  // Optionally, for display (from joins)
+  unit_code?: string
+  unit_name?: string
+  semester_name?: string
+  class_name?: string
+  group_name?: string
+  status?: string // for legacy/fallback
 }
 
 interface Enrollment {
@@ -125,9 +135,9 @@ interface FormState {
   classtimeslot_id?: number
   lecturer_id?: number | null
   lecturer_name?: string | null
-  class_id?: number | null  // ✅ Allow null
-  group_id?: number | null  // ✅ Allow null
-  school_id?: number | null // ✅ Allow null
+  class_id?: number | null
+  group_id?: number | null
+  school_id?: number | null
 }
 
 // Helper function to ensure time is in H:i format
@@ -1082,44 +1092,50 @@ const ClassTimetable = () => {
                 <thead className="bg-gray-100 border-b">
                   <tr>
                     <th className="px-3 py-2">ID</th>
-                    <th className="px-3 py-2">Day</th>
-                    <th className="px-3 py-2">Unit Code</th>
-                    <th className="px-3 py-2">Unit Name</th>
                     <th className="px-3 py-2">Semester</th>
-                    <th className="px-3 py-2">Classroom</th>
-                    <th className="px-3 py-2">Time</th>
-                    <th className="px-3 py-2">Number of Students</th>
-                    <th className="px-3 py-2">Mode of Teaching</th>
+                    <th className="px-3 py-2">Unit</th>
+                    <th className="px-3 py-2">Class</th>
+                    <th className="px-3 py-2">Group</th>
+                    <th className="px-3 py-2">Day</th>
+                    <th className="px-3 py-2">Start Time</th>
+                    <th className="px-3 py-2">End Time</th>
+                    <th className="px-3 py-2">Mode</th>
+                    <th className="px-3 py-2">Venue</th>                   
+                    <th className="px-3 py-2">No</th>
                     <th className="px-3 py-2">Lecturer</th>
+                    <th className="px-3 py-2">Program</th>
+                    <th className="px-3 py-2">School</th>                    
                     <th className="px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {classTimetables.data.map((classtimetable) => (
-                    <tr key={classtimetable.id} className="border-b hover:bg-gray-50">
-                      <td className="px-3 py-2">{classtimetable.id}</td>
-                      <td className="px-3 py-2">{classtimetable.day}</td>
-                      <td className="px-3 py-2">{classtimetable.unit_code}</td>
-                      <td className="px-3 py-2">{classtimetable.unit_name}</td>
-                      <td className="px-3 py-2">{classtimetable.semester_name}</td>
-                      <td className="px-3 py-2">{classtimetable.venue}</td>
-                        {/* Time column */}
-                      <td className="px-3 py-2">
-                        {classtimetable.start_time} - {classtimetable.end_time}
-                      </td>
-                      <td className="px-3 py-2">{classtimetable.no}</td>
-                      <td className="px-3 py-2">{classtimetable.status}</td>
-                      <td className="px-3 py-2">{classtimetable.lecturer}</td>
+                  {classTimetables.data.map((ct) => (
+                    <tr key={ct.id} className="border-b hover:bg-gray-50">
+                      <td className="px-3 py-2">{ct.id}</td>
+                      <td className="px-3 py-2">{ct.semester_name || ct.semester_id}</td>
+                      <td className="px-3 py-2">{ct.unit_code || ct.unit_id}</td>
+                      <td className="px-3 py-2">{ct.class_name || ct.class_id || "-"}</td>
+                      <td className="px-3 py-2">{ct.group_name || ct.group_id || "-"}</td>
+                      <td className="px-3 py-2">{ct.day}</td>
+                      <td className="px-3 py-2">{ct.start_time}</td>
+                      <td className="px-3 py-2">{ct.end_time}</td>
+                      <td className="px-3 py-2">{ct.teaching_mode}</td>
+                      <td className="px-3 py-2">{ct.venue}</td>                     
+                      <td className="px-3 py-2">{ct.no}</td>
+                      <td className="px-3 py-2">{ct.lecturer}</td>
+                      <td className="px-3 py-2">{ct.program_code}</td>
+                      <td className="px-3 py-2">{ct.school_code}</td>
+                      
                       <td className="px-3 py-2 flex space-x-2">
                         <Button
-                          onClick={() => handleOpenModal("view", classtimetable)}
+                          onClick={() => handleOpenModal("view", ct)}
                           className="bg-blue-500 hover:bg-blue-600 text-white"
                         >
                           View
                         </Button>
                         {can.edit && (
                           <Button
-                            onClick={() => handleOpenModal("edit", classtimetable)}
+                            onClick={() => handleOpenModal("edit", ct)}
                             className="bg-yellow-500 hover:bg-yellow-600 text-white"
                           >
                             Edit
@@ -1127,7 +1143,7 @@ const ClassTimetable = () => {
                         )}
                         {can.delete && (
                           <Button
-                            onClick={() => handleDelete(classtimetable.id)}
+                            onClick={() => handleDelete(ct.id)}
                             className="bg-red-500 hover:bg-red-600 text-white"
                           >
                             Delete
@@ -1269,7 +1285,7 @@ const ClassTimetable = () => {
                       <strong>Number of Students:</strong> {selectedClassTimetable.no}
                     </p>
                     <p>
-                      <strong>Mode of Teaching:</strong> {selectedClassTimetable.status}
+                      <strong>Mode of Teaching:</strong> {selectedClassTimetable.teaching_mode}
                     </p>
                     <p>
                       <strong>Lecturer:</strong> {selectedClassTimetable.lecturer}
@@ -1353,6 +1369,7 @@ const ClassTimetable = () => {
                       )) || null}
                     </select>
 
+                    {/* --- CLASS SELECT DROPDOWN --- */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
                     <select
                       value={formState.class_id || ""}
@@ -1369,6 +1386,7 @@ const ClassTimetable = () => {
                       ))}
                     </select>
 
+                    {/* --- GROUP SELECT DROPDOWN --- */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Group{" "}
                       <span className="text-sm text-gray-500">

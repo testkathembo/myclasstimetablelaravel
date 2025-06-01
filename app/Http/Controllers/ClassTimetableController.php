@@ -41,12 +41,14 @@ class ClassTimetableController extends Controller
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search', '');
 
-        // Fetch class timetables with related data
+        // Fetch class timetables with all DB columns and related display fields
         $classTimetables = ClassTimetable::query()
             ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
             ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
             ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
             ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+            ->leftJoin('programs', 'class_timetable.program_id', '=', 'programs.id')
+            ->leftJoin('schools', 'class_timetable.school_id', '=', 'schools.id')
             ->leftJoin('class_time_slots', function ($join) {
                 $join->on('class_timetable.day', '=', 'class_time_slots.day')
                     ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
@@ -55,21 +57,32 @@ class ClassTimetableController extends Controller
             ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
             ->select(
                 'class_timetable.id',
+                'class_timetable.semester_id',
+                'class_timetable.unit_id',
+                'class_timetable.class_id',
+                'class_timetable.group_id',
                 'class_timetable.day',
                 'class_timetable.start_time',
                 'class_timetable.end_time',
+                'class_timetable.teaching_mode',
                 'class_timetable.venue',
                 'class_timetable.location',
                 'class_timetable.no',
                 DB::raw("IF(users.id IS NOT NULL, CONCAT(users.first_name, ' ', users.last_name), class_timetable.lecturer) as lecturer"),
-                'class_timetable.class_id',
-                'class_timetable.group_id',
-                'units.name as unit_name',
+                'class_timetable.program_id',
+                'class_timetable.school_id',
+                'class_timetable.created_at',
+                'class_timetable.updated_at',
+                // Display fields from joins
                 'units.code as unit_code',
+                'units.name as unit_name',
                 'semesters.name as semester_name',
                 'classes.name as class_name',
                 'groups.name as group_name',
-                'class_timetable.semester_id',
+                'programs.code as program_code',
+                'programs.name as program_name',
+                'schools.code as school_code',
+                'schools.name as school_name',
                 'class_time_slots.status'
             )
             ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
@@ -300,8 +313,8 @@ class ClassTimetableController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'Time conflict: The lecturer has another class that conflicts with this time slot.',
-                        'errors' => ['conflict' => 'Lecturer time conflict detected']
-                    ], 422);
+                        'errors' => ['conflict' => 'Lecturer time conflict detected'
+                    ], 422]);
                 }
 
                 return redirect()->back()
