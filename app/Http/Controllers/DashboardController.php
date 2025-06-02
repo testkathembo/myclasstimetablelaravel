@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\Semester;
 use App\Models\ExamTimetable;
 use App\Models\Unit;
+use App\Models\ClassTimetable; // Add this model
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -16,9 +17,6 @@ class DashboardController extends Controller
 {
     /**
      * Display the student dashboard.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Inertia\Response
      */
     public function studentDashboard(Request $request)
     {
@@ -30,7 +28,6 @@ class DashboardController extends Controller
                 'has_code' => $user && isset($user->code)
             ]);
             
-            // Return a basic view with an error message
             return Inertia::render('Student/Dashboard', [
                 'error' => 'User profile is incomplete. Please contact an administrator.',
                 'currentSemester' => null,
@@ -59,18 +56,13 @@ class DashboardController extends Controller
                 ->select('semesters.*')
                 ->get();
             
-            // If student has no enrollments, use the current semester
             if ($studentSemesters->isEmpty()) {
                 $selectedSemester = $currentSemester;
             } else {
-                // Find the active semester among student's enrolled semesters
                 $activeSemester = $studentSemesters->firstWhere('is_active', true);
-                
-                // If no active semester found, use the most recent semester the student is enrolled in
                 $selectedSemester = $activeSemester ?? $studentSemesters->sortByDesc('id')->first();
             }
             
-            // Safety check for selected semester
             if (!$selectedSemester) {
                 throw new \Exception('No valid semester found for student');
             }
@@ -78,14 +70,13 @@ class DashboardController extends Controller
             // Get enrolled units for the student in the selected semester
             $enrolledUnits = Enrollment::where('student_code', $user->code)
                 ->where('semester_id', $selectedSemester->id)
-                ->with(['unit.faculty']) // Make sure to eager load the unit and faculty
+                ->with(['unit.faculty'])
                 ->get()
                 ->map(function ($enrollment) {
-                    // Only include enrollments with valid units
                     return $enrollment->unit;
                 })
-                ->filter() // Remove null values
-                ->unique('id'); // Ensure no duplicates
+                ->filter()
+                ->unique('id');
             
             // Get upcoming exams for the student in the selected semester
             $upcomingExams = ExamTimetable::where('semester_id', $selectedSemester->id)
@@ -106,12 +97,8 @@ class DashboardController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
-            // If there was an error, we'll still render the dashboard with empty data
-            // and log the error, but not crash the application
         }
         
-        // Log for debugging
         Log::info('Student dashboard data', [
             'student_code' => $user->code,
             'selected_semester_id' => $selectedSemester ? $selectedSemester->id : null,
@@ -121,7 +108,7 @@ class DashboardController extends Controller
         ]);
         
         return Inertia::render('Student/Dashboard', [
-            'currentSemester' => $selectedSemester, // Use the selected semester, not just any "current" semester
+            'currentSemester' => $selectedSemester,
             'enrolledUnits' => $enrolledUnits,
             'upcomingExams' => $upcomingExams,
             'selectedSemesterId' => $selectedSemester ? $selectedSemester->id : null,
@@ -130,157 +117,106 @@ class DashboardController extends Controller
 
     /**
      * Display the lecturer dashboard.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Inertia\Response
      */
-  
-    public function lecturerDashboard(Request $request)
-    {
-        $user = $request->user();
+   public function lecturerDashboard(Request $request)
+{
+    $user = $request->user();
+    
+    if (!$user) {
+        return Inertia::render('Lecturer/Dashboard', [
+            'error' => 'User profile is incomplete. Please contact an administrator.',
+            'currentSemester' => null,
+            'lecturerSemesters' => [],
+            'unitsBySemester' => [],
+            'studentCounts' => [],
+        ]);
+    }
+    
+    // Get current semester
+    $currentSemester = Semester::where('is_active', true)->first();
+    if (!$currentSemester) {
+        $currentSemester = Semester::latest()->first();
+    }
+    
+    $lecturerSemesters = collect([]);
+    $unitsBySemester = [];
+    $studentCounts = [];
+    
+    try {
+        // DIRECT APPROACH: Query the enrollments table using lecturer_code
+        // This matches what we see in the Enrollments page
+        $lecturerCode = $user->code;
         
-        if (!$user || !$user->code) {
-            Log::error('Lecturer dashboard accessed with invalid user', [
-                'user_id' => $user ? $user->id : 'null',
-                'has_code' => $user && isset($user->code)
-            ]);
-            
-            // Return a basic view with an error message
-            return Inertia::render('Lecturer/Dashboard', [
-                'error' => 'User profile is incomplete. Please contact an administrator.',
-                'currentSemester' => null,
-                'lecturerSemesters' => [],
-                'unitsBySemester' => [],
-                'studentCounts' => [],
-            ]);
-        }
+        // Get all semesters where this lecturer has assignments
+        $lecturerSemesters = Semester::whereHas('enrollments', function($query) use ($lecturerCode) {
+            $query->where('lecturer_code', $lecturerCode);
+        })->get();
         
-        // Find semesters where the lecturer has assigned units
-        $lecturerSemesters = Enrollment::where('lecturer_code', $user->code)
-            ->distinct('semester_id')
-            ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
-            ->select('semesters.*')
-            ->orderBy('semesters.name')
-            ->get();
+        // For each semester, get the units assigned to this lecturer
+        foreach ($lecturerSemesters as $semester) {
+            // Get units for this lecturer in this semester
+            $units = Unit::whereHas('enrollments', function($query) use ($lecturerCode, $semester) {
+                $query->where('lecturer_code', $lecturerCode)
+                      ->where('semester_id', $semester->id);
+            })->with('faculty')->get();
             
-        // Default values in case of errors
-        $currentSemester = null;
-        $unitsBySemester = [];
-        $studentCounts = [];
-        
-        try {
-            // Determine the current semester based on lecturer's assignments
-            // First, check if there's a semester marked as active
-            $activeSemester = $lecturerSemesters->firstWhere('is_active', true);
-            
-            // If no active semester is found among lecturer's semesters, use the most recent one
-            if (!$activeSemester && $lecturerSemesters->isNotEmpty()) {
-                $activeSemester = $lecturerSemesters->sortByDesc('id')->first();
-            }
-            
-            // If still no semester is found, try to get any active semester from the system
-            if (!$activeSemester) {
-                $activeSemester = Semester::where('is_active', true)->first();
+            if ($units->count() > 0) {
+                $unitsBySemester[$semester->id] = [
+                    'semester' => $semester,
+                    'units' => $units->toArray()
+                ];
                 
-                // If no active semester in the system, get the most recent one
-                if (!$activeSemester) {
-                    $activeSemester = Semester::latest()->first();
-                }
-            }
-            
-            $currentSemester = $activeSemester;
-            
-            // Get all enrollments for this lecturer across all semesters
-            $allEnrollments = Enrollment::where('lecturer_code', $user->code)
-                ->with(['unit.faculty', 'semester'])
-                ->get();
-                
-            // Group units by semester
-            $unitsBySemester = [];
-            foreach ($allEnrollments as $enrollment) {
-                if (!$enrollment->semester_id || !$enrollment->unit) {
-                    continue; // Skip invalid enrollments
-                }
-                
-                if (!isset($unitsBySemester[$enrollment->semester_id])) {
-                    $unitsBySemester[$enrollment->semester_id] = [
-                        'semester' => $enrollment->semester,
-                        'units' => []
-                    ];
-                }
-                
-                // Check if unit already exists in the array to avoid duplicates
-                $unitExists = false;
-                foreach ($unitsBySemester[$enrollment->semester_id]['units'] as $unit) {
-                    if ($unit['id'] === $enrollment->unit->id) {
-                        $unitExists = true;
-                        break;
-                    }
-                }
-                
-                if (!$unitExists) {
-                    $unitsBySemester[$enrollment->semester_id]['units'][] = [
-                        'id' => $enrollment->unit->id,
-                        'code' => $enrollment->unit->code,
-                        'name' => $enrollment->unit->name,
-                        'faculty' => $enrollment->unit->faculty ? [
-                            'name' => $enrollment->unit->faculty->name
-                        ] : null
-                    ];
-                }
-            }
-            
-            // Count students per unit per semester
-            $studentCounts = [];
-            foreach ($allEnrollments as $enrollment) {
-                if (!$enrollment->unit) {
-                    continue; // Skip if unit is null
-                }
-                
-                $unitId = $enrollment->unit_id;
-                $semesterId = $enrollment->semester_id;
-                
-                if (!isset($studentCounts[$semesterId])) {
-                    $studentCounts[$semesterId] = [];
-                }
-                
-                if (!isset($studentCounts[$semesterId][$unitId])) {
-                    $studentCounts[$semesterId][$unitId] = Enrollment::where('unit_id', $unitId)
-                        ->where('semester_id', $semesterId)
-                        ->where('student_code', '!=', null)
+                // Count students for each unit
+                $studentCounts[$semester->id] = [];
+                foreach ($units as $unit) {
+                    $studentCounts[$semester->id][$unit->id] = Enrollment::where('unit_id', $unit->id)
+                        ->where('semester_id', $semester->id)
+                        ->whereNotNull('student_code')
                         ->distinct('student_code')
                         ->count();
                 }
             }
-            
-        } catch (\Exception $e) {
-            Log::error('Error in lecturer dashboard', [
-                'lecturer_code' => $user->code,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+        }
+        
+        // If no results found, log detailed debug info
+        if (empty($unitsBySemester)) {
+            Log::warning('No units found for lecturer', [
+                'lecturer_code' => $lecturerCode,
+                'lecturer_name' => $user->name,
+                'semesters_checked' => $lecturerSemesters->pluck('id')->toArray(),
+                'enrollment_check' => Enrollment::where('lecturer_code', $lecturerCode)->count(),
+                'all_lecturer_codes' => Enrollment::whereNotNull('lecturer_code')
+                    ->distinct('lecturer_code')
+                    ->pluck('lecturer_code')
+                    ->toArray()
             ]);
         }
         
-        // For debugging
-        Log::info('Lecturer dashboard', [
-            'lecturer_id' => $user->id,
+    } catch (\Exception $e) {
+        Log::error('Error in lecturer dashboard', [
             'lecturer_code' => $user->code ?? 'No code',
-            'current_semester_id' => $currentSemester ? $currentSemester->id : null,
-            'current_semester_name' => $currentSemester ? $currentSemester->name : null,
-            'lecturer_semesters_count' => $lecturerSemesters->count(),
-            'units_by_semester_count' => count($unitsBySemester),
-            'has_lecturer_role' => method_exists($user, 'hasRole') ? $user->hasRole('Lecturer') : 'method_not_exists'
-        ]);
-        
-        return Inertia::render('Lecturer/Dashboard', [
-            'currentSemester' => $currentSemester,
-            'lecturerSemesters' => $lecturerSemesters,
-            'unitsBySemester' => $unitsBySemester,
-            'studentCounts' => $studentCounts
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
         ]);
     }
     
-
+    // Enhanced debug logging
+    Log::info('Lecturer dashboard debug', [
+        'lecturer_id' => $user->id,
+        'lecturer_code' => $user->code ?? 'No code',
+        'current_semester_id' => $currentSemester ? $currentSemester->id : null,
+        'lecturer_semesters_count' => $lecturerSemesters->count(),
+        'units_by_semester_keys' => array_keys($unitsBySemester),
+        'total_units_count' => array_sum(array_map(function($semester) {
+            return count($semester['units']);
+        }, $unitsBySemester))
+    ]);
+    
+    return Inertia::render('Lecturer/Dashboard', [
+        'currentSemester' => $currentSemester,
+        'lecturerSemesters' => $lecturerSemesters,
+        'unitsBySemester' => $unitsBySemester,
+        'studentCounts' => $studentCounts
+    ]);
 }
-
-
+}

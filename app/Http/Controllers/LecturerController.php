@@ -18,110 +18,66 @@ class LecturerController extends Controller
   /**
    * Display the lecturer's dashboard
    */
-  public function dashboard(Request $request)
-  {
-      $user = $request->user();
-      
-      // Find semesters where the lecturer has assigned units
-      $lecturerSemesters = Enrollment::where('lecturer_code', $user->code)
-          ->distinct('semester_id')
-          ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
-          ->select('semesters.*')
-          ->orderBy('semesters.name')
-          ->get();
-          
-      // Determine the current semester based on lecturer's assignments
-      // First, check if there's a semester marked as active among lecturer's semesters
-      $currentSemester = $lecturerSemesters->firstWhere('is_active', true);
-      
-      // If no active semester is found among lecturer's semesters, use the most recent one
-      if (!$currentSemester && $lecturerSemesters->isNotEmpty()) {
-          $currentSemester = $lecturerSemesters->sortByDesc('id')->first();
-      }
-      
-      // If still no semester is found, try to get any active semester from the system
-      if (!$currentSemester) {
-          $currentSemester = Semester::where('is_active', true)->first();
-          
-          // If no active semester in the system, get the most recent one
-          if (!$currentSemester) {
-              $currentSemester = Semester::latest()->first();
-          }
-      }
-      
-      // Get all enrollments for this lecturer across all semesters
-      $allEnrollments = Enrollment::where('lecturer_code', $user->code)
-          ->with(['unit.school', 'semester']) // Replace faculty with school
-          ->get();
-          
-      // Group units by semester
-      $unitsBySemester = [];
-      foreach ($allEnrollments as $enrollment) {
-          if (!isset($unitsBySemester[$enrollment->semester_id])) {
-              $unitsBySemester[$enrollment->semester_id] = [
-                  'semester' => $enrollment->semester,
-                  'units' => []
-              ];
-          }
-          
-          // Check if unit already exists in the array to avoid duplicates
-          $unitExists = false;
-          foreach ($unitsBySemester[$enrollment->semester_id]['units'] as $unit) {
-              if ($unit['id'] === $enrollment->unit->id) {
-                  $unitExists = true;
-                  break;
-              }
-          }
-          
-          if (!$unitExists && $enrollment->unit) {
-              $unitsBySemester[$enrollment->semester_id]['units'][] = [
-                  'id' => $enrollment->unit->id,
-                  'code' => $enrollment->unit->code,
-                  'name' => $enrollment->unit->name,
-                  'school' => $enrollment->unit->school ? [ // Replace faculty with school
-                      'name' => $enrollment->unit->school->name
-                  ] : null
-              ];
-          }
-      }
-      
-      // Count students per unit per semester
-      $studentCounts = [];
-      foreach ($allEnrollments as $enrollment) {
-          $unitId = $enrollment->unit_id;
-          $semesterId = $enrollment->semester_id;
-          
-          if (!isset($studentCounts[$semesterId])) {
-              $studentCounts[$semesterId] = [];
-          }
-          
-          if (!isset($studentCounts[$semesterId][$unitId])) {
-              $studentCounts[$semesterId][$unitId] = Enrollment::where('unit_id', $unitId)
-                  ->where('semester_id', $semesterId)
-                  ->where('student_code', '!=', null)
-                  ->distinct('student_code')
-                  ->count();
-          }
-      }
-      
-      // For debugging
-      Log::info('Lecturer dashboard', [
-          'lecturer_id' => $user->id,
-          'lecturer_code' => $user->code ?? 'No code',
-          'current_semester_id' => $currentSemester ? $currentSemester->id : null,
-          'current_semester_name' => $currentSemester ? $currentSemester->name : null,
-          'lecturer_semesters_count' => $lecturerSemesters->count(),
-          'units_by_semester_count' => count($unitsBySemester),
-          'has_lecturer_role' => $user->hasRole('Lecturer')
-      ]);
-      
-      return Inertia::render('Lecturer/Dashboard', [
-          'currentSemester' => $currentSemester,
-          'lecturerSemesters' => $lecturerSemesters,
-          'unitsBySemester' => $unitsBySemester,
-          'studentCounts' => $studentCounts
-      ]);
-  }
+  /**
+ * Display the lecturer's dashboard - WORKING VERSION BASED ON CLASS TIMETABLE LOGIC
+ */
+public function dashboard()
+    {
+        $lecturer = auth()->user();
+        
+        // Debug: Check if lecturer exists and has units
+        \Log::info('Lecturer ID: ' . $lecturer->id);
+        
+        // Get current semester
+        $currentSemester = Semester::where('is_current', true)->first();
+        
+        // Get all semesters where lecturer has units
+        $lecturerSemesters = Semester::whereHas('units.lecturers', function($query) use ($lecturer) {
+            $query->where('lecturer_id', $lecturer->id);
+        })->get();
+        
+        // Debug: Log the semesters found
+        \Log::info('Lecturer Semesters: ' . $lecturerSemesters->count());
+        
+        // Get units by semester
+        $unitsBySemester = [];
+        $studentCounts = [];
+        
+        foreach ($lecturerSemesters as $semester) {
+            $units = $lecturer->units()
+                ->wherePivot('semester_id', $semester->id)
+                ->with('faculty')
+                ->get();
+            
+            // Debug: Log units for each semester
+            \Log::info("Semester {$semester->id} units: " . $units->count());
+            
+            if ($units->count() > 0) {
+                $unitsBySemester[$semester->id] = [
+                    'semester' => $semester,
+                    'units' => $units
+                ];
+                
+                // Get student counts for each unit
+                $studentCounts[$semester->id] = [];
+                foreach ($units as $unit) {
+                    $studentCounts[$semester->id][$unit->id] = $unit->students()
+                        ->wherePivot('semester_id', $semester->id)
+                        ->count();
+                }
+            }
+        }
+        
+        // Debug: Log final data structure
+        \Log::info('Units by semester: ' . json_encode(array_keys($unitsBySemester)));
+        
+        return Inertia::render('Lecturer/Dashboard', [
+            'currentSemester' => $currentSemester,
+            'lecturerSemesters' => $lecturerSemesters,
+            'unitsBySemester' => $unitsBySemester,
+            'studentCounts' => $studentCounts,
+        ]);
+    }
     public function myClasses(Request $request)
     {
         $user = $request->user();

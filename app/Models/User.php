@@ -72,4 +72,17 @@ class User extends Authenticatable
     {
         return $this->hasMany(Enrollment::class, 'lecturer_code', 'code');
     }
+    // For lecturers - relationship to units they teach
+    public function units()
+    {
+        return $this->belongsToMany(Unit::class, 'lecturer_units')
+                    ->withPivot('semester_id')
+                    ->withTimestamps();
+    }
+    
+    // Alternative if using a different pivot table structure
+    public function lecturerUnits()
+    {
+        return $this->hasMany(LecturerUnit::class, 'lecturer_id');
+    }
 }
