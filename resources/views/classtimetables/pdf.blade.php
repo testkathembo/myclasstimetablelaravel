@@ -105,36 +105,39 @@
         </div>
         
         <table>
-            <thead>
-                <tr>
-                    <th>Day</th>
-                    <th>Time</th>
-                    <th>Unit Code</th>
-                    <th>Unit Name</th>
-                    <th>Semester</th>
-                    <th>Venue</th>
-                    <th>Location</th>
-                    <th>Lecturer</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($classTimetables as $class)
-                <tr>
-                    <td>{{ $class->day }}</td>
-                    <td>{{ $class->start_time }} - {{ $class->end_time }}</td>
-                    <td>{{ $class->unit_code }}</td>
-                    <td>{{ $class->unit_name }}</td>
-                    <td>{{ $class->semester_name }}</td>
-                    <td>{{ $class->venue }}</td>
-                    <td>{{ $class->location }}</td>
-                    <td>{{ $class->lecturer }}</td>
-                </tr>
-                @empty
-                <tr>
-                    <td colspan="8" style="text-align: center;">No class timetables available</td>
-                </tr>
-                @endforelse
-            </tbody>
+            
+    <thead>
+        <tr>
+            <th>Day</th>         
+            <th>Time</th>
+            <th>Unit Code</th>
+            <th>Unit Name</th>
+            <th>Semester</th>
+            <th>Group</th>           
+            <th>Venue</th>
+            <th>Location</th>
+            <th>Lecturer</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($classTimetables as $class)
+        <tr>
+            <td>{{ $class->day }}</td>            
+            <td>{{ \Carbon\Carbon::parse($class->start_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($class->end_time)->format('H:i') }}</td>
+            <td>{{ $class->unit_code }}</td>
+            <td>{{ $class->unit_name }}</td>
+            <td>{{ $class->semester_name }}</td>
+            <td>{{ $class->group_name ?? '' }}</td>            
+            <td>{{ $class->venue }}</td>
+            <td>{{ $class->location }}</td>
+            <td>{{ $class->lecturer }}</td>
+        </tr>
+        @empty
+        <tr>
+            <td colspan="11" style="text-align: center;">No class timetables available</td>
+        </tr>
+        @endforelse
+    </tbody>
         </table>
         
         <div class="footer">
