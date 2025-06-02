@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB; // Add this import
+use Illuminate\Support\Facades\Schema; // <-- Add this line
 use App\Models\User;
 use App\Models\Unit;
 use App\Models\Enrollment;
@@ -379,213 +380,204 @@ class LecturerController extends Controller
   /**
    * Display the lecturer's class timetable
    */
-  public function viewClassTimetable(Request $request)
-  {
-      $user = $request->user();
-      
-      if (!$user || !$user->code) {
-          Log::error('Class Timetable accessed with invalid user', [
-              'user_id' => $user ? $user->id : 'null',
-              'has_code' => $user && isset($user->code)
-          ]);
-          
-          return Inertia::render('Lecturer/ClassTimetable', [
-              'error' => 'User profile is incomplete. Please contact an administrator.',
-              'classTimetables' => [],
-              'currentSemester' => null,
-              'selectedSemesterId' => null,
-              'selectedUnitId' => null,
-              'assignedUnits' => []
-          ]);
-      }
-      
-      try {
-          // Get selected semester and unit from request
-          $selectedSemesterId = $request->input('semester_id');
-          $selectedUnitId = $request->input('unit_id');
-          
-          // Find semesters where the lecturer has assigned units
-          $lecturerSemesters = Enrollment::where('lecturer_code', $user->code)
-              ->distinct('semester_id')
-              ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
-              ->select('semesters.*')
-              ->orderBy('semesters.name')
-              ->get();
-          
-          // Get all units assigned to this lecturer across all semesters
-          $allAssignedUnits = Enrollment::where('lecturer_code', $user->code)
-              ->with('unit.school', 'semester') // Replace faculty with school
-              ->get();
-              
-          // Extract unique units with their semesters
-          $unitsBySemester = [];
-          $allUnitIds = [];
-          
-          foreach ($allAssignedUnits as $enrollment) {
-              if (!$enrollment->unit_id || !$enrollment->semester_id) continue;
-              
-              $semesterId = $enrollment->semester_id;
-              $unitId = $enrollment->unit_id;
-              
-              if (!isset($unitsBySemester[$semesterId])) {
-                  $unitsBySemester[$semesterId] = [];
-              }
-              
-              if (!in_array($unitId, $unitsBySemester[$semesterId])) {
-                  $unitsBySemester[$semesterId][] = $unitId;
-              }
-              
-              if (!in_array($unitId, $allUnitIds)) {
-                  $allUnitIds[] = $unitId;
-              }
-          }
-          
-          // Get all units for the dropdown
-          $assignedUnits = Unit::whereIn('id', $allUnitIds)->get();
-          
-          // Get the selected semester (for display purposes)
-          $selectedSemester = null;
-          if ($selectedSemesterId) {
-              $selectedSemester = $lecturerSemesters->firstWhere('id', $selectedSemesterId);
-          }
-          
-          // Get class timetable entries
-          $classTimetables = [];
+  /**
+ * Display the lecturer's class timetable
+ */
+public function viewClassTimetable(Request $request)
+{
+    $user = $request->user();
+    
+    if (!$user || !$user->code) {
+        Log::error('Class Timetable accessed with invalid user', [
+            'user_id' => $user ? $user->id : 'null',
+            'has_code' => $user && isset($user->code)
+        ]);
+        
+        return Inertia::render('Lecturer/ClassTimetable', [
+            'error' => 'User profile is incomplete. Please contact an administrator.',
+            'classTimetables' => [],
+            'currentSemester' => null,
+            'selectedSemesterId' => null,
+            'selectedUnitId' => null,
+            'assignedUnits' => []
+        ]);
+    }
+    
+    try {
+        // Get selected semester and unit from request
+        $selectedSemesterId = $request->input('semester_id');
+        $selectedUnitId = $request->input('unit_id');
+        
+        // Find semesters where the lecturer has assigned units
+        $lecturerSemesters = Enrollment::where('lecturer_code', $user->code)
+            ->distinct('semester_id')
+            ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
+            ->select('semesters.*')
+            ->orderBy('semesters.name')
+            ->get();
+        
+        // Get all units assigned to this lecturer across all semesters
+        $allAssignedUnits = Enrollment::where('lecturer_code', $user->code)
+            ->with('unit.school', 'semester')
+            ->get();
+            
+        // Extract unique units with their semesters
+        $unitsBySemester = [];
+        $allUnitIds = [];
+        
+        foreach ($allAssignedUnits as $enrollment) {
+            if (!$enrollment->unit_id || !$enrollment->semester_id) continue;
+            
+            $semesterId = $enrollment->semester_id;
+            $unitId = $enrollment->unit_id;
+            
+            if (!isset($unitsBySemester[$semesterId])) {
+                $unitsBySemester[$semesterId] = [];
+            }
+            
+            if (!in_array($unitId, $unitsBySemester[$semesterId])) {
+                $unitsBySemester[$semesterId][] = $unitId;
+            }
+            
+            if (!in_array($unitId, $allUnitIds)) {
+                $allUnitIds[] = $unitId;
+            }
+        }
+        
+        // Get all units for the dropdown
+        $assignedUnits = Unit::whereIn('id', $allUnitIds)->get();
+        
+        // Get the selected semester (for display purposes)
+        $selectedSemester = null;
+        if ($selectedSemesterId) {
+            $selectedSemester = $lecturerSemesters->firstWhere('id', $selectedSemesterId);
+        }
+        
+        // Build the query for class timetable entries
+        $query = DB::table('class_timetable')
+            ->leftJoin('programs', 'class_timetable.program_id', '=', 'programs.id')
+            ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
+            ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+            ->select(
+                'class_timetable.*',
+                'programs.name as program_name',
+                'classes.name as class_name',
+                'groups.name as group_name'
+            );
 
-          // Check if we have a valid user
-          if ($user && $user->code) {
-              // Start building the query
-              $query = DB::table('class_timetable');
-              
-              // If specific filters are applied
-              if ($selectedUnitId || $selectedSemesterId) {
-                  // If a specific unit is selected
-                  if ($selectedUnitId) {
-                      $query->where('unit_id', $selectedUnitId);
-                      
-                      // If a semester is also selected, filter by both
-                      if ($selectedSemesterId) {
-                          $query->where('semester_id', $selectedSemesterId);
-                      }
-                  }
-                  // If only a semester is selected (no specific unit)
-                  else if ($selectedSemesterId) {
-                      $query->where('semester_id', $selectedSemesterId)
-                            ->whereIn('unit_id', $unitsBySemester[$selectedSemesterId] ?? []);
-                  }
-              }
-              // If no filters are applied (show all classes for this lecturer)
-              else {
-                  // Get all semester IDs for this lecturer
-                  $semesterIds = array_keys($unitsBySemester);
-                  
-                  // Build a complex where clause for each semester and its units
-                  $query->where(function($q) use ($unitsBySemester) {
-                      $first = true;
-                      foreach ($unitsBySemester as $semesterId => $unitIds) {
-                          if (!empty($unitIds)) {
-                              if ($first) {
-                                  $q->where(function($subQ) use ($semesterId, $unitIds) {
-                                      $subQ->where('semester_id', $semesterId)
-                                           ->whereIn('unit_id', $unitIds);
-                                  });
-                                  $first = false;
-                              } else {
-                                  $q->orWhere(function($subQ) use ($semesterId, $unitIds) {
-                                      $subQ->where('semester_id', $semesterId)
-                                           ->whereIn('unit_id', $unitIds);
-                                  });
-                              }
-                          }
-                      }
-                  });
-              }
-              
-              // Get the timetable entries
-              $timetableEntries = $query->orderBy('day')
-                  ->orderBy('start_time')
-                  ->get();
-              
-              // Log the query and results for debugging
-              Log::info('Class timetable query', [
-                  'semester_id' => $selectedSemesterId,
-                  'unit_id' => $selectedUnitId,
-                  'results_count' => $timetableEntries->count(),
-                  'sql' => $query->toSql(),
-                  'bindings' => $query->getBindings()
-              ]);
-              
-              // If we have results, join with units to get unit names
-              if ($timetableEntries->isNotEmpty()) {
-                  // Get all unit IDs from the timetable entries
-                  $unitIds = $timetableEntries->pluck('unit_id')->unique();
-                  
-                  // Get the units data
-                  $units = Unit::whereIn('id', $unitIds)->get()->keyBy('id');
-                  
-                  // Get all semester IDs from the timetable entries
-                  $semesterIds = $timetableEntries->pluck('semester_id')->unique();
-                  
-                  // Get the semesters data
-                  $semesters = Semester::whereIn('id', $semesterIds)->get()->keyBy('id');
-                  
-                  // Map the timetable entries to include unit and semester data
-                  $classTimetables = $timetableEntries->map(function($entry) use ($units, $semesters) {
-                      $unit = $units->get($entry->unit_id);
-                      $semester = $semesters->get($entry->semester_id);
-                      
-                      return [
-                          'id' => $entry->id,
-                          'unit_id' => $entry->unit_id,
-                          'semester_id' => $entry->semester_id,
-                          'unit' => $unit ? [
-                              'id' => $unit->id,
-                              'code' => $unit->code,
-                              'name' => $unit->name
-                          ] : null,
-                          'semester' => $semester ? [
-                              'id' => $semester->id,
-                              'name' => $semester->name
-                          ] : null,
-                          'day' => $entry->day,
-                          'start_time' => $entry->start_time,
-                          'end_time' => $entry->end_time,
-                          'venue' => $entry->room_name ?? $entry->venue ?? '',
-                          'location' => $entry->location ?? '',
-                          'no' => $entry->no ?? 0
-                      ];
-                  });
-              }
-          }
-          
-          return Inertia::render('Lecturer/ClassTimetable', [
-              'classTimetables' => $classTimetables,
-              'currentSemester' => $selectedSemester,
-              'selectedSemesterId' => $selectedSemesterId,
-              'selectedUnitId' => $selectedUnitId,
-              'assignedUnits' => $assignedUnits,
-              'lecturerSemesters' => $lecturerSemesters,
-              'showAllByDefault' => true // Add this flag to indicate we want to show all by default
-          ]);
-      } catch (\Exception $e) {
-          Log::error('Error in class timetable', [
-              'lecturer_code' => $user->code,
-              'error' => $e->getMessage(),
-              'trace' => $e->getTraceAsString()
-          ]);
-          
-          return Inertia::render('Lecturer/ClassTimetable', [
-              'error' => 'An error occurred while loading the timetable: ' . $e->getMessage(),
-              'classTimetables' => [],
-              'currentSemester' => null,
-              'selectedSemesterId' => $request->input('semester_id'),
-              'selectedUnitId' => $request->input('unit_id'),
-              'assignedUnits' => [],
-              'lecturerSemesters' => [],
-              'showAllByDefault' => true
-          ]);
-      }
-  }
+        // Filter by lecturer - this is the key fix
+        // Option 1: If the class_timetable has a lecturer column that stores lecturer name
+        if (Schema::hasColumn('class_timetable', 'lecturer')) {
+            $query->where('class_timetable.lecturer', $user->name);
+        }
+        // Option 2: If the class_timetable has a lecturer_code column
+        elseif (Schema::hasColumn('class_timetable', 'lecturer_code')) {
+            $query->where('class_timetable.lecturer_code', $user->code);
+        }
+        // Option 3: Filter by units assigned to this lecturer
+        else {
+            $query->whereIn('class_timetable.unit_id', $allUnitIds);
+        }
+
+        // Apply additional filters if provided
+        if ($selectedUnitId) {
+            $query->where('class_timetable.unit_id', $selectedUnitId);
+        }
+        
+        if ($selectedSemesterId) {
+            $query->where('class_timetable.semester_id', $selectedSemesterId);
+        }
+        
+        // Get the timetable entries
+        $timetableEntries = $query->orderBy('day')
+            ->orderBy('start_time')
+            ->get();
+        
+        // Log the query and results for debugging
+        Log::info('Class timetable query', [
+            'lecturer_code' => $user->code,
+            'lecturer_name' => $user->name,
+            'semester_id' => $selectedSemesterId,
+            'unit_id' => $selectedUnitId,
+            'results_count' => $timetableEntries->count(),
+            'assigned_unit_ids' => $allUnitIds
+        ]);
+        
+        $classTimetables = [];
+        
+        // If we have results, join with units and semesters to get their details
+        if ($timetableEntries->isNotEmpty()) {
+            // Get all unit IDs from the timetable entries
+            $unitIds = $timetableEntries->pluck('unit_id')->unique();
+            
+            // Get the units data
+            $units = Unit::whereIn('id', $unitIds)->get()->keyBy('id');
+            
+            // Get all semester IDs from the timetable entries
+            $semesterIds = $timetableEntries->pluck('semester_id')->unique();
+            
+            // Get the semesters data
+            $semesters = Semester::whereIn('id', $semesterIds)->get()->keyBy('id');
+            
+            // Map the timetable entries to include unit and semester data
+            $classTimetables = $timetableEntries->map(function($entry) use ($units, $semesters) {
+                $unit = $units->get($entry->unit_id);
+                $semester = $semesters->get($entry->semester_id);
+
+                return [
+                    'id' => $entry->id,
+                    'unit_id' => $entry->unit_id,
+                    'semester_id' => $entry->semester_id,
+                    'unit' => $unit ? [
+                        'id' => $unit->id,
+                        'code' => $unit->code,
+                        'name' => $unit->name
+                    ] : null,
+                    'semester' => $semester ? [
+                        'id' => $semester->id,
+                        'name' => $semester->name
+                    ] : null,
+                    'day' => $entry->day,
+                    'start_time' => $entry->start_time,
+                    'end_time' => $entry->end_time,
+                    'venue' => $entry->room_name ?? $entry->venue ?? '',
+                    'location' => $entry->location ?? '',
+                    'no' => $entry->no ?? 0,
+                    'program_name' => $entry->program_name ?? '',
+                    'class_name' => $entry->class_name ?? '',
+                    'group_name' => $entry->group_name ?? '',
+                ];
+            });
+        }
+        
+        return Inertia::render('Lecturer/ClassTimetable', [
+            'classTimetables' => $classTimetables,
+            'currentSemester' => $selectedSemester,
+            'selectedSemesterId' => $selectedSemesterId,
+            'selectedUnitId' => $selectedUnitId,
+            'assignedUnits' => $assignedUnits,
+            'lecturerSemesters' => $lecturerSemesters,
+            'showAllByDefault' => true
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error in class timetable', [
+            'lecturer_code' => $user->code,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return Inertia::render('Lecturer/ClassTimetable', [
+            'error' => 'An error occurred while loading the timetable: ' . $e->getMessage(),
+            'classTimetables' => [],
+            'currentSemester' => null,
+            'selectedSemesterId' => $request->input('semester_id'),
+            'selectedUnitId' => $request->input('unit_id'),
+            'assignedUnits' => [],
+            'lecturerSemesters' => [],
+            'showAllByDefault' => true
+        ]);
+    }
+}
   
   /**
    * Display the lecturer's exam supervision assignments

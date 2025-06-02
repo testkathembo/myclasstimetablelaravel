@@ -37,6 +37,9 @@ interface ClassTimetable {
   location: string
   no?: number
   lecturer?: string
+  program_name?: string      
+  class_name?: string        
+  group_name?: string        
 }
 
 interface Props {
@@ -254,60 +257,47 @@ const ClassTimetable = ({
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
-                        <tr>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Time
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Unit
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Semester
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Venue
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Students
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {timetablesByDay[day]
-                          .sort((a, b) => a.start_time.localeCompare(b.start_time))
-                          .map((timetable) => (
-                            <tr key={timetable.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {timetable.start_time} - {timetable.end_time}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {timetable.unit?.name || "Unknown Unit"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {timetable.semester?.name || "Unknown Semester"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {timetable.venue} {timetable.location ? `(${timetable.location})` : ""}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{timetable.no || 0}</td>
-                            </tr>
-                          ))}
-                      </tbody>
+  <tr>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Venue</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Group</th>
+  </tr>
+</thead>
+<tbody className="bg-white divide-y divide-gray-200">
+  {timetablesByDay[day]
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    .map((timetable) => (
+      <tr key={timetable.id} className="hover:bg-gray-50">
+        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+          {timetable.start_time} - {timetable.end_time}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {timetable.unit?.name || "Unknown Unit"}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {timetable.semester?.name || "Unknown Semester"}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {timetable.venue} {timetable.location ? `(${timetable.location})` : ""}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{timetable.no || 0}</td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {timetable.program_name || "No Program"}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {timetable.class_name || "No Class"}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {timetable.group_name || "No Group"}
+        </td>
+      </tr>
+    ))}
+</tbody>
                     </table>
                   </div>
                 </div>
