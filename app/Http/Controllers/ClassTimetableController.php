@@ -518,365 +518,272 @@ class ClassTimetableController extends Controller
     /**
      * Get session configuration based on credit hours
      */
-    private function getSessionsForCredits($creditHours)
-    {
-        switch ($creditHours) {
-            case 4:
-                return [
-                    ['type' => 'physical', 'duration' => 1],
-                    ['type' => 'physical', 'duration' => 1],
-                    ['type' => 'online', 'duration' => 1],
-                    ['type' => 'online', 'duration' => 1]
-                ];
-            case 3:
-                return [
-                    ['type' => 'physical', 'duration' => 1],
-                    ['type' => 'physical', 'duration' => 1],
-                    ['type' => 'online', 'duration' => 1]
-                ];
-            case 2:
-                return [
-                    ['type' => 'physical', 'duration' => 1],
-                    ['type' => 'online', 'duration' => 1]
-                ];
-            case 1:
-                return [
-                    ['type' => 'physical', 'duration' => 1]
-                ];
-            default:
-                $physicalSessions = ceil($creditHours / 2);
-                $onlineSessions = $creditHours - $physicalSessions;
-                
-                $sessions = [];
-                for ($i = 0; $i < $physicalSessions; $i++) {
-                    $sessions[] = ['type' => 'physical', 'duration' => 1];
-                }
-                for ($i = 0; $i < $onlineSessions; $i++) {
-                    $sessions[] = ['type' => 'online', 'duration' => 1];
-                }
-                
-                return $sessions;
-        }
+
+private function getSessionsForCredits($creditHours)
+{
+    $sessions = [];
+
+    // Assign 1 physical session of 2 hours if possible
+    if ($creditHours >= 2) {
+        $sessions[] = ['type' => 'physical', 'duration' => 2];
+        $remaining = $creditHours - 2;
+    } else {
+        $remaining = $creditHours;
     }
+
+    // Assign the remaining hours as 1-hour online sessions
+    while ($remaining > 0) {
+        $sessions[] = ['type' => 'online', 'duration' => 1];
+        $remaining--;
+    }
+
+    return $sessions;
+}
 
     /**
      * Create a single session timetable
      */
-    private function createSessionTimetable(Request $request, Unit $unit, array $session, int $sessionNumber, $programId, $schoolId)
-    {
-        $sessionType = $session['type'];
-        
-        // Get appropriate time slot for this session
-        $timeSlotResult = $this->assignRandomTimeSlot($request->lecturer, '', null, $sessionType);
-        
-        if (!$timeSlotResult['success']) {
-            return [
-                'success' => false,
-                'message' => "Session {$sessionNumber} ({$sessionType}): " . $timeSlotResult['message']
-            ];
-        }
-
-        $day = $timeSlotResult['day'];
-        $startTime = $timeSlotResult['start_time'];
-        $endTime = $timeSlotResult['end_time'];
-
-        // Get appropriate venue for this session
-        $venueResult = $this->assignRandomVenue($request->no, $day, $startTime, $endTime, $sessionType);
-        
-        if (!$venueResult['success']) {
-            return [
-                'success' => false,
-                'message' => "Session {$sessionNumber} ({$sessionType}): " . $venueResult['message']
-            ];
-        }
-
-        $venue = $venueResult['venue'];
-        $location = $venueResult['location'];
-        $teachingMode = $venueResult['teaching_mode'];
-
-        // Check for conflicts
-        $lecturerConflict = ClassTimetable::where('day', $day)
-            ->where('lecturer', $request->lecturer)
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->where(function ($q) use ($startTime, $endTime) {
-                    $q->where('start_time', '<', $endTime)
-                      ->where('end_time', '>', $startTime);
-                })
-                ->orWhere(function ($q) use ($startTime, $endTime) {
-                    $q->where('end_time', $startTime)
-                      ->orWhere('start_time', $endTime);
-                });
-            })
-            ->exists();
-
-        if ($lecturerConflict) {
-            return [
-                'success' => false,
-                'message' => "Session {$sessionNumber} ({$sessionType}): Lecturer conflict detected for time slot {$day} {$startTime}-{$endTime}"
-            ];
-        }
-
-        // Create the timetable entry
-        $classTimetable = ClassTimetable::create([
-            'day' => $day,
-            'unit_id' => $unit->id,
-            'semester_id' => $request->semester_id,
-            'class_id' => $request->class_id,
-            'group_id' => $request->group_id ?: null,
-            'venue' => $venue,
-            'location' => $location,
-            'no' => $request->no,
-            'lecturer' => $request->lecturer,
-            'start_time' => $startTime,
-            'end_time' => $endTime,
-            'teaching_mode' => $teachingMode,
-            'program_id' => $programId,
-            'school_id' => $schoolId,
-        ]);
-
-        \Log::info("Session {$sessionNumber} created successfully", [
-            'timetable_id' => $classTimetable->id,
-            'unit_code' => $unit->code,
-            'session_type' => $sessionType,
-            'day' => $day,
-            'time' => "{$startTime}-{$endTime}",
-            'venue' => $venue,
-            'teaching_mode' => $teachingMode
-        ]);
-
+    /**
+ * ✅ UPDATED: Create a single session timetable with proper duration handling
+ */
+private function createSessionTimetable(Request $request, Unit $unit, array $session, int $sessionNumber, $programId, $schoolId)
+{
+    $sessionType = $session['type'];
+    $requiredDuration = $session['duration']; // 1 or 2 hours
+    
+    \Log::info("Creating session {$sessionNumber}", [
+        'unit_code' => $unit->code,
+        'session_type' => $sessionType,
+        'required_duration' => $requiredDuration
+    ]);
+    
+    // Get appropriate time slot for this session with the required duration
+    $timeSlotResult = $this->assignRandomTimeSlot($request->lecturer, '', null, $sessionType, $requiredDuration);
+    
+    if (!$timeSlotResult['success']) {
         return [
-            'success' => true,
-            'message' => "Session {$sessionNumber} ({$sessionType}) created successfully",
-            'timetable' => $classTimetable
+            'success' => false,
+            'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): " . $timeSlotResult['message']
         ];
     }
 
-    /**
-     * ✅ NEW: Create single timetable (existing functionality)
-     */
-    private function createSingleTimetable(Request $request, Unit $unit, $programId, $schoolId)
-    {
-        $day = $request->day;
-        $startTime = $request->start_time;
-        $endTime = $request->end_time;
+    $day = $timeSlotResult['day'];
+    $startTime = $timeSlotResult['start_time'];
+    $endTime = $timeSlotResult['end_time'];
+    $actualDuration = $timeSlotResult['duration'] ?? $requiredDuration;
 
-        // Handle venue assignment (random or specified)
-        $venue = $request->venue;
-        $location = $request->location;
-
-        // If no venue is specified, assign a random one
-        if (empty($venue) || $venue === 'Random Venue (auto-assign)') {
-            $randomVenueResult = $this->assignRandomVenue($request->no, $day, $startTime, $endTime);
-
-            if (!$randomVenueResult['success']) {
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $randomVenueResult['message'],
-                        'errors' => ['venue' => $randomVenueResult['message']]
-                    ], 422);
-                }
-
-                return redirect()->back()
-                    ->withErrors(['venue' => $randomVenueResult['message']])
-                    ->withInput()
-                    ->with('error', $randomVenueResult['message']);
-            }
-
-            $venue = $randomVenueResult['venue'];
-            $location = $randomVenueResult['location'];
-        }
-
-        // Determine teaching mode and location based on venue
-        $venueInfo = $this->determineTeachingModeAndLocation($venue);
-        $teachingMode = $venueInfo['teaching_mode'];
-
-        // Override location if it's an online venue
-        if ($teachingMode === 'online') {
-            $location = 'online';
-        } else if (empty($location)) {
-            $classroom = Classroom::where('name', $venue)->first();
-            $location = $classroom ? $classroom->location : $venueInfo['location'];
-        }
-
-        // Check for lecturer time conflicts
-        $lecturerConflict = ClassTimetable::where('day', $day)
-            ->where('lecturer', $request->lecturer)
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->where(function ($q) use ($startTime, $endTime) {
-                    $q->where('start_time', '<', $endTime)
-                      ->where('end_time', '>', $startTime);
-                })
-                ->orWhere(function ($q) use ($startTime, $endTime) {
-                    $q->where('end_time', $startTime)
-                      ->orWhere('start_time', $endTime);
-                });
-            })
-            ->first();
-
-        if ($lecturerConflict) {
-            \Log::warning('Lecturer conflict detected');
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Time conflict: The lecturer has another class that conflicts with this time slot.',
-                    'errors' => ['conflict' => 'Lecturer time conflict detected']
-                ], 422);
-            }
-
-            return redirect()->back()
-                ->withErrors(['conflict' => 'Time conflict: The lecturer has another class that conflicts with this time slot.'])
-                ->withInput();
-        }
-
-        // Create the timetable entry
-        $classTimetable = ClassTimetable::create([
-            'day' => $day,
-            'unit_id' => $unit->id,
-            'semester_id' => $request->semester_id,
-            'class_id' => $request->class_id,
-            'group_id' => $request->group_id ?: null,
-            'venue' => $venue,
-            'location' => $location,
-            'no' => $request->no,
-            'lecturer' => $request->lecturer,
-            'start_time' => $startTime,
-            'end_time' => $endTime,
-            'teaching_mode' => $teachingMode,
-            'program_id' => $programId,
-            'school_id' => $schoolId,
-        ]);
-
-        \Log::info('Single class timetable created successfully', [
-            'id' => $classTimetable->id,
-            'unit_code' => $unit->code,
-            'day' => $day,
-            'time_slot' => $startTime . '-' . $endTime,
-            'venue' => $venue,
-            'teaching_mode' => $teachingMode,
-        ]);
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Class timetable created successfully.',
-                'data' => $classTimetable
-            ]);
-        }
-
-        return redirect()->back()->with('success', 'Class timetable created successfully.');
+    // Get appropriate venue for this session
+    $venueResult = $this->assignRandomVenue($request->no, $day, $startTime, $endTime, $sessionType);
+    
+    if (!$venueResult['success']) {
+        return [
+            'success' => false,
+            'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): " . $venueResult['message']
+        ];
     }
 
+    $venue = $venueResult['venue'];
+    $location = $venueResult['location'];
+    $teachingMode = $venueResult['teaching_mode'];
+
+    // Double-check for conflicts
+    $lecturerConflict = ClassTimetable::where('day', $day)
+        ->where('lecturer', $request->lecturer)
+        ->where(function ($query) use ($startTime, $endTime) {
+            $query->where(function ($q) use ($startTime, $endTime) {
+                $q->where('start_time', '<', $endTime)
+                  ->where('end_time', '>', $startTime);
+            });
+        })
+        ->exists();
+
+    if ($lecturerConflict) {
+        return [
+            'success' => false,
+            'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): Lecturer conflict detected for {$day} {$startTime}-{$endTime}"
+        ];
+    }
+
+    // Create the timetable entry
+    $classTimetable = ClassTimetable::create([
+        'day' => $day,
+        'unit_id' => $unit->id,
+        'semester_id' => $request->semester_id,
+        'class_id' => $request->class_id,
+        'group_id' => $request->group_id ?: null,
+        'venue' => $venue,
+        'location' => $location,
+        'no' => $request->no,
+        'lecturer' => $request->lecturer,
+        'start_time' => $startTime,
+        'end_time' => $endTime,
+        'teaching_mode' => $teachingMode,
+        'program_id' => $programId,
+        'school_id' => $schoolId,
+    ]);
+
+    \Log::info("Session {$sessionNumber} created successfully", [
+        'timetable_id' => $classTimetable->id,
+        'unit_code' => $unit->code,
+        'session_type' => $sessionType,
+        'day' => $day,
+        'time' => "{$startTime}-{$endTime}",
+        'duration' => $actualDuration,
+        'venue' => $venue,
+        'teaching_mode' => $teachingMode
+    ]);
+
+    return [
+        'success' => true,
+        'message' => "Session {$sessionNumber} ({$sessionType}, {$actualDuration}h) created successfully",
+        'timetable' => $classTimetable,
+        'duration' => $actualDuration
+    ];
+}
     /**
      * ✅ UPDATED: Assign a random time slot with optional teaching mode preference
      */
-    private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = null, $preferredMode = null)
-    {
-        try {
-            // Get all available time slots
-            $availableTimeSlots = ClassTimeSlot::all();
+    
+/**
+ * ✅ UPDATED: Assign a random time slot with specific duration requirements
+ */
+private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = null, $preferredMode = null, $requiredDuration = 1)
+{
+    try {
+        \Log::info('Assigning time slot', [
+            'lecturer' => $lecturer,
+            'preferred_mode' => $preferredMode,
+            'required_duration' => $requiredDuration
+        ]);
 
-            if ($availableTimeSlots->isEmpty()) {
-                return [
-                    'success' => false,
-                    'message' => 'No time slots available in the system.'
-                ];
-            }
-
-            // Filter by preferred day if specified
-            if ($preferredDay) {
-                $availableTimeSlots = $availableTimeSlots->where('day', $preferredDay);
+        // Get time slots based on required duration
+        $availableTimeSlots = collect();
+        
+        if ($requiredDuration == 2) {
+            // For 2-hour sessions, look for 2-hour time slots
+            $twoHourSlots = DB::table('class_time_slots')
+                ->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) = 2')
+                ->when($preferredDay, function ($query) use ($preferredDay) {
+                    $query->where('day', $preferredDay);
+                })
+                ->get();
                 
-                if ($availableTimeSlots->isEmpty()) {
-                    return [
-                        'success' => false,
-                        'message' => "No time slots available for {$preferredDay}."
-                    ];
-                }
+            $availableTimeSlots = $twoHourSlots;
+            
+            // If no 2-hour slots available, try to find any slots and we'll adjust
+            if ($availableTimeSlots->isEmpty()) {
+                \Log::warning('No 2-hour slots found, trying any available slots');
+                $availableTimeSlots = DB::table('class_time_slots')
+                    ->when($preferredDay, function ($query) use ($preferredDay) {
+                        $query->where('day', $preferredDay);
+                    })
+                    ->get();
+            }
+        } else {
+            // For 1-hour sessions, prefer 1-hour slots but allow any
+            $oneHourSlots = DB::table('class_time_slots')
+                ->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) = 1')
+                ->when($preferredDay, function ($query) use ($preferredDay) {
+                    $query->where('day', $preferredDay);
+                })
+                ->get();
+                
+            if ($oneHourSlots->isNotEmpty()) {
+                $availableTimeSlots = $oneHourSlots;
+            } else {
+                // Fallback to any available slots
+                $availableTimeSlots = DB::table('class_time_slots')
+                    ->when($preferredDay, function ($query) use ($preferredDay) {
+                        $query->where('day', $preferredDay);
+                    })
+                    ->get();
+            }
+        }
+
+        if ($availableTimeSlots->isEmpty()) {
+            return [
+                'success' => false,
+                'message' => "No time slots available for {$requiredDuration}-hour sessions."
+            ];
+        }
+
+        // Filter out slots with conflicts
+        $conflictFreeTimeSlots = $availableTimeSlots->filter(function ($slot) use ($lecturer, $venue) {
+            // Check for lecturer conflicts
+            $lecturerConflict = ClassTimetable::where('day', $slot->day)
+                ->where('lecturer', $lecturer)
+                ->where(function ($query) use ($slot) {
+                    $query->where(function ($q) use ($slot) {
+                        $q->where('start_time', '<', $slot->end_time)
+                          ->where('end_time', '>', $slot->start_time);
+                    });
+                })
+                ->exists();
+
+            if ($lecturerConflict) {
+                return false;
             }
 
-            // Filter out time slots that have conflicts
-            $conflictFreeTimeSlots = $availableTimeSlots->filter(function ($timeSlot) use ($lecturer, $venue) {
-                // Check for lecturer conflicts
-                $lecturerConflict = ClassTimetable::where('day', $timeSlot->day)
-                    ->where('lecturer', $lecturer)
-                    ->where(function ($query) use ($timeSlot) {
-                        $query->where(function ($q) use ($timeSlot) {
-                            $q->where('start_time', '<', $timeSlot->end_time)
-                              ->where('end_time', '>', $timeSlot->start_time);
-                        })
-                        ->orWhere(function ($q) use ($timeSlot) {
-                            $q->where('end_time', $timeSlot->start_time)
-                              ->orWhere('start_time', $timeSlot->end_time);
+            // Check for venue conflicts (if venue is specified and not online)
+            if (!empty($venue) && strtolower(trim($venue)) !== 'remote') {
+                $venueConflict = ClassTimetable::where('day', $slot->day)
+                    ->where('venue', $venue)
+                    ->where(function ($query) use ($slot) {
+                        $query->where(function ($q) use ($slot) {
+                            $q->where('start_time', '<', $slot->end_time)
+                              ->where('end_time', '>', $slot->start_time);
                         });
                     })
                     ->exists();
 
-                if ($lecturerConflict) {
+                if ($venueConflict) {
                     return false;
                 }
-
-                // Check for venue conflicts (if venue is specified and not online)
-                if (!empty($venue) && strtolower(trim($venue)) !== 'remote') {
-                    $venueConflict = ClassTimetable::where('day', $timeSlot->day)
-                        ->where('venue', $venue)
-                        ->where(function ($query) use ($timeSlot) {
-                            $query->where(function ($q) use ($timeSlot) {
-                                $q->where('start_time', '<', $timeSlot->end_time)
-                                  ->where('end_time', '>', $timeSlot->start_time);
-                            })
-                            ->orWhere(function ($q) use ($timeSlot) {
-                                $q->where('end_time', $timeSlot->start_time)
-                                  ->orWhere('start_time', $timeSlot->end_time);
-                            });
-                        })
-                        ->exists();
-
-                    if ($venueConflict) {
-                        return false;
-                    }
-                }
-
-                return true;
-            });
-
-            if ($conflictFreeTimeSlots->isEmpty()) {
-                return [
-                    'success' => false,
-                    'message' => 'No available time slots without conflicts for the specified lecturer' . 
-                                (!empty($venue) ? ' and venue' : '') . '.'
-                ];
             }
 
-            // Randomly select from available conflict-free time slots
-            $selectedTimeSlot = $conflictFreeTimeSlots->random();
+            return true;
+        });
 
-            \Log::info('Random time slot assigned', [
-                'day' => $selectedTimeSlot->day,
-                'start_time' => $selectedTimeSlot->start_time,
-                'end_time' => $selectedTimeSlot->end_time,
-                'lecturer' => $lecturer,
-                'venue' => $venue ?: 'not specified',
-                'preferred_mode' => $preferredMode
-            ]);
-
-            return [
-                'success' => true,
-                'day' => $selectedTimeSlot->day,
-                'start_time' => $selectedTimeSlot->start_time,
-                'end_time' => $selectedTimeSlot->end_time,
-                'message' => "Random time slot assigned: {$selectedTimeSlot->day} {$selectedTimeSlot->start_time}-{$selectedTimeSlot->end_time}"
-            ];
-        } catch (\Exception $e) {
-            \Log::error('Error in random time slot assignment: ' . $e->getMessage());
+        if ($conflictFreeTimeSlots->isEmpty()) {
             return [
                 'success' => false,
-                'message' => 'Failed to assign random time slot: ' . $e->getMessage()
+                'message' => "No available {$requiredDuration}-hour time slots without conflicts for lecturer {$lecturer}."
             ];
         }
-    }
 
+        // Randomly select from available conflict-free time slots
+        $selectedTimeSlot = $conflictFreeTimeSlots->random();
+
+        // Calculate actual duration
+        $actualDuration = \Carbon\Carbon::parse($selectedTimeSlot->start_time)
+            ->diffInHours(\Carbon\Carbon::parse($selectedTimeSlot->end_time));
+
+        \Log::info('Time slot assigned successfully', [
+            'day' => $selectedTimeSlot->day,
+            'start_time' => $selectedTimeSlot->start_time,
+            'end_time' => $selectedTimeSlot->end_time,
+            'required_duration' => $requiredDuration,
+            'actual_duration' => $actualDuration,
+            'lecturer' => $lecturer,
+            'preferred_mode' => $preferredMode
+        ]);
+
+        return [
+            'success' => true,
+            'day' => $selectedTimeSlot->day,
+            'start_time' => $selectedTimeSlot->start_time,
+            'end_time' => $selectedTimeSlot->end_time,
+            'duration' => $actualDuration,
+            'message' => "Assigned: {$selectedTimeSlot->day} {$selectedTimeSlot->start_time}-{$selectedTimeSlot->end_time} ({$actualDuration}h)"
+        ];
+    } catch (\Exception $e) {
+        \Log::error('Error in random time slot assignment: ' . $e->getMessage());
+        return [
+            'success' => false,
+            'message' => 'Failed to assign random time slot: ' . $e->getMessage()
+        ];
+    }
+}
     /**
      * ✅ UPDATED: Assign a random venue with teaching mode preference
      */
