@@ -140,6 +140,46 @@ interface FormState {
   school_id?: number | null
 }
 
+const isTimeSlotAvailable = (
+  slot: ClassTimeSlot,
+  day: string,
+  venue: string,
+  lecturer: string,
+  unitId: number,
+  classTimetables: PaginatedClassTimetables
+) => {
+  return !classTimetables.data.some((ct) => {
+    if (ct.day !== slot.day) return false;
+    if (venue && ct.venue === venue) {
+      return (ct.start_time < slot.end_time && ct.end_time > slot.start_time);
+    }
+    if (lecturer && ct.lecturer === lecturer) {
+      return (ct.start_time < slot.end_time && ct.end_time > slot.start_time);
+    }
+    if (unitId && ct.unit_id === unitId) {
+      return (ct.start_time < slot.end_time && ct.end_time > slot.start_time);
+    }
+    return false;
+  });
+};
+
+// ✅ FIXED: Updated to work without requiring a specific day
+const getRandomAvailableTimeSlot = (
+  venue: string,
+  lecturer: string,
+  unitId: number,
+  classTimetables: PaginatedClassTimetables,
+  classtimeSlots: ClassTimeSlot[]
+): ClassTimeSlot | null => {
+  // Get all available time slots across all days
+  const availableSlots = classtimeSlots.filter((slot) =>
+    isTimeSlotAvailable(slot, slot.day, venue, lecturer, unitId, classTimetables)
+  );
+  
+  if (availableSlots.length === 0) return null;
+  return availableSlots[Math.floor(Math.random() * availableSlots.length)];
+};
+
 // Helper function to ensure time is in H:i format
 const formatTimeToHi = (timeStr: string) => {
   if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
@@ -1052,13 +1092,7 @@ const ClassTimetable = () => {
               <Button onClick={handleDownloadClassTimetable} className="bg-indigo-500 hover:bg-indigo-600">
                 Download
               </Button>
-            )}
-
-            {can.create && (
-              <Button onClick={handleOpenAutoGenerateModal} className="bg-orange-500 hover:bg-orange-600">
-                Auto-Generate
-              </Button>
-            )}
+            )}            
           </div>
 
           <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
@@ -1162,95 +1196,7 @@ const ClassTimetable = () => {
           <p className="mt-6 text-gray-600">No class timetables available yet.</p>
         )}
 
-        {/* Auto-Generate Modal */}
-        {isAutoGenerateModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md w-[500px] max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-semibold mb-4">Auto-Generate Timetable</h2>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  handleAutoGenerateSubmit()
-                }}
-              >
-                <label className="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
-                <select
-                  value={autoGenerateFormState.semester_id}
-                  onChange={(e) => handleAutoGenerateChange("semester_id", e.target.value)}
-                  className="w-full border rounded p-2 mb-3"
-                  required
-                >
-                  <option value="">Select Semester</option>
-                  {semesters.map((semester) => (
-                    <option key={semester.id} value={semester.id}>
-                      {semester.name}
-                    </option>
-                  ))}
-                </select>
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Program *</label>
-                <select
-                  value={autoGenerateFormState.program_id}
-                  onChange={(e) => handleAutoGenerateChange("program_id", e.target.value)}
-                  className="w-full border rounded p-2 mb-3"
-                  required
-                  disabled={!autoGenerateFormState.semester_id || autoLoading}
-                >
-                  <option value="">
-                    {autoGenerateFormState.semester_id ? "Select Program" : "Select Semester First"}
-                  </option>
-                  {autoPrograms.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.code} - {program.name}
-                    </option>
-                  ))}
-                </select>
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
-                <select
-                  value={autoGenerateFormState.class_id}
-                  onChange={(e) => handleAutoGenerateChange("class_id", e.target.value)}
-                  className="w-full border rounded p-2 mb-3"
-                  required
-                  disabled={!autoGenerateFormState.program_id || autoLoading}
-                >
-                  <option value="">{autoGenerateFormState.program_id ? "Select Class" : "Select Program First"}</option>
-                  {autoClasses.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </option>
-                  ))}
-                </select>
-
-                <label className="block text-sm font-medium text-gray-700 mb-1">Group (Optional)</label>
-                <select
-                  value={autoGenerateFormState.group_id}
-                  onChange={(e) => handleAutoGenerateChange("group_id", e.target.value)}
-                  className="w-full border rounded p-2 mb-3"
-                  disabled={!autoGenerateFormState.class_id || autoLoading}
-                >
-                  <option value="">All Groups</option>
-                  {autoGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-
-                {autoLoading && <div className="text-blue-600 text-sm mb-2">Loading...</div>}
-
-                <div className="mt-4 flex justify-end space-x-2">
-                  <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white">
-                    Generate
-                  </Button>
-                  <Button type="button" onClick={handleCloseAutoGenerateModal} className="bg-gray-400 text-white">
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        
 
         {/* Regular Modal for Create/Edit/View/Delete */}
         {isModalOpen && (
@@ -1308,34 +1254,61 @@ const ClassTimetable = () => {
                       handleSubmitForm(formState)
                     }}
                   >
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                        <input
-                          type="text"
-                          value={formState.day}
-                          onChange={(e) => handleCreateChange("day", e.target.value)}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                          placeholder="Day will be populated based on time slot"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Class Time Slot</label>
-                        <select
-                          value={formState.classtimeslot_id || ""}
-                          onChange={(e) => handleClassTimeSlotChange(Number(e.target.value))}
-                          className="w-full border rounded p-2 mb-3"
-                        >
-                          <option value="">Select Time Slot</option>
-                          {availableClassTimeSlots.map((slot) => (
-                            <option key={slot.id} value={slot.id}>
-                              {slot.day} - {slot.start_time} to {slot.end_time}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+                   {/* ✅ UPDATED: Time Slot Selection - Now handles random assignment properly */}
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot *</label>
+                   <select
+                     value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
+                     onChange={e => {
+                       if (e.target.value === "Random Time Slot (auto-assign)") {
+                         // ✅ FIXED: Use updated function that doesn't require a day parameter
+                         const slot = getRandomAvailableTimeSlot(
+                           formState.venue || "",
+                           formState.lecturer || "",
+                           formState.unit_id || 0,
+                           classTimetables,
+                           classtimeSlots
+                         );
+                         if (slot) {
+                           setFormState(prev => ({
+                             ...prev!,
+                             start_time: slot.start_time,
+                             end_time: slot.end_time,
+                             day: slot.day,
+                           }));
+                           setConflictWarning(null);
+                         } else {
+                           setFormState(prev => ({
+                             ...prev!,
+                             start_time: "",
+                             end_time: "",
+                             day: "",
+                           }));
+                           setConflictWarning("No available time slot found for the given constraints.");
+                         }
+                       } else {
+                         // Find the specific time slot
+                         const slot = classtimeSlots.find(s => s.start_time === e.target.value);
+                         if (slot) {
+                           setFormState(prev => ({
+                             ...prev!,
+                             start_time: slot.start_time,
+                             end_time: slot.end_time,
+                             day: slot.day,
+                           }));
+                           setConflictWarning(null);
+                         }
+                       }
+                     }}
+                     className="w-full border rounded p-2 mb-3"
+                     required
+                   >
+                     <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
+                     {classtimeSlots.map(slot => (
+                       <option key={slot.id} value={slot.start_time}>
+                         {slot.day} {slot.start_time} - {slot.end_time}
+                       </option>
+                     ))}
+                   </select>
 
                     {/* --- SCHOOL SELECT DROPDOWN --- */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">School</label>

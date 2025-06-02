@@ -189,7 +189,7 @@ class ClassTimetableController extends Controller
             'classes' => $classes,
             'groups' => $groups,
             'programs' => $programs,
-            'schools' => $schools,  // ✅ ADDED: Include schools
+            'schools' => $schools,
             'can' => [
                 'create' => $user->can('create-classtimetables'),
                 'edit' => $user->can('update-classtimetables'),
@@ -204,14 +204,11 @@ class ClassTimetableController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         // ✅ FIXED: Updated validation to include program_id and school_id
         $request->validate([
-            'day' => 'required|string',
+            'day' => 'nullable|string',  // Make day nullable for random assignment
             'unit_id' => 'required|exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
             'class_id' => 'required|exists:classes,id',
@@ -220,11 +217,11 @@ class ClassTimetableController extends Controller
             'location' => 'nullable|string',
             'no' => 'required|integer|min:1',
             'lecturer' => 'required|string',
-            'start_time' => 'required|string',
-            'end_time' => 'required|string',
+            'start_time' => 'nullable|string',  // Make nullable for random assignment
+            'end_time' => 'nullable|string',    // Make nullable for random assignment
             'classtimeslot_id' => 'nullable|exists:class_time_slots,id',
-            'program_id' => 'nullable|exists:programs,id',  // ✅ ADDED
-            'school_id' => 'nullable|exists:schools,id',    // ✅ ADDED
+            'program_id' => 'nullable|exists:programs,id',
+            'school_id' => 'nullable|exists:schools,id',
         ]);
 
         try {
@@ -236,13 +233,42 @@ class ClassTimetableController extends Controller
             $programId = $request->program_id ?: ($class ? $class->program_id : null);
             $schoolId = $request->school_id ?: ($class ? $class->school_id : null);
 
+            // ✅ NEW: Handle time slot assignment (random or specified)
+            $day = $request->day;
+            $startTime = $request->start_time;
+            $endTime = $request->end_time;
+
+            // If no time slot is specified or "Random Time Slot" is selected, assign a random one
+            if (empty($day) || empty($startTime) || empty($endTime) || $startTime === 'Random Time Slot (auto-assign)') {
+                $randomTimeSlotResult = $this->assignRandomTimeSlot($request->lecturer, $request->venue ?: '');
+
+                if (!$randomTimeSlotResult['success']) {
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $randomTimeSlotResult['message'],
+                            'errors' => ['time_slot' => $randomTimeSlotResult['message']]
+                        ], 422);
+                    }
+
+                    return redirect()->back()
+                        ->withErrors(['time_slot' => $randomTimeSlotResult['message']])
+                        ->withInput()
+                        ->with('error', $randomTimeSlotResult['message']);
+                }
+
+                $day = $randomTimeSlotResult['day'];
+                $startTime = $randomTimeSlotResult['start_time'];
+                $endTime = $randomTimeSlotResult['end_time'];
+            }
+
             // Handle venue assignment (random or specified)
             $venue = $request->venue;
             $location = $request->location;
 
             // If no venue is specified, assign a random one
             if (empty($venue) || $venue === 'Random Venue (auto-assign)') {
-                $randomVenueResult = $this->assignRandomVenue($request->no, $request->day, $request->start_time, $request->end_time);
+                $randomVenueResult = $this->assignRandomVenue($request->no, $day, $startTime, $endTime);
 
                 if (!$randomVenueResult['success']) {
                     if ($request->expectsJson()) {
@@ -277,10 +303,10 @@ class ClassTimetableController extends Controller
 
             // Enhanced conflict detection
             \Log::info('Checking for conflicts', [
-                'day' => $request->day,
+                'day' => $day,
                 'lecturer' => $request->lecturer,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
                 'venue' => $venue,
                 'location' => $location,
                 'teaching_mode' => $teachingMode,
@@ -290,18 +316,17 @@ class ClassTimetableController extends Controller
                 'school_id' => $schoolId
             ]);
 
-            // [Conflict detection code remains the same...]
             // Check for lecturer time conflicts
-            $lecturerConflict = ClassTimetable::where('day', $request->day)
+            $lecturerConflict = ClassTimetable::where('day', $day)
                 ->where('lecturer', $request->lecturer)
-                ->where(function ($query) use ($request) {
-                    $query->where(function ($q) use ($request) {
-                        $q->where('start_time', '<', $request->end_time)
-                          ->where('end_time', '>', $request->start_time);
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
                     })
-                    ->orWhere(function ($q) use ($request) {
-                        $q->where('end_time', $request->start_time)
-                          ->orWhere('start_time', $request->end_time);
+                    ->orWhere(function ($q) use ($startTime, $endTime) {
+                        $q->where('end_time', $startTime)
+                          ->orWhere('start_time', $endTime);
                     });
                 })
                 ->first();
@@ -313,8 +338,8 @@ class ClassTimetableController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'Time conflict: The lecturer has another class that conflicts with this time slot.',
-                        'errors' => ['conflict' => 'Lecturer time conflict detected'
-                    ], 422]);
+                        'errors' => ['conflict' => 'Lecturer time conflict detected']
+                    ], 422);
                 }
 
                 return redirect()->back()
@@ -324,20 +349,20 @@ class ClassTimetableController extends Controller
 
             // ✅ FIXED: Create the timetable entry with ALL required fields
             $classTimetable = ClassTimetable::create([
-                'day' => $request->day,
+                'day' => $day,
                 'unit_id' => $request->unit_id,
                 'semester_id' => $request->semester_id,
-                'class_id' => $request->class_id,              // ✅ FIXED: No longer converts to null
-                'group_id' => $request->group_id ?: null,      // ✅ FIXED: Properly handles nullable
+                'class_id' => $request->class_id,
+                'group_id' => $request->group_id ?: null,
                 'venue' => $venue,
                 'location' => $location,
                 'no' => $request->no,
                 'lecturer' => $request->lecturer,
-                'start_time' => $request->start_time,
-                'end_time' => $request->end_time,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
                 'teaching_mode' => $teachingMode,
-                'program_id' => $programId,                    // ✅ ADDED: Now includes program_id
-                'school_id' => $schoolId,                      // ✅ ADDED: Now includes school_id
+                'program_id' => $programId,
+                'school_id' => $schoolId,
             ]);
 
             \Log::info('Class timetable created successfully', [
@@ -346,6 +371,9 @@ class ClassTimetableController extends Controller
                 'group_id' => $classTimetable->group_id,
                 'program_id' => $classTimetable->program_id,
                 'school_id' => $classTimetable->school_id,
+                'day' => $classTimetable->day,
+                'time_slot' => $classTimetable->start_time . '-' . $classTimetable->end_time,
+                'venue' => $classTimetable->venue,
             ]);
 
             if ($request->expectsJson()) {
@@ -376,6 +404,115 @@ class ClassTimetableController extends Controller
                 ->withInput();
         }
     }
+
+    /**
+     * ✅ NEW: Assign a random time slot with no conflicts
+     */
+    private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = null)
+    {
+        try {
+            // Get all available time slots
+            $availableTimeSlots = ClassTimeSlot::all();
+
+            if ($availableTimeSlots->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'No time slots available in the system.'
+                ];
+            }
+
+            // Filter by preferred day if specified
+            if ($preferredDay) {
+                $availableTimeSlots = $availableTimeSlots->where('day', $preferredDay);
+                
+                if ($availableTimeSlots->isEmpty()) {
+                    return [
+                        'success' => false,
+                        'message' => "No time slots available for {$preferredDay}."
+                    ];
+                }
+            }
+
+            // Filter out time slots that have conflicts
+            $conflictFreeTimeSlots = $availableTimeSlots->filter(function ($timeSlot) use ($lecturer, $venue) {
+                // Check for lecturer conflicts
+                $lecturerConflict = ClassTimetable::where('day', $timeSlot->day)
+                    ->where('lecturer', $lecturer)
+                    ->where(function ($query) use ($timeSlot) {
+                        $query->where(function ($q) use ($timeSlot) {
+                            $q->where('start_time', '<', $timeSlot->end_time)
+                              ->where('end_time', '>', $timeSlot->start_time);
+                        })
+                        ->orWhere(function ($q) use ($timeSlot) {
+                            $q->where('end_time', $timeSlot->start_time)
+                              ->orWhere('start_time', $timeSlot->end_time);
+                        });
+                    })
+                    ->exists();
+
+                if ($lecturerConflict) {
+                    return false;
+                }
+
+                // Check for venue conflicts (if venue is specified and not online)
+                if (!empty($venue) && strtolower(trim($venue)) !== 'remote') {
+                    $venueConflict = ClassTimetable::where('day', $timeSlot->day)
+                        ->where('venue', $venue)
+                        ->where(function ($query) use ($timeSlot) {
+                            $query->where(function ($q) use ($timeSlot) {
+                                $q->where('start_time', '<', $timeSlot->end_time)
+                                  ->where('end_time', '>', $timeSlot->start_time);
+                            })
+                            ->orWhere(function ($q) use ($timeSlot) {
+                                $q->where('end_time', $timeSlot->start_time)
+                                  ->orWhere('start_time', $timeSlot->end_time);
+                            });
+                        })
+                        ->exists();
+
+                    if ($venueConflict) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            if ($conflictFreeTimeSlots->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'No available time slots without conflicts for the specified lecturer' . 
+                                (!empty($venue) ? ' and venue' : '') . '.'
+                ];
+            }
+
+            // Randomly select from available conflict-free time slots
+            $selectedTimeSlot = $conflictFreeTimeSlots->random();
+
+            \Log::info('Random time slot assigned', [
+                'day' => $selectedTimeSlot->day,
+                'start_time' => $selectedTimeSlot->start_time,
+                'end_time' => $selectedTimeSlot->end_time,
+                'lecturer' => $lecturer,
+                'venue' => $venue ?: 'not specified'
+            ]);
+
+            return [
+                'success' => true,
+                'day' => $selectedTimeSlot->day,
+                'start_time' => $selectedTimeSlot->start_time,
+                'end_time' => $selectedTimeSlot->end_time,
+                'message' => "Random time slot assigned: {$selectedTimeSlot->day} {$selectedTimeSlot->start_time}-{$selectedTimeSlot->end_time}"
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in random time slot assignment: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to assign random time slot: ' . $e->getMessage()
+            ];
+        }
+    }
+
     /**
      * Display the specified resource.
      */
