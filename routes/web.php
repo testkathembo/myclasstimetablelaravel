@@ -349,6 +349,16 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
     });
 
+    // Add this to your routes/web.php file
+Route::middleware('auth')->group(function () {
+    // Self-enrollment routes
+    Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
+    Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll');
+    
+    // Other enrollment routes
+    Route::resource('enrollments', EnrollmentController::class);
+});
+
     // NEW: Admin Enrollment Management Routes
     Route::middleware(['permission:manage-enrollments'])->group(function () {
         Route::get('/schools/sces/bbit/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
@@ -577,6 +587,10 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     // ✅ FIXED: Student Timetable Routes - SINGLE DEFINITION ONLY
     Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
         ->name('student.timetable');
+
+        // Self Enrollment Routes
+    Route::get('/student/enroll', [StudentEnrollmentController::class, 'EnrollmentController'])   
+        ->name('student.enroll');
     
     Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
         ->name('student.timetable.download');
