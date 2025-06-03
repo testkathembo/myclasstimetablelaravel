@@ -582,7 +582,7 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
         ->name('student.timetable.download');
 
     // My Class Timetable (alternative route)
-    Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable']);
+    Route::get('/my-timetable', [ClassTimetableController::class, 'studentTimetable']);
     
     // Student Exam Timetable
     Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])

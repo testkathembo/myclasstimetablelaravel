@@ -1519,7 +1519,10 @@ public function downloadPDF(Request $request)
 /**
  * ✅ FIXED: Display student's timetable page with group filtering
  */
-public function studentTimetable()
+/**
+ * ✅ UPDATED: Display student's timetable page with pagination and search
+ */
+public function studentTimetable(Request $request)
 {
     try {
         // Fetch the authenticated student
@@ -1545,10 +1548,19 @@ public function studentTimetable()
         if (!$currentSemester) {
             \Log::warning('No semester found for student timetable');
             return Inertia::render('Student/Timetable', [
-                'enrollments' => [],
                 'classTimetables' => [],
                 'currentSemester' => null,
                 'downloadUrl' => route('student.timetable.download'),
+                'student' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'code' => $user->code,
+                ],
+                'filters' => [
+                    'per_page' => $request->get('per_page', 10),
+                    'search' => $request->get('search', ''),
+                ],
                 'error' => 'No semester data available.'
             ]);
         }
@@ -1557,10 +1569,19 @@ public function studentTimetable()
         if (!$user->code) {
             \Log::error('User has no code for enrollment lookup', ['user_id' => $user->id]);
             return Inertia::render('Student/Timetable', [
-                'enrollments' => [],
                 'classTimetables' => [],
                 'currentSemester' => $currentSemester,
                 'downloadUrl' => route('student.timetable.download'),
+                'student' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'code' => $user->code,
+                ],
+                'filters' => [
+                    'per_page' => $request->get('per_page', 10),
+                    'search' => $request->get('search', ''),
+                ],
                 'error' => 'Student code not found. Please contact administration.'
             ]);
         }
@@ -1597,7 +1618,11 @@ public function studentTimetable()
             'group_ids' => $studentGroupIds
         ]);
 
-        // Fetch actual class timetable entries for the student's units AND groups
+        // Get pagination parameters
+        $perPage = $request->get('per_page', 10);
+        $search = $request->get('search', '');
+
+        // Fetch actual class timetable entries for the student's units AND groups with pagination
         $classTimetables = collect();
         
         if (!empty($enrolledUnitIds)) {
@@ -1617,10 +1642,23 @@ public function studentTimetable()
                     }
                 }
 
+                // Add search functionality
+                if (!empty($search)) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('units.code', 'like', "%{$search}%")
+                          ->orWhere('units.name', 'like', "%{$search}%")
+                          ->orWhere('class_timetable.venue', 'like', "%{$search}%")
+                          ->orWhere('class_timetable.day', 'like', "%{$search}%")
+                          ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
+                          ->orWhere('class_timetable.lecturer', 'like', "%{$search}%");
+                    });
+                }
+
                 $classTimetables = $query
                     ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
                     ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
                     ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+                    ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
                     ->select(
                         'class_timetable.id',
                         'class_timetable.day',
@@ -1635,17 +1673,22 @@ public function studentTimetable()
                         DB::raw("CASE 
                             WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
                             ELSE class_timetable.lecturer 
-                            END as lecturer_name"),
-                        'groups.name as group_name'
+                            END as lecturer"),
+                        'groups.name as group_name',
+                        'semesters.name as semester_name'
                     )
                     ->orderBy('class_timetable.day')
                     ->orderBy('class_timetable.start_time')
-                    ->get();
+                    ->paginate($perPage)
+                    ->withQueryString(); // This preserves search and other query parameters
 
-                \Log::info('Filtered class timetables found', [
-                    'count' => $classTimetables->count(),
+                \Log::info('Paginated class timetables found', [
+                    'total' => $classTimetables->total(),
+                    'per_page' => $classTimetables->perPage(),
+                    'current_page' => $classTimetables->currentPage(),
                     'student_code' => $user->code,
-                    'groups_filtered' => $studentGroupIds
+                    'groups_filtered' => $studentGroupIds,
+                    'search_term' => $search
                 ]);
 
             } catch (\Exception $e) {
@@ -1655,18 +1698,40 @@ public function studentTimetable()
                     'unit_ids' => $enrolledUnitIds,
                     'group_ids' => $studentGroupIds
                 ]);
-                $classTimetables = collect();
+                
+                // Return empty paginated result in case of error
+                $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
+                    collect([]), // Empty collection
+                    0, // Total items
+                    $perPage, // Items per page
+                    1, // Current page
+                    [
+                        'path' => request()->url(),
+                        'pageName' => 'page',
+                    ]
+                );
             }
         } else {
             \Log::info('No enrolled units found for student', [
                 'student_code' => $user->code,
                 'semester_id' => $currentSemester->id
             ]);
+            
+            // Return empty paginated result when no enrolled units
+            $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect([]), // Empty collection
+                0, // Total items
+                $perPage, // Items per page
+                1, // Current page
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            );
         }
 
         return Inertia::render('Student/Timetable', [
-            'enrollments' => $enrollments->toArray(),
-            'classTimetables' => $classTimetables->toArray(),
+            'classTimetables' => $classTimetables, // This is now a paginated result
             'currentSemester' => $currentSemester ? [
                 'id' => $currentSemester->id,
                 'name' => $currentSemester->name
@@ -1674,9 +1739,14 @@ public function studentTimetable()
             'downloadUrl' => route('student.timetable.download'),
             'student' => [
                 'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
                 'code' => $user->code,
-                'name' => $user->first_name . ' ' . $user->last_name,
                 'groups' => $studentGroupIds // Pass student groups for debugging
+            ],
+            'filters' => [
+                'per_page' => (int) $perPage,
+                'search' => $search,
             ]
         ]);
 
@@ -1688,10 +1758,29 @@ public function studentTimetable()
         ]);
 
         return Inertia::render('Student/Timetable', [
-            'enrollments' => [],
-            'classTimetables' => [],
+            'classTimetables' => new \Illuminate\Pagination\LengthAwarePaginator(
+                collect([]), // Empty collection
+                0, // Total items
+                $request->get('per_page', 10), // Items per page
+                1, // Current page
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            ),
             'currentSemester' => null,
             'downloadUrl' => route('student.timetable.download'),
+            'student' => [
+                'id' => auth()->id(),
+                'first_name' => auth()->user()->first_name ?? '',
+                'last_name' => auth()->user()->last_name ?? '',
+                'code' => auth()->user()->code ?? '',
+                'groups' => []
+            ],
+            'filters' => [
+                'per_page' => $request->get('per_page', 10),
+                'search' => $request->get('search', ''),
+            ],
             'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
         ]);
     }

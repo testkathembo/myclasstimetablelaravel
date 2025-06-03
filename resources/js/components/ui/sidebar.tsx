@@ -416,7 +416,7 @@ export default function Sidebar() {
                 My Enrollments
               </Link>
               <Link
-                href="/my-classes"
+                href="/my-timetable"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Calendar className="mr-3 h-5 w-5" />
