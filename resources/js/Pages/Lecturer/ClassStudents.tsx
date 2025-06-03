@@ -8,7 +8,7 @@ interface Unit {
   id: number
   code: string
   name: string
-  faculty?: { name: string }
+  school?: { name: string }
 }
 
 interface Student {
@@ -133,8 +133,8 @@ const ClassStudents = ({ unit, students = [], unitSemester, selectedSemesterId, 
                 <p className="font-medium">{unit.name}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Faculty</p>
-                <p className="font-medium">{unit.faculty?.name || "N/A"}</p>
+                <p className="text-sm text-gray-600">School</p>
+                <p className="font-medium">{unit.school?.name || "N/A"}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Semester</p>

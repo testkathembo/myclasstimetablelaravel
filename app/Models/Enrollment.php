@@ -80,4 +80,13 @@ class Enrollment extends Model
     {
         return $this->belongsTo(School::class, 'school_id');
     }
+
+    public function class()
+{
+    return $this->belongsTo(ClassModel::class, 'class_id');
+}
+
+ 
+
+    
 }

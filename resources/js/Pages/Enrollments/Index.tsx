@@ -32,7 +32,7 @@ interface Unit {
   name: string
   code?: string
   program?: { id: number; name: string }
-  school?: { id: number; name: string } // Replace faculty with school
+  school?: { id: number; name: string } 
 }
 
 interface Student {

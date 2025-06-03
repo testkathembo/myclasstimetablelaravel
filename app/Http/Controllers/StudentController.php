@@ -54,8 +54,10 @@ public function myEnrollments(Request $request)
     // Get student's enrolled units for the selected semester using student code
     $enrolledUnits = Enrollment::where('student_code', $user->code)
         ->where('semester_id', $selectedSemesterId)
-        ->with(['unit.faculty', 'unit.lecturer', 'semester', 'lecturer'])
+        ->with(['unit.school', 'unit.lecturer', 'semester', 'lecturer', 'group'])
         ->get();
+
+        
     
     // For debugging
     Log::info('Student enrollments', [
@@ -93,4 +95,6 @@ public function myEnrollments(Request $request)
             'student' => $student,
         ]);
     }
+
+    
 }

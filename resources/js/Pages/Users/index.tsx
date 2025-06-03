@@ -65,7 +65,7 @@ const Users = () => {
             if (currentUser) {
                 const payload = { ...currentUser };
                 payload.roles = currentUser.roles.map((role) => role.name); // Ensure roles are strings
-                delete payload.faculty; // Ensure no faculty field is sent
+                delete payload.school; 
                 router.post('/users', payload, {
                     onSuccess: () => {
                         alert('User created successfully!');
@@ -79,7 +79,7 @@ const Users = () => {
         } else if (modalType === 'edit' && currentUser) {
             const payload = { ...currentUser };
             payload.roles = currentUser.roles.map((role) => role.name); // Ensure roles are strings
-            delete payload.faculty; // Ensure no faculty field is sent
+            delete payload.school; // Ensure no school field is sent
             router.put(`/users/${currentUser.id}`, payload, {
                 onSuccess: () => {
                     alert('User updated successfully!');

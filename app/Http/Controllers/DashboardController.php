@@ -70,7 +70,7 @@ class DashboardController extends Controller
             // Get enrolled units for the student in the selected semester
             $enrolledUnits = Enrollment::where('student_code', $user->code)
                 ->where('semester_id', $selectedSemester->id)
-                ->with(['unit.faculty'])
+                ->with(['unit.school'])
                 ->get()
                 ->map(function ($enrollment) {
                     return $enrollment->unit;

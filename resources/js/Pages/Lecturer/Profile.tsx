@@ -3,7 +3,7 @@
 import { Head } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 
-interface Faculty {
+interface School {
   id: number
   name: string
 }
@@ -14,7 +14,7 @@ interface Lecturer {
   email: string
   code?: string
   phone?: string
-  faculty?: Faculty
+  school?: School
   position?: string
   department?: string
   office_location?: string
@@ -76,7 +76,7 @@ const Profile = ({ lecturer, error }: Props) => {
                   </div>
                   <h2 className="text-xl font-semibold text-center">{lecturer.name}</h2>
                   <p className="text-gray-600 text-center">{lecturer.position || "Lecturer"}</p>
-                  <p className="text-gray-600 text-center">{lecturer.faculty?.name || "Faculty not specified"}</p>
+                  <p className="text-gray-600 text-center">{lecturer.school?.name || "School not specified"}</p>
                 </div>
               </div>
             </div>

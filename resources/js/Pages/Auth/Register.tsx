@@ -5,7 +5,7 @@ export default function Register() {
         code: '',
         first_name: '',
         last_name: '',
-        faculty: '',
+        school: '',
         email: '',
         phone: '',
         password: '',
@@ -64,12 +64,12 @@ export default function Register() {
 
                 <input
                     type="text"
-                    placeholder="Faculty"
-                    value={data.faculty}
-                    onChange={(e) => setData('faculty', e.target.value)}
+                    placeholder="school"
+                    value={data.school}
+                    onChange={(e) => setData('school', e.target.value)}
                     className="mt-2 p-2 border rounded w-full"
                 />
-                {errors.faculty && <p className="text-red-500">{errors.faculty}</p>}
+                {errors.school && <p className="text-red-500">{errors.school}</p>}
 
                 <input
                     type="email"

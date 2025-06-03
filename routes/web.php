@@ -331,6 +331,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
         Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
         Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
+        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
     });
 
     // NEW: Admin Enrollment Management Routes
@@ -388,7 +389,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Student download routes
     Route::middleware(['auth', 'role:Student'])->group(function () {
-        Route::get('/my-class/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
+        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
             ->name('student.classes.download');
         Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
             ->name('student.exams.download');
@@ -559,8 +560,8 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
         ->name('student.exams.show');
         
     // My Class Timetable
-    Route::get('/my-classes', [ClassTimetableController::class, 'viewStudentClassTimetable'])
-        ->name('student.classes');
+
+    Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable']);
     
     // Student Exam Timetable
     Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
@@ -584,6 +585,24 @@ Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(functio
 Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
     Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
 });
+// Student routes (add these in the student section or create a new group)
+Route::middleware(['auth', 'verified'])->group(function () {
+    // Student timetable routes
+    Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
+        ->name('student.timetable');
+    
+    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
+        ->name('student.timetable.download');
+});
+
+// Alternative: If you want to group them specifically for students
+Route::middleware(['auth', 'verified', 'role:Student'])->prefix('student')->name('student.')->group(function () {
+    Route::get('/timetable', [ClassTimetableController::class, 'studentTimetable'])
+        ->name('timetable');
+    
+    Route::get('/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
+        ->name('timetable.download');
+});
 
 // Example: Update the route to accept POST requests
 Route::post('/classes', [ClassController::class, 'store'])->name('classes.store');
@@ -595,17 +614,3 @@ Route::get('/{any}', function () {
 
 
 
-// Add these routes to your existing web.php file, inside the authenticated middleware group
-
-// Enhanced Auto-Generate Timetable Routes
-Route::middleware(['auth', 'can:manage-classtimetables'])->group(function () {
-    Route::get('/auto-generate-timetable', [AutoGenerateTimetableController::class, 'index'])->name('auto-generate-timetable.index');
-    Route::post('/auto-generate-timetable', [AutoGenerateTimetableController::class, 'autoGenerate'])->name('auto-generate-timetable.generate');
-    Route::get('/auto-generate-timetable/download', [AutoGenerateTimetableController::class, 'downloadPDF'])->name('auto-generate-timetable.download');
-    
-    // API routes for dynamic dropdowns - FIXED ROUTES
-    Route::get('/api/auto-generate-timetable/programs', [AutoGenerateTimetableController::class, 'getProgramsBySemester'])->name('api.auto-generate.programs');
-    Route::get('/api/auto-generate-timetable/classes', [AutoGenerateTimetableController::class, 'getClassesByProgramAndSemester'])->name('api.auto-generate.classes');
-    Route::get('/api/auto-generate-timetable/groups', [AutoGenerateTimetableController::class, 'getGroupsByClass'])->name('api.auto-generate.groups');
-    Route::get('/api/auto-generate-timetable/timetable-data', [AutoGenerateTimetableController::class, 'getTimetableData'])->name('api.auto-generate.timetable-data');
-});

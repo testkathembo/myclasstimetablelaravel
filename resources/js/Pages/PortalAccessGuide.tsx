@@ -91,10 +91,10 @@ export default function PortalAccessGuide() {
               </div>
 
               <div className="mb-8">
-                <h2 className="text-xl font-medium text-amber-600 mb-4">Faculty Admin Portal</h2>
+                <h2 className="text-xl font-medium text-amber-600 mb-4">School Admin Portal</h2>
                 <p className="mb-4">
-                  Faculty administrators manage academic programs, units, classes, and lecturer assignments for their
-                  faculty.
+              School administrators manage academic programs, units, classes, and lecturer assignments for their
+                  school.
                 </p>
 
                 <div className="bg-gray-50 p-4 rounded-lg mb-4">

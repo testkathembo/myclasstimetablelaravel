@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Http\Controllers;
-
 use App\Models\ClassTimetable;
 use App\Models\Unit;
 use App\Models\User;
@@ -1085,87 +1083,230 @@ private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = nu
     /**
      * ✅ NEW: Download the class timetable as a PDF
      */
-    public function downloadPDF(Request $request)
-    {
-        try {
-            // Ensure the view file exists
-            if (!view()->exists('classtimetables.pdf')) {
-                \Log::error('PDF template not found: classtimetables.pdf');
-                return redirect()->back()->with('error', 'PDF template not found. Please contact the administrator.');
+    /**
+ * ✅ FIXED: Download the class timetable as a PDF - ensures students get their actual timetable
+ */
+/**
+ * ✅ COMPLETE FIX: Download the class timetable as a PDF
+ */
+/**
+ * ✅ FIXED: Download PDF method that filters by student's specific group
+ */
+public function downloadPDF(Request $request)
+{
+    try {
+        $user = auth()->user();
+
+        // If the user is a student, fetch their actual class timetable entries
+        if ($user->hasRole('Student')) {
+            $currentSemester = Semester::where('is_active', true)->first();
+            
+            if (!$currentSemester) {
+                $currentSemester = Semester::orderByDesc('id')->first();
             }
 
-            // Fetch class timetables
-            $query = ClassTimetable::query()
-                ->join('units', 'class_timetable.unit_id', '=', 'units.id')
-                ->join('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
-                ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
-                ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
-                ->select(
-                    'class_timetable.day',
-                    'class_timetable.start_time',
-                    'class_timetable.end_time',
-                    'class_timetable.venue',
-                    'class_timetable.location',
-                    'class_timetable.lecturer',
-                    'units.code as unit_code',
-                    'units.name as unit_name',
-                    'semesters.name as semester_name',
-                    'classes.name as class_name',
-                    'groups.name as group_name'
-                );
-
-            if ($request->has('semester_id')) {
-                $query->where('class_timetable.semester_id', $request->semester_id);
+            if (!$currentSemester) {
+                return redirect()->back()->with('error', 'No semester data available.');
             }
 
-            if ($request->has('class_id')) {
-                $query->where('class_timetable.class_id', $request->class_id);
-            }
-
-            if ($request->has('group_id')) {
-                $query->where('class_timetable.group_id', $request->group_id);
-            }
-
-            $classTimetables = $query->orderBy('class_timetable.day')
-                ->orderBy('class_timetable.start_time')
+            // Get enrollments as Collection (for the template)
+            $enrollments = Enrollment::where('student_code', $user->code)
+                ->where('semester_id', $currentSemester->id)
+                ->with(['unit', 'semester', 'group'])
                 ->get();
 
-            \Log::info('Generating PDF with data:', [
-                'count' => $classTimetables->count(),
-                'filters' => $request->only(['semester_id', 'class_id', 'group_id'])
+            \Log::info('Student PDF generation', [
+                'student_code' => $user->code,
+                'semester_id' => $currentSemester->id,
+                'enrollments_count' => $enrollments->count()
             ]);
 
-            // Generate PDF
-            $pdf = Pdf::loadView('classtimetables.pdf', [
-                'classTimetables' => $classTimetables,
-                'title' => 'Class Timetable',
-                'generatedAt' => now()->format('Y-m-d H:i:s'),
-                'filters' => $request->only(['semester_id', 'class_id', 'group_id'])
+            if ($enrollments->isEmpty()) {
+                return redirect()->back()->with('error', 'No enrollments found for the current semester.');
+            }
+
+            // Get the student's enrolled unit IDs AND group IDs
+            $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
+            $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
+
+            \Log::info('Student group filtering', [
+                'student_code' => $user->code,
+                'enrolled_units' => $enrolledUnitIds,
+                'student_groups' => $studentGroupIds
             ]);
 
-            // Set paper size and orientation
-            $pdf->setPaper('a4', 'landscape');
+            // Get class timetable entries FILTERED by student's groups and units
+            $classTimetables = collect();
+            
+            if (!empty($enrolledUnitIds)) {
+                $query = DB::table('class_timetable')
+                    ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
+                    ->where('class_timetable.semester_id', $currentSemester->id);
 
-            // Return the PDF for download with correct headers
-            return response()->streamDownload(
-                fn () => print($pdf->output()),
-                'class-timetable-' . now()->format('Y-m-d') . '.pdf',
-                [
-                    'Content-Type' => 'application/pdf',
-                    'Content-Disposition' => 'attachment; filename="class-timetable-' . now()->format('Y-m-d') . '.pdf"',
-                ]
-            );
-        } catch (\Exception $e) {
-            \Log::error('Failed to generate PDF: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString()
+                // ✅ CRITICAL FIX: Filter by student's group(s)
+                if (!empty($studentGroupIds)) {
+                    $query->whereIn('class_timetable.group_id', $studentGroupIds);
+                } else {
+                    // If no specific group assigned, check if there are enrollments with null group_id
+                    $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
+                    if ($hasNullGroup) {
+                        $query->whereNull('class_timetable.group_id');
+                    }
+                }
+
+                $timetableData = $query
+                    ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
+                    ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
+                    ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+                    ->select(
+                        'class_timetable.id',
+                        'class_timetable.day',
+                        'class_timetable.start_time',
+                        'class_timetable.end_time',
+                        'class_timetable.venue',
+                        'class_timetable.location',
+                        'class_timetable.teaching_mode',
+                        'class_timetable.group_id',
+                        'class_timetable.lecturer as lecturer_code',
+                        DB::raw("CASE 
+                            WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
+                            ELSE class_timetable.lecturer 
+                            END as lecturer"),
+                        'units.code as unit_code',
+                        'units.name as unit_name',
+                        'groups.name as group_name'
+                    )
+                    ->orderBy('class_timetable.day')
+                    ->orderBy('class_timetable.start_time')
+                    ->get();
+
+                \Log::info('Filtered timetable data', [
+                    'total_entries' => $timetableData->count(),
+                    'student_groups' => $studentGroupIds,
+                    'sample_entries' => $timetableData->take(3)->pluck('group_name')->toArray()
+                ]);
+
+                // Convert to Collection of objects (as expected by your Blade template)
+                $classTimetables = $timetableData->map(function ($item) {
+                    return (object) [
+                        'id' => $item->id,
+                        'day' => $item->day,
+                        'start_time' => $item->start_time,
+                        'end_time' => $item->end_time,
+                        'venue' => $item->venue,
+                        'location' => $item->location,
+                        'teaching_mode' => $item->teaching_mode,
+                        'lecturer' => $item->lecturer,
+                        'unit_code' => $item->unit_code,
+                        'unit_name' => $item->unit_name,
+                        'group_name' => $item->group_name,
+                    ];
+                });
+            }
+
+            \Log::info('Final PDF Data prepared', [
+                'classTimetables_count' => $classTimetables->count(),
+                'enrollments_count' => $enrollments->count(),
+                'student_groups' => $studentGroupIds
             ]);
 
-            return redirect()->back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
+            // Generate PDF using your existing template
+            try {
+                $pdf = Pdf::loadView('classtimetables.student', [
+                    'classTimetables' => $classTimetables,
+                    'enrollments' => $enrollments,
+                    'currentSemester' => $currentSemester,
+                    'student' => $user,
+                    'generatedAt' => now()->format('Y-m-d H:i:s'),
+                ]);
+
+                $pdf->setPaper('a4', 'portrait');
+                
+                // Set PDF options for better rendering
+                $pdf->setOptions([
+                    'isHtml5ParserEnabled' => true,
+                    'isRemoteEnabled' => true,
+                    'defaultFont' => 'DejaVu Sans',
+                ]);
+
+                // Return the PDF download
+                return $pdf->download('my-timetable-' . now()->format('Y-m-d') . '.pdf');
+
+            } catch (\Exception $pdfError) {
+                \Log::error('PDF generation error: ' . $pdfError->getMessage(), [
+                    'student_code' => $user->code,
+                    'trace' => $pdfError->getTraceAsString()
+                ]);
+
+                return redirect()->back()->with('error', 'Failed to generate PDF. Please try again or contact support.');
+            }
         }
-    }
 
-    /**
+        // For non-students (admin/lecturer) - keep existing logic
+        if (!view()->exists('classtimetables.pdf')) {
+            \Log::error('PDF template not found: classtimetables.pdf');
+            return redirect()->back()->with('error', 'PDF template not found. Please contact the administrator.');
+        }
+
+        // Fetch class timetables for admin/lecturer view
+        $query = ClassTimetable::query()
+            ->join('units', 'class_timetable.unit_id', '=', 'units.id')
+            ->join('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+            ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
+            ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+            ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
+            ->select(
+                'class_timetable.day',
+                'class_timetable.start_time',
+                'class_timetable.end_time',
+                'class_timetable.venue',
+                'class_timetable.location',
+                'class_timetable.teaching_mode',
+                DB::raw("IF(users.id IS NOT NULL, CONCAT(users.first_name, ' ', users.last_name), class_timetable.lecturer) as lecturer"),
+                'units.code as unit_code',
+                'units.name as unit_name',
+                'semesters.name as semester_name',
+                'classes.name as class_name',
+                'groups.name as group_name'
+            );
+
+        // Apply filters if provided
+        if ($request->has('semester_id')) {
+            $query->where('class_timetable.semester_id', $request->semester_id);
+        }
+        if ($request->has('class_id')) {
+            $query->where('class_timetable.class_id', $request->class_id);
+        }
+        if ($request->has('group_id')) {
+            $query->where('class_timetable.group_id', $request->group_id);
+        }
+
+        $classTimetables = $query->orderBy('class_timetable.day')
+            ->orderBy('class_timetable.start_time')
+            ->get();
+
+        // Generate PDF
+        $pdf = Pdf::loadView('classtimetables.pdf', [
+            'classTimetables' => $classTimetables,
+            'title' => 'Class Timetable',
+            'generatedAt' => now()->format('Y-m-d H:i:s'),
+            'filters' => $request->only(['semester_id', 'class_id', 'group_id'])
+        ]);
+
+        $pdf->setPaper('a4', 'landscape');
+        
+        return $pdf->download('class-timetable-' . now()->format('Y-m-d') . '.pdf');
+
+    } catch (\Exception $e) {
+        \Log::error('Failed to generate PDF: ' . $e->getMessage(), [
+            'exception' => $e,
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return redirect()->back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
+    }
+}
+ /**
      * Helper method to detect conflicts in the timetable
      */
     private function detectConflicts()
@@ -1307,4 +1448,191 @@ private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = nu
             return response()->json(['success' => false, 'message' => 'Failed to fetch class timetable.'], 500);
         }
     }
+
+/**
+ * Display student's timetable page
+ */
+/**
+ * Display student's timetable page - FIXED VERSION
+ */
+/**
+ * ✅ FIXED: Display student's timetable page with group filtering
+ */
+public function studentTimetable()
+{
+    try {
+        // Fetch the authenticated student
+        $user = auth()->user();
+
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Please log in to view your timetable.');
+        }
+
+        \Log::info('Student accessing timetable', [
+            'user_id' => $user->id,
+            'user_code' => $user->code ?? 'No code'
+        ]);
+
+        // Fetch the current semester with error handling
+        $currentSemester = Semester::where('is_active', true)->first();
+        
+        // If no active semester, get the latest one
+        if (!$currentSemester) {
+            $currentSemester = Semester::orderByDesc('id')->first();
+        }
+
+        if (!$currentSemester) {
+            \Log::warning('No semester found for student timetable');
+            return Inertia::render('Student/Timetable', [
+                'enrollments' => [],
+                'classTimetables' => [],
+                'currentSemester' => null,
+                'downloadUrl' => route('student.timetable.download'),
+                'error' => 'No semester data available.'
+            ]);
+        }
+
+        // Check if user has a code (required for enrollments)
+        if (!$user->code) {
+            \Log::error('User has no code for enrollment lookup', ['user_id' => $user->id]);
+            return Inertia::render('Student/Timetable', [
+                'enrollments' => [],
+                'classTimetables' => [],
+                'currentSemester' => $currentSemester,
+                'downloadUrl' => route('student.timetable.download'),
+                'error' => 'Student code not found. Please contact administration.'
+            ]);
+        }
+
+        // Fetch enrollments for this student with proper error handling
+        $enrollments = collect();
+        try {
+            $enrollments = Enrollment::where('student_code', $user->code)
+                ->where('semester_id', $currentSemester->id)
+                ->with(['unit', 'semester', 'group'])
+                ->get();
+
+            \Log::info('Enrollments found', [
+                'student_code' => $user->code,
+                'semester_id' => $currentSemester->id,
+                'count' => $enrollments->count()
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching enrollments: ' . $e->getMessage());
+            $enrollments = collect();
+        }
+
+        // Get the student's enrolled unit IDs AND group IDs
+        $enrolledUnitIds = [];
+        $studentGroupIds = [];
+        
+        if ($enrollments->isNotEmpty()) {
+            $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
+            $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
+        }
+
+        \Log::info('Student group filtering for web view', [
+            'unit_ids' => $enrolledUnitIds,
+            'group_ids' => $studentGroupIds
+        ]);
+
+        // Fetch actual class timetable entries for the student's units AND groups
+        $classTimetables = collect();
+        
+        if (!empty($enrolledUnitIds)) {
+            try {
+                $query = DB::table('class_timetable')
+                    ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
+                    ->where('class_timetable.semester_id', $currentSemester->id);
+
+                // ✅ CRITICAL FIX: Filter by student's group(s)
+                if (!empty($studentGroupIds)) {
+                    $query->whereIn('class_timetable.group_id', $studentGroupIds);
+                } else {
+                    // If no specific group assigned, check if there are enrollments with null group_id
+                    $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
+                    if ($hasNullGroup) {
+                        $query->whereNull('class_timetable.group_id');
+                    }
+                }
+
+                $classTimetables = $query
+                    ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
+                    ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
+                    ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+                    ->select(
+                        'class_timetable.id',
+                        'class_timetable.day',
+                        'class_timetable.start_time',
+                        'class_timetable.end_time',
+                        'class_timetable.venue',
+                        'class_timetable.location',
+                        'class_timetable.teaching_mode',
+                        'class_timetable.lecturer',
+                        'units.code as unit_code',
+                        'units.name as unit_name',
+                        DB::raw("CASE 
+                            WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
+                            ELSE class_timetable.lecturer 
+                            END as lecturer_name"),
+                        'groups.name as group_name'
+                    )
+                    ->orderBy('class_timetable.day')
+                    ->orderBy('class_timetable.start_time')
+                    ->get();
+
+                \Log::info('Filtered class timetables found', [
+                    'count' => $classTimetables->count(),
+                    'student_code' => $user->code,
+                    'groups_filtered' => $studentGroupIds
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('Error fetching class timetables: ' . $e->getMessage(), [
+                    'student_code' => $user->code,
+                    'semester_id' => $currentSemester->id,
+                    'unit_ids' => $enrolledUnitIds,
+                    'group_ids' => $studentGroupIds
+                ]);
+                $classTimetables = collect();
+            }
+        } else {
+            \Log::info('No enrolled units found for student', [
+                'student_code' => $user->code,
+                'semester_id' => $currentSemester->id
+            ]);
+        }
+
+        return Inertia::render('Student/Timetable', [
+            'enrollments' => $enrollments->toArray(),
+            'classTimetables' => $classTimetables->toArray(),
+            'currentSemester' => $currentSemester ? [
+                'id' => $currentSemester->id,
+                'name' => $currentSemester->name
+            ] : null,
+            'downloadUrl' => route('student.timetable.download'),
+            'student' => [
+                'id' => $user->id,
+                'code' => $user->code,
+                'name' => $user->first_name . ' ' . $user->last_name,
+                'groups' => $studentGroupIds // Pass student groups for debugging
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Critical error in studentTimetable method: ' . $e->getMessage(), [
+            'exception' => $e,
+            'trace' => $e->getTraceAsString(),
+            'user_id' => auth()->id()
+        ]);
+
+        return Inertia::render('Student/Timetable', [
+            'enrollments' => [],
+            'classTimetables' => [],
+            'currentSemester' => null,
+            'downloadUrl' => route('student.timetable.download'),
+            'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
+        ]);
+    }
+}
 }

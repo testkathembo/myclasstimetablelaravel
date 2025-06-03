@@ -77,10 +77,10 @@ export default function Dashboard() {
                 </div>
               </RoleAwareComponent>
               
-              {/* Faculty Admin Section */}
-              <RoleAwareComponent requiredRoles={['Faculty Admin']}>
+              {/* School Admin Section */}
+              <RoleAwareComponent requiredRoles={['School Admin']}>
                 <div className="mb-8">
-                  <h2 className="text-xl font-medium mb-4">Faculty Administration</h2>
+                  <h2 className="text-xl font-medium mb-4">School Administration</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="bg-teal-50 p-4 rounded-lg shadow">
                       <h3 className="font-medium">Manage Units</h3>
@@ -91,8 +91,8 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-600 mt-1">Manage student enrollments</p>
                     </div>
                     <div className="bg-teal-50 p-4 rounded-lg shadow">
-                      <h3 className="font-medium">Faculty Reports</h3>
-                      <p className="text-sm text-gray-600 mt-1">View faculty-specific reports</p>
+                      <h3 className="font-medium">School Reports</h3>
+                      <p className="text-sm text-gray-600 mt-1">View school-specific reports</p>
                     </div>
                   </div>
                 </div>

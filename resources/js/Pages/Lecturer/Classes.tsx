@@ -10,7 +10,7 @@ interface Unit {
   id: number
   code: string
   name: string
-  faculty?: { name: string }
+  school?: { name: string }
 }
 
 interface Semester {
@@ -151,7 +151,7 @@ const Classes = ({
                   <tr key={unit.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{unit.code}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{unit.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{unit.faculty?.name || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{unit.school?.name || "N/A"}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{studentCounts[unit.id] || 0}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
                       <a

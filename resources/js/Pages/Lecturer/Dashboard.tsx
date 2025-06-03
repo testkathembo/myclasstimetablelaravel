@@ -8,7 +8,7 @@ interface Unit {
   id: number
   code: string
   name: string
-  faculty?: { name: string } // Make faculty optional
+  school?: { name: string } // Make School optional
 }
 
 interface Semester {

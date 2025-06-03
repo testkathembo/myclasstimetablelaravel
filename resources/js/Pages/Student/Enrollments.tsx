@@ -20,6 +20,9 @@ interface Enrollment {
     last_name: string;
     code: string;
   };
+  group: {
+    name: string;
+  };
 }
 
 interface Props {
@@ -70,6 +73,9 @@ export default function Enrollments({ enrollments = { data: [] }, userRoles }: P
                           Unit Name
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Group 
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Semester
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -92,6 +98,9 @@ export default function Enrollments({ enrollments = { data: [] }, userRoles }: P
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {enrollment.unit.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {enrollment.group?.name || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {enrollment.semester.name}

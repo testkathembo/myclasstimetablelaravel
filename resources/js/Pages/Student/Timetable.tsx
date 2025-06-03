@@ -1,156 +1,71 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Calendar, Clock, MapPin, Download } from 'lucide-react';
-import { format } from 'date-fns';
 
-interface ExamTimetable {
+interface Enrollment {
   id: number;
-  date: string;
-  day: string;
-  start_time: string;
-  end_time: string;
-  venue: string;
-  location: string;
-  chief_invigilator: string;
-  unit: {
-    id: number;
-    code: string;
-    name: string;
-  };
-  semester: {
-    id: number;
-    name: string;
-    year: number;
-  };
-}
-
-interface Unit {
-  id: number;
-  code: string;
-  name: string;
-}
-
-interface Semester {
-  id: number;
-  name: string;
-  year: number;
+  unit: { code: string; name: string };
+  semester: { name: string };
+  group?: { name: string };
 }
 
 interface Props {
-  examTimetables: ExamTimetable[];
-  currentSemester: Semester;
-  enrolledUnits: Unit[];
+  enrollments?: Enrollment[];
+  currentSemester?: { name: string };
+  downloadUrl?: string;
 }
 
-export default function StudentTimetable({ examTimetables, currentSemester, enrolledUnits }: Props) {
-  const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
-  
-  const filteredExams = selectedUnit === 'all' 
-    ? examTimetables 
-    : examTimetables.filter(exam => exam.unit.id === selectedUnit);
-
-  // Group exams by date
-  const examsByDate = filteredExams.reduce((acc, exam) => {
-    const date = exam.date;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(exam);
-    return acc;
-  }, {} as Record<string, ExamTimetable[]>);
-
-  // Sort dates
-  const sortedDates = Object.keys(examsByDate).sort();
-
+export default function StudentTimetable({ enrollments = [], currentSemester, downloadUrl }: Props) {
   return (
     <AuthenticatedLayout>
-      <Head title="My Exams" />
-
-      <div className="py-12">
-        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900">My Exam Timetable</h1>
-            
-            <div className="flex items-center space-x-4">
-              <div>
-                <label htmlFor="unit-filter" className="mr-2 text-sm font-medium text-gray-700">Filter by Unit:</label>
-                <select
-                  id="unit-filter"
-                  className="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                  value={selectedUnit}
-                  onChange={(e) => setSelectedUnit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                >
-                  <option value="all">All Units</option>
-                  {enrolledUnits.map((unit) => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.code} - {unit.name}
-                    </option>
-                  ))}
-                </select>
+      <Head title="My Timetable" />
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2">
+          <h1 className="text-2xl font-semibold">My Timetable</h1>
+          {currentSemester && (
+            <span className="inline-block bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded font-medium">
+              Active Semester: {currentSemester.name}
+            </span>
+          )}
+          {downloadUrl && (
+            <a
+              href={downloadUrl}
+              className="inline-block bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded shadow transition"
+              download
+            >
+              Download Timetable
+            </a>
+          )}
+        </div>
+        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+          <div className="p-6 bg-white border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Enrolled Units</h2>
+            {enrollments.length === 0 ? (
+              <p className="text-gray-500 mt-4">No timetable entries found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse border border-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-2 border">Unit Code</th>
+                      <th className="px-4 py-2 border">Unit Name</th>
+                      <th className="px-4 py-2 border">Group</th>
+                      <th className="px-4 py-2 border">Semester</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrollments.map((enrollment) => (
+                      <tr key={enrollment.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 border">{enrollment.unit?.code || "N/A"}</td>
+                        <td className="px-4 py-2 border">{enrollment.unit?.name || "N/A"}</td>
+                        <td className="px-4 py-2 border">{enrollment.group?.name || "N/A"}</td>
+                        <td className="px-4 py-2 border">{enrollment.semester?.name || "N/A"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              
-              <a 
-                href="/my-exams/download" 
-                className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:border-blue-800 focus:ring focus:ring-blue-200 transition"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download PDF
-              </a>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
-            <div className="p-6 bg-white border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <Calendar className="mr-2 h-5 w-5 text-blue-500" />
-                {currentSemester.name} {currentSemester.year} Exams
-              </h2>
-              
-              {filteredExams.length > 0 ? (
-                <div>
-                  {sortedDates.map((date) => (
-                    <div key={date} className="mb-8">
-                      <h3 className="text-md font-medium text-gray-900 mb-3 pb-2 border-b">
-                        {format(new Date(date), 'EEEE, MMMM d, yyyy')}
-                      </h3>
-                      
-                      <div className="space-y-4">
-                        {examsByDate[date].map((exam) => (
-                          <div key={exam.id} className="bg-gray-50 p-4 rounded-lg">
-                            <div className="flex flex-col md:flex-row md:justify-between">
-                              <div>
-                                <h4 className="text-md font-medium">{exam.unit.code} - {exam.unit.name}</h4>
-                                <div className="flex items-center mt-2">
-                                  <Clock className="h-4 w-4 text-gray-500 mr-2" />
-                                  <span className="text-sm text-gray-600">
-                                    {exam.start_time} - {exam.end_time}
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              <div className="mt-3 md:mt-0">
-                                <div className="flex items-center">
-                                  <MapPin className="h-4 w-4 text-gray-500 mr-2" />
-                                  <span className="text-sm text-gray-600">
-                                    {exam.venue} {exam.location ? `(${exam.location})` : ''}
-                                  </span>
-                                </div>
-                                <div className="text-sm text-gray-500 mt-1">
-                                  Chief Invigilator: {exam.chief_invigilator}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500">No exams found for the selected criteria.</p>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
