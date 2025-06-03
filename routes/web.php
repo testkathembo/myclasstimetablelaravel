@@ -44,7 +44,6 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\PortalPreviewController;
 use Illuminate\Http\Request;
 
-
 $moduleRoutes = glob(base_path('Modules/*/routes/web.php'));
 
 foreach ($moduleRoutes as $routeFile) {
@@ -70,6 +69,23 @@ Route::any('/debug', function (Request $request) {
     ]);
     return response()->json(['message' => 'Debug route']);
 });
+
+// ✅ PDF TEST ROUTE - Add this for debugging PDF generation
+Route::get('/test-pdf-debug', function() {
+    $user = auth()->user();
+    
+    try {
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML('<h1>Test PDF</h1><p>User: ' . $user->first_name . '</p>');
+        $content = $pdf->output();
+        
+        return response($content)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'attachment; filename="test.pdf"');
+            
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()]);
+    }
+})->middleware('auth');
 
 // Unified Authentication Routes - Using LoginController for both regular and LDAP
 require __DIR__.'/auth.php';
@@ -331,7 +347,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
         Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
         Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
-        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
     });
 
     // NEW: Admin Enrollment Management Routes
@@ -559,15 +574,21 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])
         ->name('student.exams.show');
         
-    // My Class Timetable
+    // ✅ FIXED: Student Timetable Routes - SINGLE DEFINITION ONLY
+    Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
+        ->name('student.timetable');
+    
+    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
+        ->name('student.timetable.download');
 
+    // My Class Timetable (alternative route)
     Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable']);
     
     // Student Exam Timetable
     Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
         ->name('student.exam-timetable');
 
-    // Student Timetable
+    // Student Timetable (alternative name)
     Route::get('/student/timetable', [ClassTimetableController::class, 'viewStudentClassTimetable'])
         ->name('student.timetable');
 });
@@ -585,24 +606,6 @@ Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(functio
 Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
     Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
 });
-// Student routes (add these in the student section or create a new group)
-Route::middleware(['auth', 'verified'])->group(function () {
-    // Student timetable routes
-    Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
-        ->name('student.timetable');
-    
-    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
-        ->name('student.timetable.download');
-});
-
-// Alternative: If you want to group them specifically for students
-Route::middleware(['auth', 'verified', 'role:Student'])->prefix('student')->name('student.')->group(function () {
-    Route::get('/timetable', [ClassTimetableController::class, 'studentTimetable'])
-        ->name('timetable');
-    
-    Route::get('/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
-        ->name('timetable.download');
-});
 
 // Example: Update the route to accept POST requests
 Route::post('/classes', [ClassController::class, 'store'])->name('classes.store');
@@ -611,6 +614,3 @@ Route::post('/classes', [ClassController::class, 'store'])->name('classes.store'
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');
 })->where('any', '.*')->name('not-found');
-
-
-
