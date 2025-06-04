@@ -32,7 +32,7 @@ interface Unit {
   name: string
   code?: string
   program?: { id: number; name: string }
-  school?: { id: number; name: string } 
+  school?: { id: number; name: string }
 }
 
 interface Student {
@@ -76,6 +76,10 @@ interface LecturerAssignment {
 }
 
 const Enrollments = () => {
+  // Debug the props received from the server
+  const pageProps = usePage().props
+  console.log("Page props:", pageProps)
+
   const {
     enrollments,
     semesters = [],
@@ -106,6 +110,14 @@ const Enrollments = () => {
     errors: Record<string, string>
   }
 
+  // Debug the extracted data
+  console.log("Extracted data:", {
+    semestersCount: semesters?.length || 0,
+    groupsCount: groups?.length || 0,
+    classesCount: classes?.length || 0,
+    unitsCount: units?.length || 0,
+  })
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [currentEnrollment, setCurrentEnrollment] = useState<{
     code: string
@@ -129,17 +141,27 @@ const Enrollments = () => {
   const [enrollmentsPage, setEnrollmentsPage] = useState(1) // State for enrollments table pagination
   const [lecturerAssignmentsPage, setLecturerAssignmentsPage] = useState(1) // State for lecturer assignments table pagination
 
+  // Check if semesters are available
+  useEffect(() => {
+    if (!semesters || semesters.length === 0) {
+      console.warn("No semesters available in props")
+      // You could fetch semesters here if they're not provided in props
+    } else {
+      console.log("Semesters available:", semesters)
+    }
+  }, [semesters])
+
   const handleEnrollmentsPageChange = (url: string | null) => {
     if (url) {
       router.get(url, {}, { preserveState: true, preserveScroll: true })
-      setEnrollmentsPage(new URL(url).searchParams.get("page") || 1)
+      setEnrollmentsPage(Number(new URL(url).searchParams.get("page")) || 1)
     }
   }
 
   const handleLecturerAssignmentsPageChange = (url: string | null) => {
     if (url) {
       router.get(url, {}, { preserveState: true, preserveScroll: true })
-      setLecturerAssignmentsPage(new URL(url).searchParams.get("page") || 1)
+      setLecturerAssignmentsPage(Number(new URL(url).searchParams.get("page")) || 1)
     }
   }
 
@@ -159,6 +181,9 @@ const Enrollments = () => {
       group_id: "",
       unit_ids: [],
     })
+    setFilteredClasses([])
+    setFilteredGroups([])
+    setFilteredUnits([])
     setIsModalOpen(true)
     setError(null)
   }
@@ -182,6 +207,8 @@ const Enrollments = () => {
   }
 
   const handleSemesterChange = (semesterId: number) => {
+    console.log("Semester changed to:", semesterId)
+
     setCurrentEnrollment((prev) => ({
       ...prev!,
       semester_id: semesterId,
@@ -189,47 +216,56 @@ const Enrollments = () => {
       group_id: "",
       unit_ids: [],
     }))
-    setFilteredClasses((classes || []).filter((cls) => cls.semester_id === semesterId))
+
+    // Filter classes for this semester
+    const filtered = (classes || []).filter((cls) => cls.semester_id === semesterId)
+    console.log(`Found ${filtered.length} classes for semester ${semesterId}`)
+    setFilteredClasses(filtered)
+
     setFilteredGroups([])
     setFilteredUnits([])
   }
 
   const handleClassChange = async (classId: number) => {
+    console.log("Class changed to:", classId)
+
     setCurrentEnrollment((prev) => ({
       ...prev!,
       class_id: classId,
       group_id: "",
       unit_ids: [],
     }))
-    setFilteredGroups((groups || []).filter((group) => group.class?.id === classId))
+
+    // Filter groups for this class
+    const filtered = (groups || []).filter((group) => group.class?.id === classId)
+    console.log(`Found ${filtered.length} groups for class ${classId}`)
+    setFilteredGroups(filtered)
+
     setFilteredUnits([])
     setIsLoading(true)
     setError(null)
-  
+
     if (currentEnrollment?.semester_id) {
       try {
         // Get CSRF token directly from meta tag
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
         console.log("Fetching units for semester_id:", currentEnrollment.semester_id, "and class_id:", classId)
-  
+
         // Make the API call to get all units for this class and semester
-        const response = await axios.post(
-          "/api/units/by-class-and-semester",
-          {
+        const response = await axios.get("/units/by-class-and-semester", {
+          params: {
             semester_id: currentEnrollment.semester_id,
             class_id: classId,
           },
-          {
-            headers: {
-              "X-CSRF-TOKEN": token,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
+          headers: {
+            "X-CSRF-TOKEN": token,
+            "Content-Type": "application/json",
+            Accept: "application/json",
           },
-        )
-  
+        })
+
         console.log("Units response:", response.data)
-  
+
         // Check if the response contains a warning
         if (response.data.warning && response.data.units) {
           setFilteredUnits(response.data.units)
@@ -245,14 +281,14 @@ const Enrollments = () => {
             // Try to match units by name or code patterns
             const unitName = (unit.name || "").toLowerCase()
             const unitCode = (unit.code || "").toLowerCase()
-  
+
             // Extract class level if it's in format like "BBIT 1.1"
             const classMatch = classNamePattern.match(/(\w+)\s+(\d+\.\d+)/)
             if (classMatch) {
               const program = classMatch[1] // e.g., "bbit"
               const level = classMatch[2] // e.g., "1.1"
               const majorLevel = level.split(".")[0] // e.g., "1"
-  
+
               return (
                 unitCode.includes(program) ||
                 unitCode.includes(majorLevel) ||
@@ -261,10 +297,10 @@ const Enrollments = () => {
                 unitName.includes(`year ${majorLevel}`)
               )
             }
-  
+
             return false
           })
-  
+
           if (fallbackUnits.length > 0) {
             console.log("Using fallback units based on name/code matching:", fallbackUnits)
             setFilteredUnits(fallbackUnits)
@@ -276,16 +312,16 @@ const Enrollments = () => {
         }
       } catch (error: any) {
         console.error("Error fetching units:", error.response?.data || error.message)
-  
+
         // Extract and display a more user-friendly error message
         const errorMessage = "Failed to fetch units. Please try again or contact the administrator."
-  
+
         if (error.response?.data?.error) {
           console.error("Detailed error:", error.response.data.error)
         }
-  
+
         setError(errorMessage)
-  
+
         // Try to use all available units as a last resort
         const allUnits = units || []
         if (allUnits.length > 0) {
@@ -315,22 +351,21 @@ const Enrollments = () => {
 
     if (assignSemesterId) {
       try {
-        const response = await axios.post(
-          "/api/units/by-class-and-semester",
-          {
+        const response = await axios.get("/units/by-class-and-semester", {
+          params: {
             semester_id: assignSemesterId,
             class_id: classId,
           },
-          {
-            headers: {
-              "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
+          headers: {
+            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
+            "Content-Type": "application/json",
+            Accept: "application/json",
           },
-        )
+        })
 
         if (response.data.units) {
+          setAssignUnits(response.data.units)
+        } else if (response.data.success && response.data.units) {
           setAssignUnits(response.data.units)
         } else {
           setAssignUnits(response.data)
@@ -382,74 +417,85 @@ const Enrollments = () => {
   }
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
     if (currentEnrollment) {
       // Validate form
       if (!currentEnrollment.code.trim()) {
-        setError("Student code is required");
-        return;
+        setError("Student code is required")
+        return
       }
 
       if (!currentEnrollment.semester_id) {
-        setError("Please select a semester");
-        return;
+        setError("Please select a semester")
+        return
       }
 
       if (!currentEnrollment.class_id) {
-        setError("Please select a class");
-        return;
+        setError("Please select a class")
+        return
       }
 
       if (!currentEnrollment.group_id) {
-        setError("Please select a group");
-        return;
+        setError("Please select a group")
+        return
       }
 
       if (!currentEnrollment.unit_ids.length) {
-        setError("Please select at least one unit");
-        return;
+        setError("Please select at least one unit")
+        return
       }
 
       // Ensure unit_ids is sent as an array
       const formattedEnrollment = {
         ...currentEnrollment,
         unit_ids: currentEnrollment.unit_ids.map((id) => Number(id)), // Ensure IDs are numbers
-      };
+      }
 
-      console.log("Submitting enrollment:", formattedEnrollment);
+      console.log("Submitting enrollment:", formattedEnrollment)
 
       router.post("/enrollments", formattedEnrollment, {
         onSuccess: () => {
-          toast.success("Student enrolled successfully!");
-          handleCloseModal();
+          toast.success("Student enrolled successfully!")
+          handleCloseModal()
         },
         onError: (errors) => {
-          console.error("Enrollment errors:", errors);
+          console.error("Enrollment errors:", errors)
           if (errors.group_id) {
-            setError(errors.group_id);
+            setError(errors.group_id)
           } else if (errors.code) {
-            setError(errors.code);
+            setError(errors.code)
           } else if (errors.error) {
-            setError(errors.error);
+            setError(errors.error)
           } else {
-            setError("An error occurred during enrollment. Please try again.");
+            setError("An error occurred during enrollment. Please try again.")
           }
         },
-      });
+      })
     }
-  };
+  }
 
   return (
     <AuthenticatedLayout>
       <Head title="Enrollments" />
       <div className="p-6 bg-white rounded-lg shadow-md">
         <h1 className="text-2xl font-semibold mb-4">Enrollments</h1>
+
+        {/* Debug info for development */}
+        {(!semesters || semesters.length === 0) && (
+          <div className="p-4 mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+            Warning: No semesters available. Please check your database or controller.
+          </div>
+        )}
+
         <div className="flex justify-between items-center mb-4">
           <button onClick={handleOpenModal} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
             + Enroll Student
           </button>
-          <button onClick={handleOpenAssignModal} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+          <button
+            onClick={handleOpenAssignModal}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
             Assign Unit to Lecturer
           </button>
         </div>
@@ -469,9 +515,7 @@ const Enrollments = () => {
               enrollments.data.map((enrollment) => (
                 <tr key={enrollment.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 border">{enrollment.id}</td>
-                  <td className="px-4 py-2 border">
-                    {enrollment.student_code || "N/A"}
-                  </td>
+                  <td className="px-4 py-2 border">{enrollment.student_code || "N/A"}</td>
                   <td className="px-4 py-2 border">
                     {enrollment.group ? enrollment.group.name : enrollment.group_id || "N/A"}
                   </td>
@@ -498,11 +542,13 @@ const Enrollments = () => {
             )}
           </tbody>
         </table>
-        <Pagination
-          links={enrollments?.links}
-          onPageChange={handleEnrollmentsPageChange}
-          currentPage={enrollmentsPage}
-        />
+        {enrollments?.links && (
+          <Pagination
+            links={enrollments.links}
+            onPageChange={handleEnrollmentsPageChange}
+            currentPage={enrollmentsPage}
+          />
+        )}
       </div>
 
       {/* Lecturer Assignments Section */}
@@ -534,11 +580,13 @@ const Enrollments = () => {
             )}
           </tbody>
         </table>
-        <Pagination
-          links={lecturerAssignments.links}
-          onPageChange={handleLecturerAssignmentsPageChange}
-          currentPage={lecturerAssignmentsPage}
-        />
+        {lecturerAssignments.links && (
+          <Pagination
+            links={lecturerAssignments.links}
+            onPageChange={handleLecturerAssignmentsPageChange}
+            currentPage={lecturerAssignmentsPage}
+          />
+        )}
       </div>
 
       {isModalOpen && (
@@ -566,37 +614,45 @@ const Enrollments = () => {
                 <label className="block text-sm font-medium text-gray-700">Semester</label>
                 <select
                   value={currentEnrollment?.semester_id || ""}
-                  onChange={(e) => handleSemesterChange(Number.parseInt(e.target.value, 10))}
+                  onChange={(e) => handleSemesterChange(Number(e.target.value))}
                   className="w-full border rounded p-2"
                   required
                 >
-                  <option value="" disabled>
-                    Select a semester
-                  </option>
-                  {semesters?.map((semester) => (
-                    <option key={semester.id} value={semester.id}>
-                      {semester.name}
+                  <option value="">Select a semester</option>
+                  {semesters && semesters.length > 0 ? (
+                    semesters.map((semester) => (
+                      <option key={semester.id} value={semester.id}>
+                        {semester.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No semesters available
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">Class</label>
                 <select
                   value={currentEnrollment?.class_id || ""}
-                  onChange={(e) => handleClassChange(Number.parseInt(e.target.value, 10))}
+                  onChange={(e) => handleClassChange(Number(e.target.value))}
                   className="w-full border rounded p-2"
                   required
                   disabled={!currentEnrollment?.semester_id}
                 >
-                  <option value="" disabled>
-                    Select a class
-                  </option>
-                  {filteredClasses.map((classItem) => (
-                    <option key={classItem.id} value={classItem.id}>
-                      {classItem.name}
+                  <option value="">Select a class</option>
+                  {filteredClasses.length > 0 ? (
+                    filteredClasses.map((classItem) => (
+                      <option key={classItem.id} value={classItem.id}>
+                        {classItem.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      {currentEnrollment?.semester_id ? "No classes for this semester" : "Select a semester first"}
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
               <div className="mb-4">
@@ -613,14 +669,18 @@ const Enrollments = () => {
                   required
                   disabled={!currentEnrollment?.class_id}
                 >
-                  <option value="" disabled>
-                    Select a group
-                  </option>
-                  {filteredGroups.map((group) => (
-                    <option key={group.id} value={group.id.toString()}>
-                      {group.name} (Capacity: {group.capacity})
+                  <option value="">Select a group</option>
+                  {filteredGroups.length > 0 ? (
+                    filteredGroups.map((group) => (
+                      <option key={group.id} value={group.id.toString()}>
+                        {group.name} (Capacity: {group.capacity})
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      {currentEnrollment?.class_id ? "No groups for this class" : "Select a class first"}
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
               <div className="mb-4">
@@ -628,71 +688,72 @@ const Enrollments = () => {
                 {isLoading ? (
                   <div className="text-center py-2">Loading units...</div>
                 ) : (
-                    <div>
+                  <div>
                     <div className="flex items-center mb-2">
                       <input
-                      type="checkbox"
-                      id="selectAllUnits"
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                        setCurrentEnrollment((prev) => ({
-                          ...prev!,
-                          unit_ids: filteredUnits.map((unit) => unit.id),
-                        }))
-                        } else {
-                        setCurrentEnrollment((prev) => ({
-                          ...prev!,
-                          unit_ids: [],
-                        }))
+                        type="checkbox"
+                        id="selectAllUnits"
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setCurrentEnrollment((prev) => ({
+                              ...prev!,
+                              unit_ids: filteredUnits.map((unit) => unit.id),
+                            }))
+                          } else {
+                            setCurrentEnrollment((prev) => ({
+                              ...prev!,
+                              unit_ids: [],
+                            }))
+                          }
+                        }}
+                        checked={
+                          filteredUnits.length > 0 && currentEnrollment?.unit_ids.length === filteredUnits.length
                         }
-                      }}
-                      checked={
-                        filteredUnits.length > 0 &&
-                        currentEnrollment?.unit_ids.length === filteredUnits.length
-                      }
-                      disabled={!filteredUnits.length || isLoading}
+                        disabled={!filteredUnits.length || isLoading}
                       />
                       <label htmlFor="selectAllUnits" className="ml-2 text-sm">
-                      Select All Units
+                        Select All Units
                       </label>
                     </div>
                     <div className="border rounded p-2 max-h-40 overflow-y-auto">
                       {filteredUnits.length > 0 ? (
-                      filteredUnits.map((unit) => (
-                        <div key={unit.id} className="flex items-center mb-1">
-                        <input
-                          type="checkbox"
-                          id={`unit-${unit.id}`}
-                          value={unit.id}
-                          onChange={(e) => {
-                          const unitId = Number.parseInt(e.target.value, 10)
-                          if (e.target.checked) {
-                            setCurrentEnrollment((prev) => ({
-                            ...prev!,
-                            unit_ids: [...(prev?.unit_ids || []), unitId],
-                            }))
-                          } else {
-                            setCurrentEnrollment((prev) => ({
-                            ...prev!,
-                            unit_ids: (prev?.unit_ids || []).filter((id) => id !== unitId),
-                            }))
-                          }
-                          }}
-                          checked={currentEnrollment?.unit_ids.includes(unit.id)}
-                          disabled={isLoading}
-                        />
-                        <label htmlFor={`unit-${unit.id}`} className="ml-2 text-sm">
-                          {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
-                        </label>
-                        </div>
-                      ))
+                        filteredUnits.map((unit) => (
+                          <div key={unit.id} className="flex items-center mb-1">
+                            <input
+                              type="checkbox"
+                              id={`unit-${unit.id}`}
+                              value={unit.id}
+                              onChange={(e) => {
+                                const unitId = Number(e.target.value)
+                                if (e.target.checked) {
+                                  setCurrentEnrollment((prev) => ({
+                                    ...prev!,
+                                    unit_ids: [...(prev?.unit_ids || []), unitId],
+                                  }))
+                                } else {
+                                  setCurrentEnrollment((prev) => ({
+                                    ...prev!,
+                                    unit_ids: (prev?.unit_ids || []).filter((id) => id !== unitId),
+                                  }))
+                                }
+                              }}
+                              checked={currentEnrollment?.unit_ids.includes(unit.id)}
+                              disabled={isLoading}
+                            />
+                            <label htmlFor={`unit-${unit.id}`} className="ml-2 text-sm">
+                              {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
+                            </label>
+                          </div>
+                        ))
                       ) : (
-                      <div className="text-sm text-gray-500">
-                        No units found for this class and semester.
-                      </div>
+                        <div className="text-sm text-gray-500 text-center py-2">
+                          {currentEnrollment?.class_id
+                            ? "No units found for this class and semester."
+                            : "Please select a class to see available units."}
+                        </div>
                       )}
                     </div>
-                    </div>
+                  </div>
                 )}
               </div>
               <div className="flex justify-end space-x-2">
@@ -726,39 +787,47 @@ const Enrollments = () => {
                 <label className="block text-sm font-medium text-gray-700">Semester</label>
                 <select
                   value={assignSemesterId || ""}
-                  onChange={(e) => handleAssignSemesterChange(Number.parseInt(e.target.value, 10))}
+                  onChange={(e) => handleAssignSemesterChange(Number(e.target.value))}
                   className="w-full border rounded p-2"
                   required
                 >
-                  <option value="" disabled>
-                    Select a semester
-                  </option>
-                  {semesters?.map((semester) => (
-                    <option key={semester.id} value={semester.id}>
-                      {semester.name}
+                  <option value="">Select a semester</option>
+                  {semesters && semesters.length > 0 ? (
+                    semesters.map((semester) => (
+                      <option key={semester.id} value={semester.id}>
+                        {semester.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No semesters available
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700">Class</label>
                 <select
                   value={assignClassId || ""}
-                  onChange={(e) => handleAssignClassChange(Number.parseInt(e.target.value, 10))}
+                  onChange={(e) => handleAssignClassChange(Number(e.target.value))}
                   className="w-full border rounded p-2"
                   required
                   disabled={!assignSemesterId}
                 >
-                  <option value="" disabled>
-                    Select a class
-                  </option>
-                  {classes
-                    ?.filter((cls) => cls.semester_id === assignSemesterId)
-                    .map((classItem) => (
-                      <option key={classItem.id} value={classItem.id}>
-                        {classItem.name}
-                      </option>
-                    ))}
+                  <option value="">Select a class</option>
+                  {classes && classes.length > 0 ? (
+                    classes
+                      .filter((cls) => cls.semester_id === assignSemesterId)
+                      .map((classItem) => (
+                        <option key={classItem.id} value={classItem.id}>
+                          {classItem.name}
+                        </option>
+                      ))
+                  ) : (
+                    <option value="" disabled>
+                      {assignSemesterId ? "No classes for this semester" : "Select a semester first"}
+                    </option>
+                  )}
                 </select>
               </div>
               <div className="mb-4">
@@ -768,21 +837,25 @@ const Enrollments = () => {
                   onChange={(e) =>
                     setAssignData((prev) => ({
                       ...prev!,
-                      unit_id: Number.parseInt(e.target.value, 10),
+                      unit_id: Number(e.target.value),
                     }))
                   }
                   className="w-full border rounded p-2"
                   required
                   disabled={!assignClassId || assignUnits.length === 0}
                 >
-                  <option value="" disabled>
-                    Select a unit
-                  </option>
-                  {assignUnits.map((unit) => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
+                  <option value="">Select a unit</option>
+                  {assignUnits.length > 0 ? (
+                    assignUnits.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      {assignClassId ? "No units for this class" : "Select a class first"}
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
               <div className="mb-4">
@@ -808,10 +881,7 @@ const Enrollments = () => {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
+                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
                   Assign
                 </button>
               </div>

@@ -90,6 +90,13 @@ Route::get('/test-pdf-debug', function() {
 // Unified Authentication Routes - Using LoginController for both regular and LDAP
 require __DIR__.'/auth.php';
 
+// FIXED: Web route for fetching units by class and semester - MOVED OUTSIDE AUTH MIDDLEWARE FOR TESTING
+Route::post('/units/by-class-and-semester', [EnrollmentController::class, 'getUnitsByClassAndSemester'])
+    ->name('units.by-class-and-semester');
+
+Route::get('/units/by-class-and-semester', [EnrollmentController::class, 'getUnitsByClassAndSemester'])
+    ->name('units.by-class-and-semester.get');
+
 // Authenticated routes
 Route::middleware(['auth'])->group(function () {
 
@@ -205,10 +212,6 @@ Route::middleware(['auth'])->group(function () {
     // NEW: API route for fetching units directly by class (bypassing groups)
     Route::match(['GET', 'POST'], '/api/units/by-class', [ClassTimetableController::class, 'getUnitsByClass'])
         ->name('api.units.by-class');
-
-    // NEW: API route for fetching units by class and semester (same as enrollment system)
-    Route::match(['GET', 'POST'], '/api/units/by-class-and-semester', [ClassTimetableController::class, 'getUnitsByClassAndSemester'])
-        ->name('api.units.by-class-and-semester');
 
     Route::get('/classtimetable', function () {
         return Inertia::render('ClassTimetables/Index');
@@ -344,20 +347,17 @@ Route::middleware(['auth'])->group(function () {
 
     // NEW: Student Enrollment Routes
     Route::middleware(['role:Student'])->group(function () {
-        Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
-        Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
+        Route::get('/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
+        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('student.enroll');
         Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
     });
 
-    // Add this to your routes/web.php file
-Route::middleware('auth')->group(function () {
-    // Self-enrollment routes
-    Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
-    Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll');
-    
-    // Other enrollment routes
-    Route::resource('enrollments', EnrollmentController::class);
-});
+    // Self-enrollment routes for students
+    Route::middleware('auth')->group(function () {
+        Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
+        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll');
+        Route::resource('enrollments', EnrollmentController::class);
+    });
 
     // NEW: Admin Enrollment Management Routes
     Route::middleware(['permission:manage-enrollments'])->group(function () {
@@ -377,8 +377,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/assign-lecturers/{unitId}/delete', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy.post');
         Route::get('/lecturer-units/{lecturerId}', [EnrollmentController::class, 'getLecturerUnits'])->name('lecturer.units');
     });
-
-    Route::get('/enroll', [EnrollmentController::class, 'create'])->name('enrollments.create');
 
     // Semesters routes
     Route::get('/semesters', [SemesterController::class, 'index'])->name('semesters.index');
@@ -502,6 +500,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/auto-generate/groups', [AutoGenerateTimetableController::class, 'getGroupsByClass'])->name('api.auto-generate.groups');
         Route::get('/api/auto-generate/timetable-data', [AutoGenerateTimetableController::class, 'getTimetableData'])->name('api.auto-generate.timetable-data');
     });
+
+    // Faculty-specific exam timetable downloads
+    Route::middleware(['auth', 'permission:download-faculty-examtimetables'])->group(function () {
+        Route::get('/examtimetable/faculty/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])->name('examtimetable.faculty.download');
+    });
+
+    // Lecturer-specific exam timetable routes
+    Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(function () {
+        Route::get('/examtimetable/lecturer', [ExamTimetableController::class, 'viewLecturerTimetable'])->name('examtimetable.lecturer');
+    });
+
+    Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
+        Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
+    });
 });
 
 // Admin Routes - Admin role bypasses permission checks
@@ -576,53 +588,10 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     // Student Dashboard
     Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
     
-    // My Enrollments
-    Route::get('/my-enrollments', [StudentController::class, 'myEnrollments'])->name('student.enrollments');
-    
-    // My Exams
-    Route::get('/my-exams', [ExamTimetableController::class, 'viewStudentTimetable'])->name('student.exams');
-    Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])
-        ->name('student.exams.show');
-        
-    // ✅ FIXED: Student Timetable Routes - SINGLE DEFINITION ONLY
-    Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
-        ->name('student.timetable');
-
-        // Self Enrollment Routes
-    Route::get('/student/enroll', [StudentEnrollmentController::class, 'EnrollmentController'])   
+    // Self Enrollment Routes
+    Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])   
         ->name('student.enroll');
-    
-    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
-        ->name('student.timetable.download');
-
-    // My Class Timetable (alternative route)
-    Route::get('/my-timetable', [ClassTimetableController::class, 'studentTimetable']);
-    
-    // Student Exam Timetable
-    Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
-        ->name('student.exam-timetable');
-
-    // Student Timetable (alternative name)
-    Route::get('/student/timetable', [ClassTimetableController::class, 'viewStudentClassTimetable'])
-        ->name('student.timetable');
 });
-
-// Faculty-specific exam timetable downloads
-Route::middleware(['auth', 'permission:download-faculty-examtimetables'])->group(function () {
-    Route::get('/examtimetable/faculty/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])->name('examtimetable.faculty.download');
-});
-
-// Lecturer-specific exam timetable routes
-Route::middleware(['auth', 'permission:view-own-examtimetables'])->group(function () {
-    Route::get('/examtimetable/lecturer', [ExamTimetableController::class, 'viewLecturerTimetable'])->name('examtimetable.lecturer');
-});
-
-Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(function () {
-    Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('examtimetable.lecturer.download');
-});
-
-// Example: Update the route to accept POST requests
-Route::post('/classes', [ClassController::class, 'store'])->name('classes.store');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
