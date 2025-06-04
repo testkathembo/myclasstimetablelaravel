@@ -177,13 +177,15 @@ class EnrollmentController extends Controller
         Log::info('Admin enrollment store request', $request->all());
         
         $validated = $request->validate([
-            'student_code' => 'required|exists:users,code',
+            'code' => 'required|exists:users,code', // Changed from student_code to code to match frontend
             'group_id' => 'required|exists:groups,id',
             'unit_ids' => 'required|array',
             'unit_ids.*' => 'exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
         ]);
 
+        $studentCode = $validated['code']; // Use the submitted student code
+        
         $group = Group::findOrFail($validated['group_id']);
         $class = $group->class;
         if (!$class) {
@@ -201,7 +203,7 @@ class EnrollmentController extends Controller
         }
 
         $existingEnrollments = Enrollment::where('group_id', $group->id)
-            ->where('student_code', $validated['student_code'])
+            ->where('student_code', $studentCode)
             ->where('semester_id', $validated['semester_id'])
             ->pluck('unit_id')
             ->toArray();
@@ -221,7 +223,7 @@ class EnrollmentController extends Controller
                 $unit = Unit::with(['program', 'school'])->find($unitId);
 
                 Enrollment::create([
-                    'student_code' => $validated['student_code'],
+                    'student_code' => $studentCode, // Use the submitted student code
                     'group_id' => $group->id,
                     'unit_id' => $unitId,
                     'semester_id' => $validated['semester_id'],
@@ -349,9 +351,18 @@ class EnrollmentController extends Controller
             $validated = $request->validate([
                 'semester_id' => 'required|exists:semesters,id',
                 'class_id' => 'required|exists:classes,id',
+                'student_code' => 'sometimes|string', // Add optional student_code parameter
             ]);
 
-            $studentCode = Auth::user()->code;
+            // Use the provided student code if available, otherwise use the authenticated user's code
+            $studentCode = $validated['student_code'] ?? Auth::user()->code;
+            
+            Log::info('Getting units by class and semester', [
+                'semester_id' => $validated['semester_id'],
+                'class_id' => $validated['class_id'],
+                'student_code' => $studentCode,
+                'is_admin_request' => isset($validated['student_code'])
+            ]);
 
             $unitIds = DB::table('semester_unit')
                 ->where('semester_id', $validated['semester_id'])
@@ -413,5 +424,12 @@ class EnrollmentController extends Controller
                 'debug' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $ids = $request->input('enrollment_ids', []);
+        \App\Models\Enrollment::whereIn('id', $ids)->delete();
+        return back()->with('success', 'Selected enrollments deleted.');
     }
 }

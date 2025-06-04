@@ -325,16 +325,30 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
     });
 
-    // Enrollments management (centralized routes)
+    // FIXED: Student Enrollment Routes (for students only)
+    Route::middleware(['role:Student'])->group(function () {
+        Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
+        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll'); // Student self-enrollment
+        Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
+    });
+
+    // FIXED: Admin Enrollment Management Routes (for admins only)
     Route::middleware(['permission:manage-enrollments'])->group(function () {
-        Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
+        Route::get('/schools/sces/bbit/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
         Route::get('/enrollments/create', [EnrollmentController::class, 'create'])->name('enrollments.create');
-        Route::post('/enrollments', [EnrollmentController::class, 'store'])->name('enrollments.store');
+        Route::post('/enrollments', [EnrollmentController::class, 'adminStore'])->name('enrollments.store'); // Admin enrollment
         Route::get('/enrollments/{enrollment}', [EnrollmentController::class, 'show'])->name('enrollments.show');
         Route::get('/enrollments/{enrollment}/edit', [EnrollmentController::class, 'edit'])->name('enrollments.edit');
         Route::put('/enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
         Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
         Route::post('/enrollments/bulk', [EnrollmentController::class, 'bulkEnroll'])->name('enrollments.bulk');
+        Route::post('/enrollments/bulk-delete', [EnrollmentController::class, 'bulkDelete'])->name('enrollments.bulk-delete');
+        
+        // Lecturer assignment routes
+        Route::post('/assign-lecturers', [EnrollmentController::class, 'assignLecturers'])->name('assign.lecturers');
+        Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy');
+        Route::post('/assign-lecturers/{unitId}/delete', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy.post');
+        Route::get('/lecturer-units/{lecturerId}', [EnrollmentController::class, 'getLecturerUnits'])->name('lecturer.units');
     });
 
     // NEW: Program Group Management Routes
@@ -343,39 +357,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/program-groups', [ProgramGroupController::class, 'store'])->name('program-groups.store');
         Route::put('/program-groups/{programGroup}', [ProgramGroupController::class, 'update'])->name('program-groups.update');
         Route::delete('/program-groups/{programGroup}', [ProgramGroupController::class, 'destroy'])->name('program-groups.destroy');
-    });
-
-    // NEW: Student Enrollment Routes
-    Route::middleware(['role:Student'])->group(function () {
-        Route::get('/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
-        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('student.enroll');
-        Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
-    });
-
-    // Self-enrollment routes for students
-    Route::middleware('auth')->group(function () {
-        Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
-        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll');
-        Route::resource('enrollments', EnrollmentController::class);
-    });
-
-    // NEW: Admin Enrollment Management Routes
-    Route::middleware(['permission:manage-enrollments'])->group(function () {
-        Route::get('/schools/sces/bbit/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
-        Route::get('/enrollments/create', [EnrollmentController::class, 'create'])->name('enrollments.create');
-        Route::post('/enrollments', [EnrollmentController::class, 'store'])->name('enrollments.store');
-        Route::get('/enrollments/{enrollment}', [EnrollmentController::class, 'show'])->name('enrollments.show');
-        Route::get('/enrollments/{enrollment}/edit', [EnrollmentController::class, 'edit'])->name('enrollments.edit');
-        Route::put('/enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
-        Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
-        Route::post('/enrollments/{enrollment}/delete', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy.post');
-        Route::post('/enrollments/bulk', [EnrollmentController::class, 'bulkEnroll'])->name('enrollments.bulk');
-        
-        // Lecturer assignment routes
-        Route::post('/assign-lecturers', [EnrollmentController::class, 'assignLecturers'])->name('assign.lecturers');
-        Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy');
-        Route::post('/assign-lecturers/{unitId}/delete', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy.post');
-        Route::get('/lecturer-units/{lecturerId}', [EnrollmentController::class, 'getLecturerUnits'])->name('lecturer.units');
     });
 
     // Semesters routes
@@ -394,7 +375,6 @@ Route::middleware(['auth'])->group(function () {
     // Classes and Groups routes
     Route::resource('/schools/sces/bbit/classes', ClassController::class);
     Route::resource('schools/sces/bbit/groups', GroupController::class);
-    Route::resource('enrollments', EnrollmentController::class);
     Route::resource('groups', GroupController::class);
 
     // Semester Unit Routes
@@ -487,7 +467,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('units', UnitController::class);
     Route::resource('classes', ClassController::class);
-    Route::resource('groups', GroupController::class);
 
     // Enhanced Auto-Generate Timetable Routes
     Route::middleware(['auth', 'can:manage-classtimetables'])->group(function () {
@@ -525,7 +504,6 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::resource('programs', ProgramController::class);
     Route::resource('units', UnitController::class);
     Route::resource('semesters', SemesterController::class);
-    Route::resource('enrollments', EnrollmentController::class);
     Route::resource('classrooms', ClassroomController::class);
     Route::resource('classtimetables', ClassTimetableController::class);
     Route::resource('examtimetables', ExamTimetableController::class);
@@ -587,10 +565,6 @@ Route::middleware(['auth', 'role:Lecturer'])->group(function () {
 Route::middleware(['auth', 'role:Student'])->group(function () {
     // Student Dashboard
     Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
-    
-    // Self Enrollment Routes
-    Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])   
-        ->name('student.enroll');
 });
 
 // Catch-all route for SPA (must be at the bottom)
