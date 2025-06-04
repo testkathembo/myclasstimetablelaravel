@@ -255,15 +255,7 @@ export default function Enrollments({ enrollments = { data: [] }, userRoles }: P
                             </svg>
                             <span>Semester</span>
                           </div>
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                          <div className="flex items-center space-x-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2" />
-                            </svg>
-                            <span>Lecturer</span>
-                          </div>
-                        </th>
+                        </th>                        
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -314,23 +306,7 @@ export default function Enrollments({ enrollments = { data: [] }, userRoles }: P
                             <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
                               {enrollment.semester.name}
                             </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
-                                {enrollment.lecturer 
-                                  ? `${enrollment.lecturer.first_name[0]}${enrollment.lecturer.last_name[0]}`
-                                  : '?'}
-                              </div>
-                              <div className="ml-3">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {enrollment.lecturer
-                                    ? `${enrollment.lecturer.first_name} ${enrollment.lecturer.last_name}`
-                                    : 'N/A'}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
+                          </td>                          
                         </tr>
                       ))}
                     </tbody>
@@ -381,21 +357,7 @@ export default function Enrollments({ enrollments = { data: [] }, userRoles }: P
                             <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800 border border-green-200">
                               {enrollment.group?.name || 'N/A'}
                             </span>
-                          </div>
-
-                          {enrollment.lecturer && (
-                            <div className="flex items-center space-x-3 pt-2 border-t border-gray-100">
-                              <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
-                                {`${enrollment.lecturer.first_name[0]}${enrollment.lecturer.last_name[0]}`}
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {`${enrollment.lecturer.first_name} ${enrollment.lecturer.last_name}`}
-                                </div>
-                                <div className="text-xs text-gray-500">Lecturer</div>
-                              </div>
-                            </div>
-                          )}
+                          </div>                          
                         </div>
                       </div>
                     ))}

@@ -324,13 +324,59 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
         Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
     });
+    
+    // ===============  
 
-    // FIXED: Student Enrollment Routes (for students only)
-    Route::middleware(['role:Student'])->group(function () {
-        Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
-        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll'); // Student self-enrollment
-        Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
+
+    // Self-enrollment routes for students
+    Route::middleware('auth')->group(function () {
+        Route::get('/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll');
+        Route::post('/enroll', [EnrollmentController::class, 'store'])->name('enroll');
+        Route::resource('enrollments', EnrollmentController::class);
     });
+
+
+        // ===============
+
+        // ✅ Student Routes
+Route::middleware(['auth', 'role:Student'])->group(function () {
+    // Student Dashboard
+    Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
+    
+    // My Enrollments
+    Route::get('/my-enrollments', [StudentController::class, 'myEnrollments'])->name('student.enrollments');
+    
+    // My Exams
+    Route::get('/my-exams', [ExamTimetableController::class, 'viewStudentTimetable'])->name('student.exams');
+    Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])
+        ->name('student.exams.show');
+        
+    // ✅ FIXED: Student Timetable Routes - SINGLE DEFINITION ONLY
+    Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
+        ->name('student.timetable');
+    
+    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
+        ->name('student.timetable.download');
+
+    // My Class Timetable (alternative route)
+    Route::get('/my-timetable', [ClassTimetableController::class, 'studentTimetable']);
+    
+    // Student Exam Timetable
+    Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
+        ->name('student.exam-timetable');
+
+    // Student Timetable (alternative name)
+    Route::get('/student/timetable', [ClassTimetableController::class, 'viewStudentClassTimetable'])
+        ->name('student.timetable');
+});
+
+
+
+        // ============================
+  
+            
+        
+   
 
     // FIXED: Admin Enrollment Management Routes (for admins only)
     Route::middleware(['permission:manage-enrollments'])->group(function () {
