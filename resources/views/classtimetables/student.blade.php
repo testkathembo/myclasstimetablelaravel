@@ -96,7 +96,7 @@ border-radius: 0 0 10px 10px;
 <div class="container">
 <div class="header">
 <div class="title">
-<!-- <img src="{{ public_path('images/strathmore.png') }}" alt="Strathmore University Logo" class="logo">  -->
+<!-- <img src="/images/strathmore.png" alt="Strathmore University Logo" class="h-8">   -->
 <h1>STRATHMORE UNIVERSITY</h1>
 <p>My Student Class Timetable</p>
 </div>
