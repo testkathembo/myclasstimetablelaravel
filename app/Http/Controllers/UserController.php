@@ -6,11 +6,14 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    // ✅ Show paginated, searchable user list
+    /**
+     * Display a listing of users with pagination and search
+     */
     public function index(Request $request)
     {
         $perPage = $request->get('per_page', 10);
@@ -23,9 +26,9 @@ class UserController extends Controller
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('schools', 'like', "%{$search}%"); // Replace faculty with schools
+                    ->orWhere('schools', 'like', "%{$search}%");
             })
-            ->with('roles') // Load roles with user
+            ->with('roles') // Load roles with user using Spatie
             ->paginate($perPage);
 
         return Inertia::render('Users/index', [
@@ -35,78 +38,163 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Store a newly created user
+     */
     public function store(Request $request)
     {
-        // Validate request
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'schools' => 'required|string|max:255', // Replace faculty with schools
-            'phone' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|string|exists:roles,name',
-            'programs' => 'nullable|string',
-        ]);
+        try {
+            Log::info('Creating user with data:', $request->all());
 
-        // Create user
-        $user = User::create([
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
-            'schools' => $validated['schools'], // Replace faculty with schools
-            'phone' => $validated['phone'],
-            'code' => $validated['code'],
-            'password' => Hash::make($validated['password']),
-            'programs' => $validated['programs'],
-        ]);
+            // Validate request
+            $validated = $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'phone' => 'required|string|max:255',
+                'code' => 'required|string|max:255|unique:users',
+                'password' => 'required|string|min:8',
+                'schools' => 'nullable|string|max:255',
+                'programs' => 'nullable|string|max:255',
+                'roles' => 'required|array|min:1',
+                'roles.*' => 'string|exists:roles,name',
+            ], [
+                'roles.required' => 'Please select a role for the user.',
+                'roles.min' => 'Please select at least one role.',
+                'roles.*.exists' => 'The selected role is invalid.',
+            ]);
 
-        // Assign role
-        $user->assignRole($validated['role']);
+            // Create user
+            $user = User::create([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'code' => $validated['code'],
+                'password' => Hash::make($validated['password']),
+                'schools' => $validated['schools'] ?? null,
+                'programs' => $validated['programs'] ?? null,
+            ]);
 
-        return redirect()->route('users.index')
-            ->with('success', 'User created successfully');
+            // Assign roles using Spatie
+            $user->syncRoles($validated['roles']);
+
+            Log::info('User created successfully:', ['user_id' => $user->id]);
+
+            return redirect()->route('users.index')
+                ->with('success', 'User created successfully');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error creating user:', ['errors' => $e->errors()]);
+            return back()->withErrors($e->errors())->withInput();
+        } catch (\Exception $e) {
+            Log::error('Error creating user:', ['message' => $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to create user: ' . $e->getMessage()])->withInput();
+        }
     }
 
-    // ✅ Show user edit form
+    /**
+     * Show the form for editing a user
+     */
     public function edit(User $user)
     {
-        return Inertia::render('Users/Edit', ['user' => $user]);
+        return Inertia::render('Users/Edit', ['user' => $user->load('roles')]);
     }
 
-    // ✅ Update user
+    /**
+     * Update the specified user
+     */
     public function update(Request $request, User $user)
     {
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
-            'phone' => 'nullable|string|max:15',
-            'code' => 'required|string|max:50|unique:users,code,' . $user->id,
-            'schools' => 'nullable|string|max:255', // Replace faculty with schools
-            'programs' => 'nullable|string|max:255',
-            'roles' => 'required|array',
-            'roles.*' => 'string|exists:roles,name', // Ensure each role is a string
-        ]);
+        try {
+            Log::info('Updating user with data:', [
+                'user_id' => $user->id,
+                'request_data' => $request->all()
+            ]);
 
-        $user->update($validated);
+            // Validate request
+            $validated = $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+                'phone' => 'required|string|max:255',
+                'code' => 'required|string|max:255|unique:users,code,' . $user->id,
+                'schools' => 'nullable|string|max:255',
+                'programs' => 'nullable|string|max:255',
+                'roles' => 'required|array|min:1',
+                'roles.*' => 'required|string|exists:roles,name',
+            ], [
+                'roles.required' => 'Please select a role for the user.',
+                'roles.min' => 'Please select at least one role.',
+                'roles.*.required' => 'Role cannot be empty.',
+                'roles.*.exists' => 'The selected role is invalid.',
+            ]);
 
-        // Sync roles
-        $user->syncRoles($validated['roles']);
+            Log::info('Validation passed, updating user:', ['validated' => $validated]);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully!');
+            // Update user basic info
+            $user->update([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'code' => $validated['code'],
+                'schools' => $validated['schools'] ?? null,
+                'programs' => $validated['programs'] ?? null,
+            ]);
+
+            // Sync roles using Spatie
+            $user->syncRoles($validated['roles']);
+
+            Log::info('User updated successfully:', ['user_id' => $user->id]);
+
+            return redirect()->route('users.index')
+                ->with('success', 'User updated successfully!');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error updating user:', [
+                'user_id' => $user->id,
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            return back()->withErrors($e->errors())->withInput();
+        } catch (\Exception $e) {
+            Log::error('Error updating user:', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->withErrors(['error' => 'Failed to update user: ' . $e->getMessage()])->withInput();
+        }
     }
 
-    // ✅ Delete user
+    /**
+     * Remove the specified user
+     */
     public function destroy(User $user)
     {
-        $user->delete();
+        try {
+            Log::info('Deleting user:', ['user_id' => $user->id]);
 
-        return redirect()->route('users.index')->with('success', 'User deleted successfully!');
+            $user->delete();
+
+            Log::info('User deleted successfully:', ['user_id' => $user->id]);
+
+            return redirect()->route('users.index')
+                ->with('success', 'User deleted successfully!');
+
+        } catch (\Exception $e) {
+            Log::error('Error deleting user:', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage()
+            ]);
+            return back()->withErrors(['error' => 'Failed to delete user: ' . $e->getMessage()]);
+        }
     }
 
-    // ✅ Show form to change user's role
+    /**
+     * Show form to change user's role
+     */
     public function editRole(User $user)
     {
         $roles = Role::pluck('name');
@@ -119,43 +207,88 @@ class UserController extends Controller
         ]);
     }
 
-    // ✅ Save new role for user
+    /**
+     * Update user's role (separate method for role-only updates)
+     */
     public function updateRole(Request $request, User $user)
     {
-        $request->validate([
-            'role' => 'required|exists:roles,name',
-        ]);
+        try {
+            $validated = $request->validate([
+                'role' => 'required|exists:roles,name',
+            ]);
 
-        $user->syncRoles([$request->role]);
+            $user->syncRoles([$validated['role']]);
 
-        return redirect()->route('users.index')->with('success', 'User role updated successfully!');
+            return redirect()->route('users.index')
+                ->with('success', 'User role updated successfully!');
+
+        } catch (\Exception $e) {
+            Log::error('Error updating user role:', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage()
+            ]);
+            return back()->withErrors(['error' => 'Failed to update user role: ' . $e->getMessage()]);
+        }
     }
 
+    /**
+     * Get user roles and permissions for API
+     */
     public function getUserRolesAndPermissions(Request $request)
     {
-        $user = $request->user();
-        return response()->json([
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
+        try {
+            $user = $request->user();
+            return response()->json([
+                'roles' => $user->getRoleNames(),
+                'permissions' => $user->getAllPermissions()->pluck('name'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error getting user roles and permissions:', [
+                'message' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Failed to get user roles and permissions'], 500);
+        }
     }
+
+    /**
+     * Update user roles and permissions via API
+     */
     public function updateUserRolesAndPermissions(Request $request, User $user)
     {
-        $request->validate([
-            'roles' => 'array',
-            'permissions' => 'array',
-        ]);
+        try {
+            $validated = $request->validate([
+                'roles' => 'array',
+                'permissions' => 'array',
+            ]);
 
-        $user->syncRoles($request->input('roles', []));
-        $user->syncPermissions($request->input('permissions', []));
+            $user->syncRoles($validated['roles'] ?? []);
+            $user->syncPermissions($validated['permissions'] ?? []);
 
-        return response()->json(['message' => 'User roles and permissions updated successfully.']);
+            return response()->json(['message' => 'User roles and permissions updated successfully.']);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating user roles and permissions:', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Failed to update user roles and permissions'], 500);
+        }
     }
+
+    /**
+     * Get user permissions
+     */
     public function getUserPermissions(User $user)
     {
-        $permissions = $user->getAllPermissions();
-
-        return response()->json($permissions);
-    }   
-    
+        try {
+            $permissions = $user->getAllPermissions();
+            return response()->json($permissions);
+        } catch (\Exception $e) {
+            Log::error('Error getting user permissions:', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Failed to get user permissions'], 500);
+        }
+    }
 }
