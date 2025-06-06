@@ -35,7 +35,6 @@ use App\Http\Controllers\ExamroomController;
 use App\Http\Controllers\ExamTimetableController;
 use App\Http\Controllers\StaffDashboardController;
 use App\Http\Controllers\UnitController;
-use Carbon\Carbon;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -612,6 +611,33 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     // Student Dashboard
     Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
 });
+
+
+// ExamTimetable routes with proper API endpoints
+    Route::middleware(['permission:manage-examtimetables'])->group(function () {
+        Route::get('/schools/sces/bbit/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
+        Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
+        Route::put('/examtimetable/{id}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+        Route::delete('/examtimetable/{id}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+        
+        // FIXED API endpoints for cascading dropdowns
+        Route::get('/api/semester/{semesterId}/classes', [ExamTimetableController::class, 'getClassesBySemester'])
+            ->name('api.examtimetable.classes-by-semester');
+        Route::post('/api/units-by-class-semester', [ExamTimetableController::class, 'getUnitsByClassAndSemesterForExam'])
+            ->name('api.examtimetable.units-by-class-semester');
+    });
+
+    // Processing and download routes
+    Route::middleware(['permission:process-examtimetables'])->group(function () {
+        Route::post('/process-examtimetables', [ExamTimetableController::class, 'process'])->name('examtimetables.process');
+        Route::get('/solve-exam-conflicts', [ExamTimetableController::class, 'solveConflicts'])->name('examtimetables.conflicts');
+    });
+
+    Route::middleware(['permission:download-examtimetables'])->group(function () {
+        Route::get('/download-examtimetables', [ExamTimetableController::class, 'downloadPDF'])->name('examtimetables.download');
+    });
+
+
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {

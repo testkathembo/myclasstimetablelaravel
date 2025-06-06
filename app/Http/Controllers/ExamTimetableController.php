@@ -6,6 +6,7 @@ use App\Models\ExamTimetable;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Semester;
+use App\Models\SemesterUnit;
 use App\Models\Enrollment;
 use App\Models\TimeSlot;
 use App\Models\Examroom;
@@ -15,13 +16,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
 class ExamTimetableController extends Controller
 {
     /**
      * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function index(Request $request)
     {
@@ -41,7 +41,7 @@ class ExamTimetableController extends Controller
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search', '');
 
-        // Fetch exam timetables with related data including class
+        // Fetch exam timetables with related data using existing schema
         $examTimetables = ExamTimetable::query()
             ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
             ->leftJoin('semesters', 'exam_timetables.semester_id', '=', 'semesters.id')
@@ -56,19 +56,24 @@ class ExamTimetableController extends Controller
                 'exam_timetables.location',
                 'exam_timetables.no',
                 'exam_timetables.chief_invigilator',
+                'exam_timetables.unit_id',
+                'exam_timetables.semester_id',
                 'exam_timetables.class_id',
                 'units.name as unit_name',
                 'units.code as unit_code',
-                'semesters.name as semester_name',
                 'classes.name as class_name',
-                'exam_timetables.semester_id'
+                // Check if code column exists in classes table, if not use id as fallback
+                \Schema::hasColumn('classes', 'code') 
+                    ? 'classes.code as class_code'
+                    : DB::raw('CONCAT("CLASS-", classes.id) as class_code'),
+                'semesters.name as semester_name'
             )
             ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
                 $search = $request->search;
                 $query->where('exam_timetables.day', 'like', "%{$search}%")
                     ->orWhere('exam_timetables.date', 'like', "%{$search}%")
-                    ->orWhere('units.name', 'like', "%{$search}%")
-                    ->orWhere('classes.name', 'like', "%{$search}%");
+                    ->orWhere('units.code', 'like', "%{$search}%")
+                    ->orWhere('units.name', 'like', "%{$search}%");
             })
             ->orderBy('exam_timetables.date')
             ->paginate($request->get('per_page', 10));
@@ -82,91 +87,33 @@ class ExamTimetableController extends Controller
         $semesters = Semester::all();
         $examrooms = Examroom::all();
         $timeSlots = TimeSlot::all();
-        $classes = ClassModel::with('semester')->get();
+        $classes = ClassModel::all();
 
-        // Get all units
-        $allUnits = Unit::select('id', 'code', 'name')->get();
-        
-        // Get all enrollments with student and lecturer information
-        $allEnrollments = Enrollment::select('id', 'student_code', 'unit_id', 'semester_id', 'lecturer_code', 'group_id')
-            ->with(['group.class'])
-            ->get();
+        // Build hierarchical structure using existing schema
+        $hierarchicalData = $this->buildHierarchicalData();
 
-        // Group enrollments by class_id and semester_id for easy access
-        $enrollmentsByClassAndSemester = [];
-        foreach ($allEnrollments as $enrollment) {
-            if ($enrollment->group && $enrollment->group->class) {
-                $classId = $enrollment->group->class->id;
-                $key = $classId . '_' . $enrollment->semester_id;
-                if (!isset($enrollmentsByClassAndSemester[$key])) {
-                    $enrollmentsByClassAndSemester[$key] = [];
+        // Flatten data for easier access in frontend
+        $classesBySemester = [];
+        $unitsByClass = [];
+        $allUnits = collect();
+
+        foreach ($hierarchicalData as $semesterData) {
+            $classesBySemester[$semesterData['id']] = $semesterData['classes'];
+            
+            foreach ($semesterData['classes'] as $classData) {
+                $unitsByClass[$classData['id']] = $classData['units'];
+                
+                foreach ($classData['units'] as $unitData) {
+                    $allUnits->push((object) $unitData);
                 }
-                $enrollmentsByClassAndSemester[$key][] = $enrollment;
             }
         }
 
-        // Get units with their associated semesters and classes through enrollments
-        $unitsByClassAndSemester = [];
-        
-        // For each semester and class combination, find all units that have enrollments
-        foreach ($semesters as $semester) {
-            foreach ($classes->where('semester_id', $semester->id) as $class) {
-                // Find all unit_ids that have enrollments in this class and semester
-                $key = $class->id . '_' . $semester->id;
-                $classEnrollments = $enrollmentsByClassAndSemester[$key] ?? [];
-                
-                $unitIdsInClass = collect($classEnrollments)->pluck('unit_id')->unique()->toArray();
-                
-                // Find the corresponding units
-                $unitsInClass = Unit::whereIn('id', $unitIdsInClass)
-                    ->select('id', 'code', 'name')
-                    ->get()
-                    ->map(function ($unit) use ($semester, $class, $classEnrollments) {
-                        // Add semester_id and class_id to each unit
-                        $unit->semester_id = $semester->id;
-                        $unit->class_id = $class->id;
-                        
-                        // Find enrollments for this unit in this class and semester
-                        $unitEnrollments = collect($classEnrollments)->where('unit_id', $unit->id);
-                        
-                        // Count students
-                        $unit->student_count = $unitEnrollments->count();
-                        
-                        // Find lecturer
-                        $lecturerCode = $unitEnrollments->where('lecturer_code', '!=', null)->first()?->lecturer_code;
-                        
-                        // Find lecturer details if available
-                        if ($lecturerCode) {
-                            $lecturer = User::where('code', $lecturerCode)->first();
-                            if ($lecturer) {
-                                $unit->lecturer_code = $lecturerCode;
-                                $unit->lecturer_name = $lecturer->first_name . ' ' . $lecturer->last_name;
-                            }
-                        }
-                        
-                        return $unit;
-                    });
-                
-                // Add these units to the array
-                if (!isset($unitsByClassAndSemester[$semester->id])) {
-                    $unitsByClassAndSemester[$semester->id] = [];
-                }
-                $unitsByClassAndSemester[$semester->id][$class->id] = $unitsInClass;
-            }
-        }
-
-        // Flatten the array to get all units with their semester_id and class_id
-        $unitsWithSemesterAndClass = collect();
-        foreach ($unitsByClassAndSemester as $semesterId => $classesByUnits) {
-            foreach ($classesByUnits as $classId => $units) {
-                $unitsWithSemesterAndClass = $unitsWithSemesterAndClass->concat($units);
-            }
-        }
-
-        // Log the units with semesters and classes for debugging
-        \Log::info('Units with semesters and classes:', [
-            'count' => $unitsWithSemesterAndClass->count(),
-            'sample' => $unitsWithSemesterAndClass->take(5),
+        // Log the hierarchical data for debugging
+        \Log::info('Hierarchical data structure:', [
+            'semesters_count' => count($hierarchicalData),
+            'total_units' => $allUnits->count(),
+            'sample_structure' => array_slice($hierarchicalData, 0, 1)
         ]);
 
         return Inertia::render('ExamTimetables/Index', [
@@ -175,10 +122,12 @@ class ExamTimetableController extends Controller
             'perPage' => $perPage,
             'search' => $search,
             'semesters' => $semesters,
+            'classes' => $classes,
             'examrooms' => $examrooms,
             'timeSlots' => $timeSlots,
-            'classes' => $classes,
-            'units' => $unitsWithSemesterAndClass, // Pass units with their semester_id, class_id and enrollment data
+            'hierarchicalData' => $hierarchicalData,
+            'classesBySemester' => $classesBySemester,
+            'unitsByClass' => $unitsByClass,
             'can' => [
                 'create' => $user->can('create-examtimetables'),
                 'edit' => $user->can('update-examtimetables'),
@@ -191,10 +140,261 @@ class ExamTimetableController extends Controller
     }
 
     /**
+     * Build hierarchical data using the same logic as enrollment system
+     */
+    private function buildHierarchicalData()
+    {
+        $semesters = Semester::all();
+        $hierarchicalData = [];
+        
+        foreach ($semesters as $semester) {
+            $semesterData = [
+                'id' => $semester->id,
+                'name' => $semester->name,
+                'classes' => []
+            ];
+            
+            // Get classes through semester_unit pivot table
+            $classIds = DB::table('semester_unit')
+                ->where('semester_id', $semester->id)
+                ->distinct()
+                ->pluck('class_id');
+
+            if ($classIds->isNotEmpty()) {
+                $classesInSemester = ClassModel::whereIn('id', $classIds)->get();
+            } else {
+                // Fallback: get classes directly assigned to semester
+                $classesInSemester = ClassModel::where('semester_id', $semester->id)->get();
+            }
+        
+            foreach ($classesInSemester as $class) {
+                // Check if classes table has code column
+                $columns = \Schema::getColumnListing('classes');
+                $hasCodeColumn = in_array('code', $columns);
+                
+                $classData = [
+                    'id' => $class->id,
+                    'code' => $hasCodeColumn ? ($class->code ?? 'CLASS-' . $class->id) : 'CLASS-' . $class->id,
+                    'name' => $class->name,
+                    'semester_id' => $semester->id,
+                    'units' => []
+                ];
+                
+                // Get units for this class and semester
+                $unitIds = DB::table('semester_unit')
+                    ->where('semester_id', $semester->id)
+                    ->where('class_id', $class->id)
+                    ->pluck('unit_id');
+
+                if ($unitIds->isNotEmpty()) {
+                    $unitsInClass = Unit::whereIn('id', $unitIds)->get();
+                } else {
+                    // Fallback: get units directly assigned to class
+                    $unitsInClass = Unit::where('class_id', $class->id)->get();
+                }
+                
+                foreach ($unitsInClass as $unit) {
+                    // Find enrollments for this unit in this semester
+                    $enrollments = Enrollment::where('unit_id', $unit->id)
+                        ->where('semester_id', $semester->id)
+                        ->get();
+                    
+                    // Count students
+                    $studentCount = $enrollments->count();
+                    
+                    // Find lecturer
+                    $lecturerCode = null;
+                    $lecturerName = null;
+                    $lecturerEnrollment = $enrollments->whereNotNull('lecturer_code')->first();
+                    if ($lecturerEnrollment) {
+                        $lecturerCode = $lecturerEnrollment->lecturer_code;
+                        $lecturer = User::where('code', $lecturerCode)->first();
+                        if ($lecturer) {
+                            $lecturerName = $lecturer->first_name . ' ' . $lecturer->last_name;
+                        }
+                    }
+                    
+                    $unitData = [
+                        'id' => $unit->id,
+                        'code' => $unit->code,
+                        'name' => $unit->name,
+                        'class_id' => $class->id,
+                        'semester_id' => $semester->id,
+                        'student_count' => $studentCount,
+                        'lecturer_code' => $lecturerCode,
+                        'lecturer_name' => $lecturerName
+                    ];
+                    
+                    $classData['units'][] = $unitData;
+                }
+                
+                // Only add class if it has units
+                if (!empty($classData['units'])) {
+                    $semesterData['classes'][] = $classData;
+                }
+            }
+            
+            // Only add semester if it has classes with units
+            if (!empty($semesterData['classes'])) {
+                $hierarchicalData[] = $semesterData;
+            }
+        }
+
+        return $hierarchicalData;
+    }
+
+    /**
+     * Get classes for a specific semester (API endpoint)
+     */
+    public function getClassesBySemester(Request $request, $semesterId)
+    {
+        try {
+            Log::info('Getting classes for semester', ['semester_id' => $semesterId]);
+
+            // Get classes through semester_unit pivot table
+            $classIds = DB::table('semester_unit')
+                ->where('semester_id', $semesterId)
+                ->distinct()
+                ->pluck('class_id');
+
+            if ($classIds->isNotEmpty()) {
+                // Check if 'code' column exists in classes table
+                $columns = \Schema::getColumnListing('classes');
+                $hasCodeColumn = in_array('code', $columns);
+                
+                if ($hasCodeColumn) {
+                    $classes = ClassModel::whereIn('id', $classIds)
+                        ->select('id', 'name', 'code', 'semester_id')
+                        ->get();
+                } else {
+                    // If no code column, use id as code fallback
+                    $classes = ClassModel::whereIn('id', $classIds)
+                        ->select('id', 'name', 'semester_id', DB::raw('CONCAT("CLASS-", id) as code'))
+                        ->get();
+                }
+            } else {
+                // Fallback: get classes directly assigned to semester
+                $columns = \Schema::getColumnListing('classes');
+                $hasCodeColumn = in_array('code', $columns);
+                
+                if ($hasCodeColumn) {
+                    $classes = ClassModel::where('semester_id', $semesterId)
+                        ->select('id', 'name', 'code', 'semester_id')
+                        ->get();
+                } else {
+                    $classes = ClassModel::where('semester_id', $semesterId)
+                        ->select('id', 'name', 'semester_id', DB::raw('CONCAT("CLASS-", id) as code'))
+                        ->get();
+                }
+            }
+
+            Log::info('Found classes for semester', [
+                'semester_id' => $semesterId,
+                'classes_count' => $classes->count(),
+                'classes' => $classes->toArray()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'classes' => $classes
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get classes for semester: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Failed to get classes: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get units for a specific class and semester (API endpoint)
+     */
+    public function getUnitsByClassAndSemesterForExam(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'semester_id' => 'required|exists:semesters,id',
+                'class_id' => 'required|exists:classes,id',
+            ]);
+
+            Log::info('Getting units by class and semester for exam', [
+                'semester_id' => $validated['semester_id'],
+                'class_id' => $validated['class_id']
+            ]);
+
+            // First, try to get units through semester_unit pivot table
+            $unitIds = DB::table('semester_unit')
+                ->where('semester_id', $validated['semester_id'])
+                ->where('class_id', $validated['class_id'])
+                ->pluck('unit_id');
+
+            if ($unitIds->isNotEmpty()) {
+                $units = Unit::whereIn('id', $unitIds)
+                    ->select('id', 'code', 'name', 'class_id')
+                    ->get();
+            } else {
+                // Fallback: get units directly assigned to class
+                $units = Unit::where('class_id', $validated['class_id'])
+                    ->select('id', 'code', 'name', 'class_id')
+                    ->get();
+            }
+
+            // Get enrollment data for each unit
+            $unitsWithEnrollmentData = $units->map(function ($unit) use ($validated) {
+                // Find enrollments for this unit in this semester
+                $enrollments = Enrollment::where('unit_id', $unit->id)
+                    ->where('semester_id', $validated['semester_id'])
+                    ->get();
+
+                // Count students
+                $studentCount = $enrollments->count();
+
+                // Find lecturer
+                $lecturerEnrollment = $enrollments->whereNotNull('lecturer_code')->first();
+                $lecturerName = null;
+                $lecturerCode = null;
+                if ($lecturerEnrollment) {
+                    $lecturerCode = $lecturerEnrollment->lecturer_code;
+                    $lecturer = User::where('code', $lecturerCode)->first();
+                    if ($lecturer) {
+                        $lecturerName = $lecturer->first_name . ' ' . $lecturer->last_name;
+                    }
+                }
+
+                return [
+                    'id' => $unit->id,
+                    'code' => $unit->code,
+                    'name' => $unit->name,
+                    'class_id' => $unit->class_id,
+                    'semester_id' => $validated['semester_id'],
+                    'student_count' => $studentCount,
+                    'lecturer_code' => $lecturerCode,
+                    'lecturer_name' => $lecturerName
+                ];
+            });
+
+            Log::info('Found units for class and semester', [
+                'semester_id' => $validated['semester_id'],
+                'class_id' => $validated['class_id'],
+                'units_count' => $unitsWithEnrollmentData->count()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'units' => $unitsWithEnrollmentData
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get units for class and semester: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Failed to get units: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Store a newly created resource in storage.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
     {
@@ -236,10 +436,6 @@ class ExamTimetableController extends Controller
 
     /**
      * Update the specified resource in storage.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @param int $id
-     * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id)
     {
@@ -281,71 +477,8 @@ class ExamTimetableController extends Controller
     }
 
     /**
-     * Get units by class and semester for AJAX requests
-     *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\Response
+     * Remove the specified resource from storage.
      */
-    public function getUnitsByClassAndSemester(Request $request)
-    {
-        $request->validate([
-            'class_id' => 'required|exists:classes,id',
-            'semester_id' => 'required|exists:semesters,id',
-        ]);
-
-        try {
-            $classId = $request->class_id;
-            $semesterId = $request->semester_id;
-
-            // Get all enrollments for this class and semester
-            $enrollments = Enrollment::whereHas('group.class', function($query) use ($classId) {
-                    $query->where('id', $classId);
-                })
-                ->where('semester_id', $semesterId)
-                ->get();
-
-            // Get unique unit IDs
-            $unitIds = $enrollments->pluck('unit_id')->unique()->toArray();
-
-            // Get units with their enrollment data
-            $units = Unit::whereIn('id', $unitIds)
-                ->select('id', 'code', 'name')
-                ->get()
-                ->map(function ($unit) use ($enrollments) {
-                    // Count students for this unit
-                    $unitEnrollments = $enrollments->where('unit_id', $unit->id);
-                    $unit->student_count = $unitEnrollments->count();
-                    
-                    // Find lecturer
-                    $lecturerCode = $unitEnrollments->where('lecturer_code', '!=', null)->first()?->lecturer_code;
-                    
-                    if ($lecturerCode) {
-                        $lecturer = User::where('code', $lecturerCode)->first();
-                        if ($lecturer) {
-                            $unit->lecturer_code = $lecturerCode;
-                            $unit->lecturer_name = $lecturer->first_name . ' ' . $lecturer->last_name;
-                        }
-                    }
-                    
-                    return $unit;
-                });
-
-            return response()->json([
-                'success' => true,
-                'units' => $units,
-                'count' => $units->count(),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching units by class and semester: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to fetch units. Please try again.',
-                'units' => [],
-            ], 500);
-        }
-    }
-
-    // Rest of the existing methods remain the same...
     public function destroy($id)
     {
         try {
@@ -358,6 +491,9 @@ class ExamTimetableController extends Controller
         }
     }
 
+    /**
+     * Process exam timetables
+     */
     public function process(Request $request)
     {
         try {
@@ -369,6 +505,9 @@ class ExamTimetableController extends Controller
         }
     }
 
+    /**
+     * Solve exam conflicts
+     */
     public function solveConflicts(Request $request)
     {
         try {
@@ -380,6 +519,9 @@ class ExamTimetableController extends Controller
         }
     }
 
+    /**
+     * Download exam timetable as PDF
+     */
     public function downloadPDF(Request $request)
     {
         try {
