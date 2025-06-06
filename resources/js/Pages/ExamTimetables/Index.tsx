@@ -6,7 +6,7 @@ import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Info, Calendar, Clock, MapPin, Users, GraduationCap, Search, Download, Settings, Plus, Eye, Edit, Trash2 } from "lucide-react"
 
 interface ExamTimetable {
   id: number
@@ -146,17 +146,6 @@ const formatTimeToHi = (timeStr: string) => {
   return timeStr
 }
 
-// Helper function to check for time overlap
-const checkTimeOverlap = (examtimetable: ExamTimetable, date: string, startTime: string, endTime: string) => {
-  if (examtimetable.date !== date) return false
-
-  return (
-    (examtimetable.start_time <= startTime && examtimetable.end_time > startTime) ||
-    (examtimetable.start_time < endTime && examtimetable.end_time >= endTime) ||
-    (examtimetable.start_time >= startTime && examtimetable.end_time <= endTime)
-  )
-}
-
 const ExamTimetable = () => {
   const {
     examTimetables = { data: [] },
@@ -192,7 +181,7 @@ const ExamTimetable = () => {
   }
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<"view" | "edit" | "delete" | "create" | "">("")
+  const [modalType, setModalType] = useState<"view" | "edit" | "create" | "delete" | "">("")
   const [selectedTimetable, setSelectedTimetable] = useState<ExamTimetable | null>(null)
   const [formState, setFormState] = useState<FormState | null>(null)
   const [searchValue, setSearchValue] = useState(search)
@@ -202,12 +191,10 @@ const ExamTimetable = () => {
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([])
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
 
-  const [capacityWarning, setCapacityWarning] = useState<string | null>(null)
   const [availableTimeSlots, setAvailableTimeSlots] = useState<TimeSlot[]>([])
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
+  const [venueAssignmentInfo, setVenueAssignmentInfo] = useState<string | null>(null)
 
   // Initialize available timeslots
   useEffect(() => {
@@ -226,10 +213,8 @@ const ExamTimetable = () => {
   const handleOpenModal = (type: "view" | "edit" | "delete" | "create", examtimetable: ExamTimetable | null) => {
     setModalType(type)
     setSelectedTimetable(examtimetable)
-    setCapacityWarning(null)
-    setConflictWarning(null)
     setErrorMessage(null)
-    setUnitLecturers([])
+    setVenueAssignmentInfo(null)
 
     if (type === "create") {
       setFormState({
@@ -293,10 +278,8 @@ const ExamTimetable = () => {
     setModalType("")
     setSelectedTimetable(null)
     setFormState(null)
-    setCapacityWarning(null)
-    setConflictWarning(null)
     setErrorMessage(null)
-    setUnitLecturers([])
+    setVenueAssignmentInfo(null)
     setFilteredClasses([])
     setFilteredUnits([])
   }
@@ -318,50 +301,6 @@ const ExamTimetable = () => {
     }
   }
 
-  const checkForConflicts = (
-    date: string,
-    startTime: string,
-    endTime: string,
-    unitId: number | undefined,
-    venueId: string,
-  ) => {
-    if (!date || !startTime || !endTime || !unitId || !venueId) {
-      setConflictWarning(null)
-      return false
-    }
-
-    const conflicts = examTimetables.data.filter((examtimetable) => {
-      if (selectedTimetable && examtimetable.id === selectedTimetable.id) return false
-
-      const hasTimeOverlap = examtimetable.date === date && checkTimeOverlap(examtimetable, date, startTime, endTime)
-      const isSameUnit = examtimetable.unit_code === formState?.unit_code
-      const isSameVenue = examtimetable.venue === venueId
-
-      return hasTimeOverlap && (isSameUnit || isSameVenue)
-    })
-
-    if (conflicts.length > 0) {
-      const unitConflicts = conflicts.filter((examtimetable) => examtimetable.unit_code === formState?.unit_code)
-      const venueConflicts = conflicts.filter((examtimetable) => examtimetable.venue === venueId)
-
-      let warningMsg = "Scheduling conflicts detected: "
-
-      if (unitConflicts.length > 0) {
-        warningMsg += `This unit already has an exam scheduled at this time. `
-      }
-
-      if (venueConflicts.length > 0) {
-        warningMsg += `This venue is already booked at this time.`
-      }
-
-      setConflictWarning(warningMsg)
-      return true
-    }
-
-    setConflictWarning(null)
-    return false
-  }
-
   const handleTimeSlotChange = (timeSlotId: number) => {
     if (!formState) return
 
@@ -374,17 +313,13 @@ const ExamTimetable = () => {
         date: selectedTimeSlot.date,
         start_time: selectedTimeSlot.start_time,
         end_time: selectedTimeSlot.end_time,
+        // Clear venue info when time slot changes
+        venue: "",
+        location: "",
       }))
 
-      if (formState.unit_id && formState.venue) {
-        checkForConflicts(
-          selectedTimeSlot.date,
-          selectedTimeSlot.start_time,
-          selectedTimeSlot.end_time,
-          formState.unit_id,
-          formState.venue,
-        )
-      }
+      // Clear venue assignment info when time slot changes
+      setVenueAssignmentInfo("Venue will be automatically assigned when you save the exam.")
     }
   }
 
@@ -394,7 +329,6 @@ const ExamTimetable = () => {
 
     setIsLoading(true)
     setErrorMessage(null)
-    setUnitLecturers([])
 
     const numericSemesterId = Number(semesterId)
 
@@ -419,6 +353,8 @@ const ExamTimetable = () => {
       lecturer_id: null,
       lecturer_name: "",
       chief_invigilator: "", // Reset chief invigilator
+      venue: "", // Reset venue
+      location: "", // Reset location
     }))
 
     try {
@@ -460,6 +396,7 @@ const ExamTimetable = () => {
     }
 
     setFilteredUnits([]) // Clear units when semester changes
+    setVenueAssignmentInfo(null) // Clear venue info
     setIsLoading(false)
   }
 
@@ -492,6 +429,8 @@ const ExamTimetable = () => {
       lecturer_id: null,
       lecturer_name: "",
       chief_invigilator: "", // Reset chief invigilator
+      venue: "", // Reset venue
+      location: "", // Reset location
     }))
 
     try {
@@ -529,6 +468,7 @@ const ExamTimetable = () => {
       setFilteredUnits([])
     }
 
+    setVenueAssignmentInfo(null) // Clear venue info
     setIsLoading(false)
   }
 
@@ -550,78 +490,24 @@ const ExamTimetable = () => {
         unit_name: selectedUnit.name,
         no: studentCount,
         chief_invigilator: lecturerName || prev!.chief_invigilator,
+        venue: "", // Reset venue - will be auto-assigned
+        location: "", // Reset location - will be auto-assigned
       }))
 
-      // Check venue capacity if venue is already selected
-      if (formState.venue) {
-        checkVenueCapacity(formState.venue, studentCount)
-      }
-
-      // Check for conflicts if we have enough data
-      if (formState.date && formState.start_time && formState.end_time && formState.venue) {
-        checkForConflicts(formState.date, formState.start_time, formState.end_time, Number(unitId), formState.venue)
-      }
-
-      // Set lecturer information
-      if (selectedUnit.lecturer_name && selectedUnit.lecturer_code) {
-        const lecturer = {
-          id: Number(selectedUnit.lecturer_code),
-          name: selectedUnit.lecturer_name,
+      // Show venue assignment info based on student count
+      if (studentCount > 0) {
+        const suitableRooms = examrooms.filter(room => room.capacity >= studentCount)
+        if (suitableRooms.length > 0) {
+          setVenueAssignmentInfo(
+            `✓ Smart venue assignment ready: ${studentCount} students will be automatically assigned to a suitable venue from ${suitableRooms.length} available rooms.`
+          )
+        } else {
+          setVenueAssignmentInfo(
+            `⚠️ Warning: ${studentCount} students may exceed available venue capacity. Largest available room: ${Math.max(...examrooms.map(r => r.capacity))} seats.`
+          )
         }
-        setUnitLecturers([lecturer])
       } else {
-        setUnitLecturers([])
-      }
-    }
-  }
-
-  const handleLecturerChange = (lecturerId: number) => {
-    if (!formState) return
-
-    const selectedLecturer = lecturers.find((l) => l.id === Number(lecturerId))
-    if (selectedLecturer) {
-      setFormState((prev) => ({
-        ...prev!,
-        lecturer_id: Number(lecturerId),
-        lecturer_name: selectedLecturer.name,
-        chief_invigilator: selectedLecturer.name,
-      }))
-    }
-  }
-
-  const checkVenueCapacity = (venueName: string, studentCount: number) => {
-    const selectedExamroom = examrooms.find((e) => e.name === venueName)
-
-    if (selectedExamroom) {
-      if (studentCount > selectedExamroom.capacity) {
-        setCapacityWarning(
-          `Warning: Not enough space! The venue ${venueName} has a capacity of ${selectedExamroom.capacity}, ` +
-            `but there are ${studentCount} students enrolled (exceeding by ${studentCount - selectedExamroom.capacity} students).`,
-        )
-      } else {
-        setCapacityWarning(null)
-      }
-
-      return selectedExamroom
-    }
-
-    return null
-  }
-
-  const handleVenueChange = (venueName: string) => {
-    if (!formState) return
-
-    const selectedExamroom = checkVenueCapacity(venueName, formState.no)
-
-    if (selectedExamroom) {
-      setFormState((prev) => ({
-        ...prev!,
-        venue: venueName,
-        location: selectedExamroom.location,
-      }))
-
-      if (formState.date && formState.start_time && formState.end_time && formState.unit_id) {
-        checkForConflicts(formState.date, formState.start_time, formState.end_time, formState.unit_id, venueName)
+        setVenueAssignmentInfo("Venue will be automatically assigned when you save the exam.")
       }
     }
   }
@@ -687,6 +573,7 @@ const ExamTimetable = () => {
       ...data,
       start_time: formatTimeToHi(data.start_time),
       end_time: formatTimeToHi(data.end_time),
+      // Remove venue and location from submission - they'll be auto-assigned
     }
 
     console.log("Submitting form data:", formattedData)
@@ -729,478 +616,743 @@ const ExamTimetable = () => {
   return (
     <AuthenticatedLayout>
       <Head title="Exam Timetable" />
-      <div className="p-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-semibold mb-4">Exam Timetable</h1>
-
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex space-x-2">
-            {can.create && (
-              <Button onClick={() => handleOpenModal("create", null)} className="bg-green-500 hover:bg-green-600">
-                + Add Exam
-              </Button>
-            )}
-
-            {can.process && (
-              <Button onClick={handleProcessTimetable} className="bg-blue-500 hover:bg-blue-600">
-                Process Exam Timetable
-              </Button>
-            )}
-
-            {can.solve_conflicts && (
-              <Button onClick={handleSolveConflicts} className="bg-purple-500 hover:bg-purple-600">
-                Solve Exam Conflicts
-              </Button>
-            )}
-
-            {can.download && (
-              <Button onClick={handleDownloadTimetable} className="bg-indigo-500 hover:bg-indigo-600">
-                Download Exam Timetable
-              </Button>
-            )}
-          </div>
-
-          <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={searchValue}
-              onChange={handleSearchChange}
-              placeholder="Search exam timetable..."
-              className="border rounded p-2 w-64"
-            />
-            <Button type="submit" className="bg-blue-500 hover:bg-blue-600">
-              Search
-            </Button>
-          </form>
-          <div>
-            <label className="mr-2">Rows per page:</label>
-            <select value={rowsPerPage} onChange={handlePerPageChange} className="border rounded p-2">
-              {[5, 10, 15, 20].map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {examTimetables?.data?.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full mt-6 border text-sm text-left">
-                <thead className="bg-gray-100 border-b">
-                  <tr>
-                    <th className="px-3 py-2">ID</th>
-                    <th className="px-3 py-2">Day</th>
-                    <th className="px-3 py-2">Date</th>
-                    <th className="px-3 py-2">Class</th>
-                    <th className="px-3 py-2">Unit Code</th>
-                    <th className="px-3 py-2">Unit Name</th>
-                    <th className="px-3 py-2">Semester</th>
-                    <th className="px-3 py-2">Venue</th>
-                    <th className="px-3 py-2">Time</th>
-                    <th className="px-3 py-2">Chief Invigilator</th>
-                    <th className="px-3 py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {examTimetables.data.map((examtimetable) => (
-                    <tr key={examtimetable.id} className="border-b hover:bg-gray-50">
-                      <td className="px-3 py-2">{examtimetable.id}</td>
-                      <td className="px-3 py-2">{examtimetable.day}</td>
-                      <td className="px-3 py-2">{examtimetable.date}</td>
-                      <td className="px-3 py-2">{examtimetable.class_code}</td>
-                      <td className="px-3 py-2">{examtimetable.unit_code}</td>
-                      <td className="px-3 py-2">{examtimetable.unit_name}</td>
-                      <td className="px-3 py-2">{examtimetable.semester_name}</td>
-                      <td className="px-3 py-2">{examtimetable.venue}</td>
-                      <td className="px-3 py-2">
-                        {examtimetable.start_time} - {examtimetable.end_time}
-                      </td>
-                      <td className="px-3 py-2">{examtimetable.chief_invigilator}</td>
-                      <td className="px-3 py-2 flex space-x-2">
-                        <Button
-                          onClick={() => handleOpenModal("view", examtimetable)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white"
-                        >
-                          View
-                        </Button>
-                        {can.edit && (
-                          <Button
-                            onClick={() => handleOpenModal("edit", examtimetable)}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                          >
-                            Edit
-                          </Button>
-                        )}
-                        {can.delete && (
-                          <Button
-                            onClick={() => handleDelete(examtimetable.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white"
-                          >
-                            Delete
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {examTimetables.links && examTimetables.links.length > 3 && (
-              <div className="flex justify-center mt-4">
-                <nav className="flex items-center">
-                  {examTimetables.links.map((link, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        if (link.url) {
-                          router.visit(link.url)
-                        }
-                      }}
-                      className={`px-3 py-1 mx-1 border rounded ${
-                        link.active ? "bg-blue-500 text-white" : "bg-white text-gray-700"
-                      } ${!link.url ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
-                      disabled={!link.url}
-                      dangerouslySetInnerHTML={{ __html: link.label }}
-                    />
-                  ))}
-                </nav>
+      
+      {/* Enhanced Main Container */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="container mx-auto px-4 py-8">
+          
+          {/* Enhanced Header Section */}
+          <div className="mb-8">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-8 py-6">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
+                    <Calendar className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold text-white">Exam Timetable Management</h1>
+                    <p className="text-blue-100 mt-1">Manage and schedule examinations with smart venue assignment</p>
+                  </div>
+                </div>
               </div>
-            )}
-          </>
-        ) : (
-          <p className="mt-6 text-gray-600">No exam timetables available yet.</p>
-        )}
 
-        {/* Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md w-[500px] max-h-[90vh] overflow-y-auto">
-              {modalType === "view" && selectedTimetable && (
-                <>
-                  <h2 className="text-xl font-semibold mb-4">View Exam Timetable</h2>
-                  <div className="space-y-2">
-                    <p>
-                      <strong>Day:</strong> {selectedTimetable.day}
-                    </p>
-                    <p>
-                      <strong>Date:</strong> {selectedTimetable.date}
-                    </p>
-                    <p>
-                      <strong>Class:</strong> {selectedTimetable.class_code} - {selectedTimetable.class_name}
-                    </p>
-                    <p>
-                      <strong>Unit Code:</strong> {selectedTimetable.unit_code}
-                    </p>
-                    <p>
-                      <strong>Unit Name:</strong> {selectedTimetable.unit_name}
-                    </p>
-                    <p>
-                      <strong>Semester:</strong> {selectedTimetable.semester_name}
-                    </p>
-                    <p>
-                      <strong>Time:</strong> {selectedTimetable.start_time} - {selectedTimetable.end_time}
-                    </p>
-                    <p>
-                      <strong>Venue:</strong> {selectedTimetable.venue}
-                    </p>
-                    <p>
-                      <strong>Location:</strong> {selectedTimetable.location}
-                    </p>
-                    <p>
-                      <strong>Number of Students:</strong> {selectedTimetable.no}
-                    </p>
-                    <p>
-                      <strong>Chief Invigilator:</strong> {selectedTimetable.chief_invigilator}
-                    </p>
+              {/* Smart Venue Assignment Info Banner */}
+              <div className="px-8 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100">
+                <Alert className="border-emerald-200 bg-emerald-50/50 shadow-sm">
+                  <div className="bg-emerald-100 p-2 rounded-full">
+                    <Info className="h-5 w-5 text-emerald-600" />
                   </div>
-                  <Button onClick={handleCloseModal} className="mt-4 bg-gray-400 text-white">
-                    Close
-                  </Button>
-                </>
-              )}
+                  <AlertDescription className="text-emerald-800 font-medium ml-3">
+                    <strong className="text-emerald-900">🤖 Smart Venue Assignment:</strong> Venues are automatically assigned based on student capacity and availability to prevent conflicts and over-assignment.
+                  </AlertDescription>
+                </Alert>
+              </div>
 
-              {(modalType === "edit" || modalType === "create") && formState && (
-                <>
-                  <h2 className="text-xl font-semibold mb-4">
-                    {modalType === "create" ? "Create Exam Timetable" : "Edit Exam Timetable"}
-                  </h2>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault()
-                      handleSubmitForm(formState)
-                    }}
-                  >
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot</label>
-                    <select
-                      value={formState.timeslot_id || ""}
-                      onChange={(e) => handleTimeSlotChange(Number(e.target.value))}
-                      className="w-full border rounded p-2 mb-3"
-                    >
-                      <option value="">Select Time Slot</option>
-                      {availableTimeSlots?.map((slot) => (
-                        <option key={slot.id} value={slot.id}>
-                          {slot.day} ({slot.date}) - {slot.start_time} to {slot.end_time}
-                        </option>
-                      )) || null}
-                    </select>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
-                        <input
-                          type="text"
-                          value={formState.day}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                        <input
-                          type="text"
-                          value={formState.date}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                        <input
-                          type="text"
-                          value={formState.start_time}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                        <input
-                          type="text"
-                          value={formState.end_time}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-
-                    {/* LEVEL 1: Semester Selection */}
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Semester <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formState.semester_id || ""}
-                      onChange={(e) => handleSemesterChange(e.target.value)}
-                      className="w-full border rounded p-2 mb-3"
-                      required
-                    >
-                      <option value="">Select Semester</option>
-                      {semesters?.map((semester) => (
-                        <option key={semester.id} value={semester.id}>
-                          {semester.name}
-                        </option>
-                      )) || null}
-                    </select>
-
-                    {isLoading && (
-                      <div className="text-center py-2 mb-3">
-                        <span className="inline-block animate-spin mr-2">⟳</span>
-                        Loading...
-                      </div>
-                    )}
-
-                    {errorMessage && (
-                      <Alert className="mb-3 bg-yellow-50 border-yellow-200">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-yellow-600">{errorMessage}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    {/* LEVEL 2: Class Selection */}
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Class <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formState.class_id || ""}
-                      onChange={(e) => handleClassChange(e.target.value)}
-                      className="w-full border rounded p-2 mb-3"
-                      disabled={!formState.semester_id || isLoading}
-                      required
-                    >
-                      <option value="">
-                        {!formState.semester_id
-                          ? "Please select a semester first"
-                          : filteredClasses.length === 0
-                            ? "No classes available for this semester"
-                            : "Select Class"}
-                      </option>
-                      {filteredClasses && filteredClasses.length > 0
-                        ? filteredClasses.map((classItem) => (
-                            <option key={classItem.id} value={classItem.id}>
-                              {classItem.code} - {classItem.name}
-                            </option>
-                          ))
-                        : null}
-                    </select>
-
-                    {/* LEVEL 3: Unit Selection */}
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Unit <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formState.unit_id || ""}
-                      onChange={(e) => handleUnitChange(Number(e.target.value))}
-                      className="w-full border rounded p-2 mb-3"
-                      disabled={!formState.class_id || isLoading}
-                      required
-                    >
-                      <option value="">
-                        {!formState.class_id
-                          ? "Please select a class first"
-                          : filteredUnits.length === 0
-                            ? "No units available for this class"
-                            : "Select Unit"}
-                      </option>
-                      {filteredUnits && filteredUnits.length > 0
-                        ? filteredUnits.map((unit) => (
-                            <option key={unit.id} value={unit.id}>
-                              {unit.code} - {unit.name}
-                            </option>
-                          ))
-                        : null}
-                    </select>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit Code</label>
-                        <input
-                          type="text"
-                          value={formState.unit_code || ""}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Number of Students</label>
-                        <input
-                          type="number"
-                          value={formState.no}
-                          className="w-full border rounded p-2 mb-3 bg-gray-50"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-
-                    {unitLecturers.length > 0 && (
-                      <>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer</label>
-                        <select
-                          value={formState.lecturer_id || ""}
-                          onChange={(e) => handleLecturerChange(Number(e.target.value))}
-                          className="w-full border rounded p-2 mb-3"
-                        >
-                          <option value="">Select Lecturer</option>
-                          {unitLecturers.map((lecturer) => (
-                            <option key={lecturer.id} value={lecturer.id}>
-                              {lecturer.name}
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
-
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Venue <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formState.venue}
-                      onChange={(e) => handleVenueChange(e.target.value)}
-                      className="w-full border rounded p-2 mb-3"
-                      required
-                    >
-                      <option value="">Select Venue</option>
-                      {examrooms?.map((examroom) => (
-                        <option key={examroom.id} value={examroom.name}>
-                          {examroom.name} (Capacity: {examroom.capacity})
-                        </option>
-                      )) || null}
-                    </select>
-
-                    {capacityWarning && (
-                      <Alert className="mb-3 bg-red-50 border-red-200">
-                        <AlertCircle className="h-4 w-4 text-red-500" />
-                        <AlertDescription className="text-red-500">{capacityWarning}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    {conflictWarning && (
-                      <Alert className="mb-3 bg-yellow-50 border-yellow-200">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-yellow-600">{conflictWarning}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={formState.location}
-                      className="w-full border rounded p-2 mb-3 bg-gray-50"
-                      readOnly
-                    />
-
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Chief Invigilator <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formState.chief_invigilator}
-                      onChange={(e) => handleCreateChange("chief_invigilator", e.target.value)}
-                      className="w-full border rounded p-2 mb-3"
-                      placeholder="Enter chief invigilator name"
-                      required
-                    />
-
-                    <div className="mt-4 flex justify-end space-x-2">
-                      <Button
-                        type="submit"
-                        className="bg-blue-500 hover:bg-blue-600 text-white"
-                        disabled={isLoading || (capacityWarning !== null && capacityWarning !== "")}
+              {/* Enhanced Action Bar */}
+              <div className="px-8 py-6 bg-white">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-3">
+                    {can.create && (
+                      <Button 
+                        onClick={() => handleOpenModal("create", null)} 
+                        className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 font-semibold px-6 py-2.5"
                       >
-                        {isLoading ? "Saving..." : "Save"}
+                        <Plus className="h-5 w-5 mr-2" />
+                        Add Exam
                       </Button>
-                      <Button type="button" onClick={handleCloseModal} className="bg-gray-400 text-white">
-                        Cancel
-                      </Button>
-                    </div>
-                  </form>
-                </>
-              )}
+                    )}
 
-              {modalType === "delete" && selectedTimetable && (
-                <>
-                  <h2 className="text-xl font-semibold mb-4">Delete Exam Timetable</h2>
-                  <p>Are you sure you want to delete this timetable?</p>
-                  <div className="mt-4 flex justify-end space-x-2">
-                    <Button
-                      onClick={() => handleDelete(selectedTimetable.id)}
-                      className="bg-red-500 hover:bg-red-600 text-white"
-                    >
-                      Delete
-                    </Button>
-                    <Button onClick={handleCloseModal} className="bg-gray-400 text-white">
-                      Cancel
-                    </Button>
+                    {can.process && (
+                      <Button 
+                        onClick={handleProcessTimetable} 
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 font-semibold px-6 py-2.5"
+                      >
+                        <Settings className="h-5 w-5 mr-2" />
+                        Process Timetable
+                      </Button>
+                    )}
+
+                    {can.solve_conflicts && (
+                      <Button 
+                        onClick={handleSolveConflicts} 
+                        className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 font-semibold px-6 py-2.5"
+                      >
+                        <AlertCircle className="h-5 w-5 mr-2" />
+                        Solve Conflicts
+                      </Button>
+                    )}
+
+                    {can.download && (
+                      <Button 
+                        onClick={handleDownloadTimetable} 
+                        className="bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 font-semibold px-6 py-2.5"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Download PDF
+                      </Button>
+                    )}
                   </div>
-                </>
-              )}
+
+                  {/* Enhanced Search and Controls */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <form onSubmit={handleSearchSubmit} className="flex items-center">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={searchValue}
+                          onChange={handleSearchChange}
+                          placeholder="Search exams..."
+                          className="pl-10 pr-4 py-2.5 w-64 border border-slate-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        />
+                      </div>
+                      <Button 
+                        type="submit" 
+                        className="ml-3 bg-slate-600 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        Search
+                      </Button>
+                    </form>
+                    
+                    <div className="flex items-center space-x-3 text-slate-600">
+                      <label className="font-medium">Rows:</label>
+                      <select 
+                        value={rowsPerPage} 
+                        onChange={handlePerPageChange} 
+                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      >
+                        {[5, 10, 15, 20].map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
+
+          {/* Enhanced Content Section */}
+          {examTimetables?.data?.length > 0 ? (
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden">
+              
+              {/* Table Header with Stats */}
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-slate-800 flex items-center">
+                    <GraduationCap className="h-6 w-6 mr-3 text-blue-600" />
+                    Scheduled Examinations
+                  </h2>
+                  <div className="flex items-center space-x-6 text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-3 w-3 bg-emerald-500 rounded-full"></div>
+                      <span className="text-slate-600">Total: {examTimetables.total} exams</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="h-3 w-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-slate-600">Page: {examTimetables.current_page}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+               {/* Enhanced Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>Date</span>
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        <div className="flex items-center space-x-2">
+                          <Clock className="h-4 w-4" />
+                          <span>Time</span>
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Class</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Unit Details</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Semester</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        <div className="flex items-center space-x-2">
+                          <MapPin className="h-4 w-4" />
+                          <span>Venue</span>
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        <div className="flex items-center space-x-2">
+                          <Users className="h-4 w-4" />
+                          <span>Students</span>
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Chief Invigilator</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {examTimetables.data.map((examtimetable, index) => (
+                      <tr key={examtimetable.id} className={`hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center">
+                            <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
+                              #{examtimetable.id}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <Calendar className="h-4 w-4 text-slate-500" />
+                              <span className="font-medium text-slate-900">{examtimetable.day}</span>
+                            </div>
+                            <div className="text-sm text-slate-600">{examtimetable.date}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <Clock className="h-4 w-4 text-slate-500" />
+                            <div className="font-mono text-sm bg-slate-100 px-3 py-2 rounded-lg border">
+                              {examtimetable.start_time} - {examtimetable.end_time}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg text-sm font-medium inline-block">
+                            {examtimetable.class_code}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-slate-900">{examtimetable.unit_code}</div>
+                            <div className="text-sm text-slate-600 line-clamp-2">{examtimetable.unit_name}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-lg text-sm font-medium inline-block">
+                            {examtimetable.semester_name}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-emerald-100 text-emerald-800 font-medium">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              {examtimetable.venue}
+                            </div>
+                            <div className="text-xs text-slate-500">{examtimetable.location}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center">
+                            <div className="bg-orange-100 text-orange-800 px-3 py-2 rounded-xl font-bold text-lg min-w-[3rem] text-center">
+                              {examtimetable.no}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-slate-700 font-medium">{examtimetable.chief_invigilator}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex space-x-2">
+                            <Button
+                              onClick={() => handleOpenModal("view", examtimetable)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {can.edit && (
+                              <Button
+                                onClick={() => handleOpenModal("edit", examtimetable)}
+                                className="bg-amber-500 hover:bg-amber-600 text-white p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                                title="Edit Exam"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {can.delete && (
+                              <Button
+                                onClick={() => handleDelete(examtimetable.id)}
+                                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                                title="Delete Exam"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Enhanced Pagination */}
+              {examTimetables.links && examTimetables.links.length > 3 && (
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-t border-slate-200">
+                  <div className="flex items-center justify-center">
+                    <nav className="flex items-center space-x-2">
+                      {examTimetables.links.map((link, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            if (link.url) {
+                              router.visit(link.url)
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                            link.active 
+                              ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg" 
+                              : "bg-white text-slate-700 hover:bg-slate-100 shadow-sm border border-slate-300"
+                          } ${!link.url ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
+                          disabled={!link.url}
+                          dangerouslySetInnerHTML={{ __html: link.label }}
+                        />
+                      ))}
+                    </nav>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden">
+              <div className="text-center py-16">
+                <div className="bg-slate-100 rounded-full p-6 w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+                  <Calendar className="h-12 w-12 text-slate-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-700 mb-2">No Exam Timetables Found</h3>
+                <p className="text-slate-500 mb-6">Get started by creating your first exam schedule.</p>
+                {can.create && (
+                  <Button 
+                    onClick={() => handleOpenModal("create", null)} 
+                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 font-semibold px-8 py-3 rounded-xl"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Create First Exam
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Enhanced Modal */}
+          {isModalOpen && (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+                
+                {modalType === "view" && selectedTimetable && (
+                  <>
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-white/20 p-2 rounded-lg">
+                          <Eye className="h-6 w-6 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">Exam Details</h2>
+                      </div>
+                    </div>
+                    <div className="p-8 overflow-y-auto max-h-[70vh]">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div className="bg-slate-50 p-4 rounded-xl">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Calendar className="h-5 w-5 text-blue-600" />
+                              <span className="font-semibold text-slate-700">Date</span>
+                            </div>
+                            <p className="text-lg font-medium text-slate-900">{selectedTimetable.day}</p>
+                            <p className="text-slate-600">{selectedTimetable.date}</p>
+                          </div>
+                          
+                          <div className="bg-slate-50 p-4 rounded-xl">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Clock className="h-5 w-5 text-green-600" />
+                              <span className="font-semibold text-slate-700">Time</span>
+                            </div>
+                            <p className="font-mono text-lg bg-white px-3 py-2 rounded-lg border">
+                              {selectedTimetable.start_time} - {selectedTimetable.end_time}
+                            </p>
+                          </div>
+
+                          <div className="bg-slate-50 p-4 rounded-xl">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <GraduationCap className="h-5 w-5 text-purple-600" />
+                              <span className="font-semibold text-slate-700">Class</span>
+                            </div>
+                            <p className="text-lg">{selectedTimetable.class_code} - {selectedTimetable.class_name}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="bg-slate-50 p-4 rounded-xl">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <GraduationCap className="h-5 w-5 text-indigo-600" />
+                              <span className="font-semibold text-slate-700">Unit</span>
+                            </div>
+                            <p className="font-semibold text-lg text-slate-900">{selectedTimetable.unit_code}</p>
+                            <p className="text-slate-600">{selectedTimetable.unit_name}</p>
+                          </div>
+
+                          <div className="bg-slate-50 p-4 rounded-xl">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <MapPin className="h-5 w-5 text-emerald-600" />
+                              <span className="font-semibold text-slate-700">Venue</span>
+                            </div>
+                            <div className="inline-flex items-center px-3 py-2 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+                              {selectedTimetable.venue}
+                            </div>
+                            <p className="text-slate-600 mt-2">{selectedTimetable.location}</p>
+                          </div>
+
+                          <div className="bg-slate-50 p-4 rounded-xl">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Users className="h-5 w-5 text-orange-600" />
+                              <span className="font-semibold text-slate-700">Students & Invigilator</span>
+                            </div>
+                            <p className="text-2xl font-bold text-orange-600 mb-2">{selectedTimetable.no} Students</p>
+                            <p className="text-slate-700">{selectedTimetable.chief_invigilator}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 px-8 py-4 flex justify-end">
+                      <Button 
+                        onClick={handleCloseModal} 
+                        className="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2 rounded-xl transition-all duration-200"
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {(modalType === "edit" || modalType === "create") && formState && (
+                  <>
+                    <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-8 py-6">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-white/20 p-2 rounded-lg">
+                          {modalType === "create" ? <Plus className="h-6 w-6 text-white" /> : <Edit className="h-6 w-6 text-white" />}
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">
+                          {modalType === "create" ? "Create New Exam" : "Edit Exam Schedule"}
+                        </h2>
+                      </div>
+                    </div>
+                    
+                    <div className="p-8 overflow-y-auto max-h-[70vh]">
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          handleSubmitForm(formState)
+                        }}
+                        className="space-y-6"
+                      >
+                        {/* Time Slot Selection */}
+                        <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                          <label className="block text-sm font-semibold text-blue-900 mb-3 flex items-center">
+                            <Clock className="h-5 w-5 mr-2" />
+                            Time Slot Selection
+                          </label>
+                          <select
+                            value={formState.timeslot_id || ""}
+                            onChange={(e) => handleTimeSlotChange(Number(e.target.value))}
+                            className="w-full border border-blue-300 rounded-xl p-3 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          >
+                            <option value="">Select Time Slot</option>
+                            {availableTimeSlots?.map((slot) => (
+                              <option key={slot.id} value={slot.id}>
+                                {slot.day} ({slot.date}) - {slot.start_time} to {slot.end_time}
+                              </option>
+                            )) || null}
+                          </select>
+                        </div>
+
+                        {/* Schedule Display */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Day</label>
+                            <input
+                              type="text"
+                              value={formState.day}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 text-slate-600"
+                              readOnly
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
+                            <input
+                              type="text"
+                              value={formState.date}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 text-slate-600"
+                              readOnly
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Start Time</label>
+                            <input
+                              type="text"
+                              value={formState.start_time}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 text-slate-600 font-mono"
+                              readOnly
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">End Time</label>
+                            <input
+                              type="text"
+                              value={formState.end_time}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 text-slate-600 font-mono"
+                              readOnly
+                            />
+                          </div>
+                        </div>
+
+                        {/* Cascading Selections */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Semester <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={formState.semester_id || ""}
+                              onChange={(e) => handleSemesterChange(e.target.value)}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                              required
+                            >
+                              <option value="">Select Semester</option>
+                              {semesters?.map((semester) => (
+                                <option key={semester.id} value={semester.id}>
+                                  {semester.name}
+                                </option>
+                              )) || null}
+                            </select>
+                          </div>
+
+                          {isLoading && (
+                            <div className="text-center py-4">
+                              <div className="inline-flex items-center space-x-2 text-blue-600">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                <span className="font-medium">Loading...</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {errorMessage && (
+                            <Alert className="bg-yellow-50 border-yellow-200">
+                              <AlertCircle className="h-4 w-4 text-yellow-600" />
+                              <AlertDescription className="text-yellow-700">{errorMessage}</AlertDescription>
+                            </Alert>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Class <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={formState.class_id || ""}
+                              onChange={(e) => handleClassChange(e.target.value)}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                              disabled={!formState.semester_id || isLoading}
+                              required
+                            >
+                              <option value="">
+                                {!formState.semester_id
+                                  ? "Please select a semester first"
+                                  : filteredClasses.length === 0
+                                    ? "No classes available for this semester"
+                                    : "Select Class"}
+                              </option>
+                              {filteredClasses && filteredClasses.length > 0
+                                ? filteredClasses.map((classItem) => (
+                                    <option key={classItem.id} value={classItem.id}>
+                                      {classItem.code} - {classItem.name}
+                                    </option>
+                                  ))
+                                : null}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Unit <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={formState.unit_id || ""}
+                              onChange={(e) => handleUnitChange(Number(e.target.value))}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                              disabled={!formState.class_id || isLoading}
+                              required
+                            >
+                              <option value="">
+                                {!formState.class_id
+                                  ? "Please select a class first"
+                                  : filteredUnits.length === 0
+                                    ? "No units available for this class"
+                                    : "Select Unit"}
+                              </option>
+                              {filteredUnits && filteredUnits.length > 0
+                                ? filteredUnits.map((unit) => (
+                                    <option key={unit.id} value={unit.id}>
+                                      {unit.code} - {unit.name} ({unit.student_count || 0} students)
+                                    </option>
+                                  ))
+                                : null}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Unit Details */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Unit Code</label>
+                            <input
+                              type="text"
+                              value={formState.unit_code || ""}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 text-slate-600"
+                              readOnly
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Number of Students</label>
+                            <input
+                              type="number"
+                              value={formState.no}
+                              className="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 text-slate-600 text-center font-bold text-lg"
+                              readOnly
+                            />
+                          </div>
+                        </div>
+
+                        {/* Smart Venue Assignment Info */}
+                        {venueAssignmentInfo && (
+                          <Alert className={`${venueAssignmentInfo.includes('⚠️') ? 'bg-yellow-50 border-yellow-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                            {venueAssignmentInfo.includes('⚠️') ? (
+                              <AlertCircle className="h-4 w-4 text-yellow-600" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 text-emerald-600" />
+                            )}
+                            <AlertDescription className={venueAssignmentInfo.includes('⚠️') ? 'text-yellow-700' : 'text-emerald-700'}>
+                              {venueAssignmentInfo}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+
+                        {/* Venue Display */}
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-xl border border-purple-200">
+                          <h3 className="font-semibold text-purple-900 mb-4 flex items-center">
+                            <MapPin className="h-5 w-5 mr-2" />
+                            Smart Venue Assignment
+                          </h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-700 mb-2">
+                                Venue {modalType === "create" && <span className="text-purple-600">(Auto-assigned)</span>}
+                              </label>
+                              <input
+                                type="text"
+                                value={modalType === "create" ? "🤖 Will be automatically assigned" : formState.venue}
+                                className="w-full border border-purple-300 rounded-xl p-3 bg-white text-purple-700"
+                                readOnly
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-700 mb-2">
+                                Location {modalType === "create" && <span className="text-purple-600">(Auto-assigned)</span>}
+                              </label>
+                              <input
+                                type="text"
+                                value={modalType === "create" ? "📍 Will be automatically assigned" : formState.location}
+                                className="w-full border border-purple-300 rounded-xl p-3 bg-white text-purple-700"
+                                readOnly
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Available Venues Info */}
+                        {formState.no > 0 && (
+                          <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                            <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                              <Users className="h-5 w-5 mr-2" />
+                              Available Venues for {formState.no} Students
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                              {examrooms
+                                .filter(room => room.capacity >= formState.no)
+                                .sort((a, b) => a.capacity - b.capacity)
+                                .slice(0, 6)
+                                .map((room) => (
+                                  <div key={room.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-200">
+                                    <span className="font-medium text-blue-900">{room.name}</span>
+                                    <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded-full text-sm">
+                                      {room.capacity} seats
+                                    </span>
+                                  </div>
+                                ))}
+                              {examrooms.filter(room => room.capacity >= formState.no).length > 6 && (
+                                <div className="col-span-2 text-center text-blue-600 font-medium bg-blue-100 p-3 rounded-lg">
+                                  + {examrooms.filter(room => room.capacity >= formState.no).length - 6} more venues available
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Chief Invigilator */}
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Chief Invigilator <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formState.chief_invigilator}
+                            onChange={(e) => handleCreateChange("chief_invigilator", e.target.value)}
+                            className="w-full border border-slate-300 rounded-xl p-3 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                            placeholder="Enter chief invigilator name"
+                            required
+                          />
+                        </div>
+
+                        {/* Form Actions */}
+                        <div className="flex justify-end space-x-3 pt-6 border-t border-slate-200">
+                          <Button
+                            type="button"
+                            onClick={handleCloseModal}
+                            className="bg-slate-500 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl transition-all duration-200"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-6 py-2.5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold"
+                            disabled={isLoading}
+                          >
+                            {isLoading ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Saving...</span>
+                              </div>
+                            ) : (
+                              modalType === "create" ? "Create & Auto-Assign Venue" : "Update & Reassign Venue"
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </AuthenticatedLayout>
   )

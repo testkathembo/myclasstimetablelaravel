@@ -394,6 +394,127 @@ class ExamTimetableController extends Controller
     }
 
     /**
+     * SMART VENUE ASSIGNMENT - Find the best available venue for given parameters
+     */
+    private function assignOptimalVenue($studentCount, $date, $startTime, $endTime, $excludeExamId = null)
+    {
+        try {
+            Log::info('Starting smart venue assignment', [
+                'student_count' => $studentCount,
+                'date' => $date,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'exclude_exam_id' => $excludeExamId
+            ]);
+
+            // Get all available exam rooms
+            $examrooms = Examroom::all();
+
+            if ($examrooms->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'No exam rooms available in the system.',
+                    'venue' => null,
+                    'location' => null
+                ];
+            }
+
+            // Filter rooms that can accommodate the students (capacity >= student count)
+            $suitableRooms = $examrooms->filter(function ($room) use ($studentCount) {
+                return $room->capacity >= $studentCount;
+            });
+
+            if ($suitableRooms->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No exam rooms can accommodate {$studentCount} students. Maximum available capacity: " . $examrooms->max('capacity'),
+                    'venue' => null,
+                    'location' => null
+                ];
+            }
+
+            // Get conflicting exam schedules for the same time slot
+            $conflictingExams = ExamTimetable::where('date', $date)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($subQuery) use ($startTime, $endTime) {
+                        // Check for time overlaps
+                        $subQuery->whereBetween('start_time', [$startTime, $endTime])
+                               ->orWhereBetween('end_time', [$startTime, $endTime])
+                               ->orWhere(function ($timeQuery) use ($startTime, $endTime) {
+                                   $timeQuery->where('start_time', '<=', $startTime)
+                                            ->where('end_time', '>=', $endTime);
+                               });
+                    });
+                });
+
+            // Exclude current exam if we're updating
+            if ($excludeExamId) {
+                $conflictingExams->where('id', '!=', $excludeExamId);
+            }
+
+            $conflictingVenues = $conflictingExams->pluck('venue')->toArray();
+
+            Log::info('Found conflicting venues', [
+                'conflicting_venues' => $conflictingVenues,
+                'conflicting_exams_count' => count($conflictingVenues)
+            ]);
+
+            // Filter out venues that are already booked during this time
+            $availableRooms = $suitableRooms->filter(function ($room) use ($conflictingVenues) {
+                return !in_array($room->name, $conflictingVenues);
+            });
+
+            if ($availableRooms->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'All suitable exam rooms are already booked for this time slot.',
+                    'venue' => null,
+                    'location' => null,
+                    'suggested_venues' => $suitableRooms->pluck('name')->toArray()
+                ];
+            }
+
+            // Sort by capacity efficiency (prefer rooms that are closer to student count to avoid waste)
+            $sortedRooms = $availableRooms->sortBy(function ($room) use ($studentCount) {
+                return $room->capacity - $studentCount; // Ascending order - prefer smaller suitable rooms
+            });
+
+            // Add some randomization to avoid always picking the same room
+            $topCandidates = $sortedRooms->take(3); // Take top 3 most suitable rooms
+            $selectedRoom = $topCandidates->random(); // Randomly select from top candidates
+
+            Log::info('Successfully assigned venue', [
+                'selected_venue' => $selectedRoom->name,
+                'venue_capacity' => $selectedRoom->capacity,
+                'student_count' => $studentCount,
+                'efficiency' => round(($studentCount / $selectedRoom->capacity) * 100, 2) . '%'
+            ]);
+
+            return [
+                'success' => true,
+                'message' => "Venue automatically assigned: {$selectedRoom->name} (Capacity: {$selectedRoom->capacity})",
+                'venue' => $selectedRoom->name,
+                'location' => $selectedRoom->location,
+                'capacity' => $selectedRoom->capacity,
+                'efficiency' => round(($studentCount / $selectedRoom->capacity) * 100, 2)
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error in smart venue assignment', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Error occurred during venue assignment: ' . $e->getMessage(),
+                'venue' => null,
+                'location' => null
+            ];
+        }
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -404,8 +525,6 @@ class ExamTimetableController extends Controller
             'unit_id' => 'required|exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
             'class_id' => 'required|exists:classes,id',
-            'venue' => 'required|string',
-            'location' => 'required|string',
             'no' => 'required|integer',
             'chief_invigilator' => 'required|string',
             'start_time' => 'required|string',
@@ -413,21 +532,37 @@ class ExamTimetableController extends Controller
         ]);
 
         try {
+            // Smart venue assignment
+            $venueAssignment = $this->assignOptimalVenue(
+                $request->no,
+                $request->date,
+                $request->start_time,
+                $request->end_time
+            );
+
+            if (!$venueAssignment['success']) {
+                return redirect()->back()->withErrors([
+                    'venue' => $venueAssignment['message']
+                ])->withInput();
+            }
+
             $examTimetable = ExamTimetable::create([
                 'day' => $request->day,
                 'date' => $request->date,
                 'unit_id' => $request->unit_id,
                 'semester_id' => $request->semester_id,
                 'class_id' => $request->class_id,
-                'venue' => $request->venue,
-                'location' => $request->location,
+                'venue' => $venueAssignment['venue'],
+                'location' => $venueAssignment['location'],
                 'no' => $request->no,
                 'chief_invigilator' => $request->chief_invigilator,
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
             ]);
 
-            return redirect()->back()->with('success', 'Exam timetable created successfully.');
+            $successMessage = 'Exam timetable created successfully. ' . $venueAssignment['message'];
+            
+            return redirect()->back()->with('success', $successMessage);
         } catch (\Exception $e) {
             \Log::error('Failed to create exam timetable: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Failed to create exam timetable: ' . $e->getMessage());
@@ -445,8 +580,6 @@ class ExamTimetableController extends Controller
             'unit_id' => 'required|exists:units,id',
             'semester_id' => 'required|exists:semesters,id',
             'class_id' => 'required|exists:classes,id',
-            'venue' => 'required|string',
-            'location' => 'required|string',
             'no' => 'required|integer',
             'chief_invigilator' => 'required|string',
             'start_time' => 'required|string',
@@ -455,21 +588,39 @@ class ExamTimetableController extends Controller
 
         try {
             $examTimetable = ExamTimetable::findOrFail($id);
+
+            // Smart venue assignment (excluding current exam from conflict check)
+            $venueAssignment = $this->assignOptimalVenue(
+                $request->no,
+                $request->date,
+                $request->start_time,
+                $request->end_time,
+                $id // Exclude current exam from conflict check
+            );
+
+            if (!$venueAssignment['success']) {
+                return redirect()->back()->withErrors([
+                    'venue' => $venueAssignment['message']
+                ])->withInput();
+            }
+
             $examTimetable->update([
                 'day' => $request->day,
                 'date' => $request->date,
                 'unit_id' => $request->unit_id,
                 'semester_id' => $request->semester_id,
                 'class_id' => $request->class_id,
-                'venue' => $request->venue,
-                'location' => $request->location,
+                'venue' => $venueAssignment['venue'],
+                'location' => $venueAssignment['location'],
                 'no' => $request->no,
                 'chief_invigilator' => $request->chief_invigilator,
                 'start_time' => $request->start_time,
                 'end_time' => $request->end_time,
             ]);
 
-            return redirect()->back()->with('success', 'Exam timetable updated successfully.');
+            $successMessage = 'Exam timetable updated successfully. ' . $venueAssignment['message'];
+
+            return redirect()->back()->with('success', $successMessage);
         } catch (\Exception $e) {
             \Log::error('Failed to update exam timetable: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Failed to update exam timetable: ' . $e->getMessage());
