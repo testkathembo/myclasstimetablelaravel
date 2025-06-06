@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -11,6 +10,7 @@ return new class extends Migration
         Schema::create('exam_timetables', function (Blueprint $table) {
             $table->id();
             $table->foreignId('semester_id')->constrained()->onDelete('cascade');
+            $table->foreignId('class_id')->constrained('classes')->onDelete('cascade');
             $table->foreignId('unit_id')->constrained()->onDelete('cascade');
             $table->string('day');
             $table->date('date');
@@ -19,8 +19,7 @@ return new class extends Migration
             $table->string('venue');
             $table->string('location')->nullable();
             $table->integer('no'); // Number of students
-            $table->string('chief_invigilator');
-            $table->string('group', 1)->nullable(); // Added group field to match with enrollments
+            $table->string('chief_invigilator');           
             $table->foreignId('program_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('school_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();

@@ -106,6 +106,9 @@ interface FormState {
   lecturer_name?: string | null
 }
 
+const [filteredClasses, setFilteredClasses] = useState<{ id: number; name: string; semester_id: number }[]>([])
+const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
+
 // Helper function to ensure time is in H:i format
 const formatTimeToHi = (timeStr: string) => {
   // If the time already has the correct format (H:i), return it
@@ -156,6 +159,7 @@ const ExamTimetable = () => {
     timeSlots = [],
     units = [],
     lecturers = [],
+    classes = [],
   } = usePage().props as unknown as {
     examTimetables: PaginatedExamTimetables
     perPage: number
@@ -166,6 +170,7 @@ const ExamTimetable = () => {
     timeSlots: TimeSlot[]
     units: Unit[]
     lecturers: Lecturer[]
+    classes: { id: number; name: string; semester_id: number }[]
     can: {
       create: boolean
       edit: boolean
