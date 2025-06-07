@@ -244,18 +244,28 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/classtimeslot/{classtimeSlot}', [ClassTimeSlotController::class, 'destroy'])->name('classtimeslot.destroy');
     });
     
-    // ExamTimetable routes
-    Route::middleware(['permission:manage-examtimetables'])->group(function () {
-        Route::get('/schools/sces/bbit/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
-        Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
-        Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
-        Route::get('/examtimetable/{id}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
-        Route::get('/examtimetable/{id}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
-        Route::put('/examtimetable/{id}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
-        Route::delete('/examtimetable/{id}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
-        Route::post('/examtimetable/{id}/ajax-delete', [ExamTimetableController::class, 'ajaxDestroy'])->name('examtimetable.ajax-destroy');
-        Route::get('/lecturer-for-unit/{unitId}/{semesterId}', [ExamTimetableController::class, 'getLecturerForUnit'])->name('api.lecturer-for-unit');
-    });
+    // ExamTimetable routes - FIXED AND UNCOMMENTED
+Route::middleware(['auth', 'permission:manage-examtimetables'])->group(function () {
+    // Main exam timetable routes
+    Route::get('/schools/sces/bbit/examtimetable', [ExamTimetableController::class, 'index'])->name('examtimetable.index');
+    Route::get('/examtimetable/create', [ExamTimetableController::class, 'create'])->name('examtimetable.create');
+    Route::post('/examtimetable', [ExamTimetableController::class, 'store'])->name('examtimetable.store');
+    Route::get('/examtimetable/{id}', [ExamTimetableController::class, 'show'])->name('examtimetable.show');
+    Route::get('/examtimetable/{id}/edit', [ExamTimetableController::class, 'edit'])->name('examtimetable.edit');
+    Route::put('/examtimetable/{id}', [ExamTimetableController::class, 'update'])->name('examtimetable.update');
+    Route::delete('/examtimetable/{id}', [ExamTimetableController::class, 'destroy'])->name('examtimetable.destroy');
+    Route::post('/examtimetable/{id}/ajax-delete', [ExamTimetableController::class, 'ajaxDestroy'])->name('examtimetable.ajax-destroy');
+    
+    // API endpoints for cascading dropdowns
+    Route::get('/api/semester/{semesterId}/classes', [ExamTimetableController::class, 'getClassesBySemester'])
+        ->name('api.examtimetable.classes-by-semester');
+    Route::post('/api/units-by-class-semester', [ExamTimetableController::class, 'getUnitsByClassAndSemesterForExam'])
+        ->name('api.examtimetable.units-by-class-semester');
+    
+    // Additional API routes
+    Route::get('/lecturer-for-unit/{unitId}/{semesterId}', [ExamTimetableController::class, 'getLecturerForUnit'])
+        ->name('api.lecturer-for-unit');
+});
 
     // Process Timetable Route
     Route::middleware(['permission:process-examtimetables'])->group(function () {
@@ -335,9 +345,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
 
-        // ===============
-
-        // ✅ Student Routes
+             // ✅ Student Routes
 Route::middleware(['auth', 'role:Student'])->group(function () {
     // Student Dashboard
     Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
@@ -345,30 +353,28 @@ Route::middleware(['auth', 'role:Student'])->group(function () {
     // My Enrollments
     Route::get('/my-enrollments', [StudentController::class, 'myEnrollments'])->name('student.enrollments');
     
-    // My Exams
-    Route::get('/my-exams', [ExamTimetableController::class, 'viewStudentTimetable'])->name('student.exams');
-    Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])
-        ->name('student.exams.show');
-        
-    // ✅ FIXED: Student Timetable Routes - SINGLE DEFINITION ONLY
+    // ✅ FIXED: Student Class Timetable - Single definition
     Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])
         ->name('student.timetable');
+    Route::get('/my-timetable', [ClassTimetableController::class, 'studentTimetable'])
+        ->name('student.timetable.alt'); // Alternative route
     
-    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])
-        ->name('student.timetable.download');
-
-    // My Class Timetable (alternative route)
-    Route::get('/my-timetable', [ClassTimetableController::class, 'studentTimetable']);
-    
-    // Student Exam Timetable
-    Route::get('/student/exam-timetable', [ExamTimetableController::class, 'viewStudentTimetable'])
+    // ✅ FIXED: Student Exam Timetable - Use correct method
+    Route::get('/my-exams', [ExamTimetableController::class, 'studentExamTimetable'])
+        ->name('student.exams');
+    Route::get('/student/exam-timetable', [ExamTimetableController::class, 'studentExamTimetable'])
         ->name('student.exam-timetable');
-
-    // Student Timetable (alternative name)
-    Route::get('/student/timetable', [ClassTimetableController::class, 'viewStudentClassTimetable'])
-        ->name('student.timetable');
+    
+    // Individual exam details
+    Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])
+        ->name('student.exams.show');
+    
+    // Download routes
+    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])
+        ->name('student.timetable.download');
+    Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])
+        ->name('student.exams.download');
 });
-
 
 
         // ============================

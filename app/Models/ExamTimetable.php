@@ -10,45 +10,29 @@ class ExamTimetable extends Model
     use HasFactory;
 
     protected $fillable = [
+        'unit_id',
         'semester_id',
         'class_id',
-        'unit_id',
-        'day',
-        'date',
+        'examroom_id',
+        'time_slot_id',
+        'exam_date',
         'start_time',
         'end_time',
-        'venue',
-        'location',
-        'no',
-        'chief_invigilator',
-        'program_id',
-        'school_id',
+        'duration',
+        'lecturer_id',
+        'invigilator_id',
+        'special_requirements',
+        'status'
     ];
 
     protected $casts = [
-        'date' => 'date',
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
+        'exam_date' => 'date',
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
     ];
 
     /**
-     * Get the semester that owns the exam timetable.
-     */
-    public function semester()
-    {
-        return $this->belongsTo(Semester::class);
-    }
-
-    /**
-     * Get the class that owns the exam timetable.
-     */
-    public function class()
-    {
-        return $this->belongsTo(ClassModel::class, 'class_id');
-    }
-
-    /**
-     * Get the unit that owns the exam timetable.
+     * Get the unit that this exam is for
      */
     public function unit()
     {
@@ -56,18 +40,92 @@ class ExamTimetable extends Model
     }
 
     /**
-     * Get the program that owns the exam timetable.
+     * Get the semester this exam belongs to
      */
-    public function program()
+    public function semester()
     {
-        return $this->belongsTo(Program::class);
+        return $this->belongsTo(Semester::class);
     }
 
     /**
-     * Get the school that owns the exam timetable.
+     * Get the class this exam is for
      */
-    public function school()
+    public function class()
     {
-        return $this->belongsTo(School::class);
+        return $this->belongsTo(ClassModel::class, 'class_id');
+    }
+
+    /**
+     * Get the exam room for this exam
+     */
+    public function examroom()
+    {
+        return $this->belongsTo(Examroom::class, 'examroom_id');
+    }
+
+    /**
+     * Alternative relationship name (if you use 'room' instead of 'examroom')
+     */
+    public function room()
+    {
+        return $this->belongsTo(Examroom::class, 'examroom_id');
+    }
+
+    /**
+     * Get the time slot for this exam
+     */
+    public function timeSlot()
+    {
+        return $this->belongsTo(TimeSlot::class, 'time_slot_id');
+    }
+
+    /**
+     * Get the lecturer assigned to this exam
+     */
+    public function lecturer()
+    {
+        return $this->belongsTo(User::class, 'lecturer_id');
+    }
+
+    /**
+     * Get the invigilator for this exam
+     */
+    public function invigilator()
+    {
+        return $this->belongsTo(User::class, 'invigilator_id');
+    }
+
+    /**
+     * Get students enrolled in this exam's unit
+     */
+    public function students()
+    {
+        return $this->hasManyThrough(
+            User::class,
+            Enrollment::class,
+            'unit_id',     // Foreign key on enrollments table
+            'id',          // Foreign key on users table
+            'unit_id',     // Local key on exam_timetables table
+            'student_id'   // Local key on enrollments table
+        )->where('enrollments.semester_id', $this->semester_id);
+    }
+
+    /**
+     * Scope to get exams for a specific student
+     */
+    public function scopeForStudent($query, $studentId)
+    {
+        return $query->whereHas('students', function ($q) use ($studentId) {
+            $q->where('users.id', $studentId);
+        });
+    }
+
+    /**
+     * Scope to get exams for a specific lecturer
+     */
+    public function scopeForLecturer($query, $lecturerId)
+    {
+        return $query->where('lecturer_id', $lecturerId)
+                    ->orWhere('invigilator_id', $lecturerId);
     }
 }
