@@ -726,79 +726,6 @@ class ExamTimetableController extends Controller
 
 // Add these methods to your ExamTimetableController class
 
-public function studentExamTimetable()
-{
-    $user = auth()->user();
-    
-    // Get student's enrollments
-    $enrollments = $user->enrollments()->with(['unit', 'semester', 'class'])->get();
-    
-    if ($enrollments->isEmpty()) {
-        return Inertia::render('Student/ExamTimetable', [
-            'examTimetables' => collect([]),
-            'enrollments' => collect([]),
-            'message' => 'No enrollments found. Please enroll in units to view your exam timetable.'
-        ]);
-    }
-    
-    // Get exam timetables for enrolled units
-    $examTimetables = ExamTimetable::whereIn('unit_id', $enrollments->pluck('unit_id'))
-        ->whereIn('semester_id', $enrollments->pluck('semester_id'))
-        ->with([
-            'unit', 
-            'semester', 
-            'class', 
-            'examroom', // This relationship should now work
-            'timeSlot',
-            'lecturer'
-        ])
-        ->orderBy('date')
-        ->orderBy('start_time')
-        ->get();
-    
-    return Inertia::render('Student/ExamTimetable', [
-        'examTimetables' => $examTimetables,
-        'enrollments' => $enrollments,
-        'student' => $user
-    ]);
-}
-
-/**
- * Alternative method if examroom relationship still doesn't work
- */
-public function studentExamTimetableAlternative()
-{
-    $user = auth()->user();
-    
-    // Get student's enrollments
-    $enrollments = $user->enrollments()->with(['unit', 'semester', 'class'])->get();
-    
-    if ($enrollments->isEmpty()) {
-        return Inertia::render('Student/ExamTimetable', [
-            'examTimetables' => collect([]),
-            'enrollments' => collect([]),
-            'message' => 'No enrollments found.'
-        ]);
-    }
-    
-    // Get exam timetables without the problematic relationship first
-    $examTimetables = ExamTimetable::whereIn('unit_id', $enrollments->pluck('unit_id'))
-        ->whereIn('semester_id', $enrollments->pluck('semester_id'))
-        ->with(['unit', 'semester', 'class', 'timeSlot', 'lecturer'])
-        ->orderBy('date')
-        ->orderBy('start_time')
-        ->get();
-    
-    // Manually load examroom data if needed
-    $examTimetables->load('examroom');
-    
-    return Inertia::render('Student/ExamTimetable', [
-        'examTimetables' => $examTimetables,
-        'enrollments' => $enrollments,
-        'student' => $user
-    ]);
-}
-
 /**
  * Show the form for creating a new resource.
  */
@@ -925,15 +852,9 @@ public function viewStudentExamDetails($examtimetableId)
     }
 }
 
-/**
- * Download student's exam timetable as PDF
- */
-
-
-// REPLACE your downloadStudentTimetable method in ExamTimetableController with this:
 
 /**
- * Download student's exam timetable as PDF - FIXED VERSION
+ * Download student's exam timetable as PDF - Using examtimetables/student.blade.php
  */
 public function downloadStudentTimetable(Request $request)
 {
@@ -954,8 +875,8 @@ public function downloadStudentTimetable(Request $request)
             return redirect()->back()->with('error', 'No enrollments found. Cannot generate timetable.');
         }
 
-        // Get exam timetables for enrolled units using the existing schema
-        $examTimetables = ExamTimetable::query()
+        // Build query for exam timetables
+        $query = ExamTimetable::query()
             ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
             ->leftJoin('semesters', 'exam_timetables.semester_id', '=', 'semesters.id')
             ->leftJoin('classes', 'exam_timetables.class_id', '=', 'classes.id')
@@ -963,7 +884,7 @@ public function downloadStudentTimetable(Request $request)
             ->whereIn('exam_timetables.semester_id', $enrollments->pluck('semester_id'))
             ->select(
                 'exam_timetables.id',
-                'exam_timetables.date as exam_date',
+                'exam_timetables.date',
                 'exam_timetables.day',
                 'exam_timetables.start_time',
                 'exam_timetables.end_time',
@@ -977,31 +898,69 @@ public function downloadStudentTimetable(Request $request)
                 'units.name as unit_name',
                 'units.code as unit_code',
                 'classes.name as class_name',
-                'classes.code as class_code',
+                \Schema::hasColumn('classes', 'code') 
+                    ? 'classes.code as class_code'
+                    : DB::raw('CONCAT("CLASS-", classes.id) as class_code'),
                 'semesters.name as semester_name'
             )
             ->orderBy('exam_timetables.date')
-            ->orderBy('exam_timetables.start_time')
-            ->get();
+            ->orderBy('exam_timetables.start_time');
 
         // Filter by semester if requested
         if ($request->has('semester_id') && $request->semester_id) {
-            $examTimetables = $examTimetables->where('semester_id', $request->semester_id);
+            $query->where('exam_timetables.semester_id', $request->semester_id);
+            $selectedSemester = Semester::find($request->semester_id);
+        } else {
+            // Get current/active semester
+            $selectedSemester = $enrollments->first()->semester;
         }
+
+        $examTimetables = $query->get();
 
         Log::info('Found exam timetables for PDF', [
             'user_id' => $user->id,
-            'count' => $examTimetables->count()
+            'count' => $examTimetables->count(),
+            'semester' => $selectedSemester->name ?? 'Unknown'
         ]);
 
-        // Always create HTML content directly
-        $html = $this->generateStudentPdfHtml($examTimetables, $user);
+        // Check if Blade template exists
+        if (!view()->exists('examtimetables.student')) {
+            Log::error('Blade template not found: examtimetables.student');
+            return redirect()->back()->with('error', 'PDF template not found. Please contact the administrator.');
+        }
 
-        // Generate PDF using DomPDF
-        $pdf = PDF::loadHTML($html);
+        // Prepare data for Blade template
+        $data = [
+            'examTimetables' => $examTimetables,
+            'student' => $user,
+            'currentSemester' => $selectedSemester,
+            'title' => 'Student Exam Timetable',
+            'generatedAt' => now()->format('F j, Y \a\t g:i A'),
+            'studentName' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+            'studentId' => $user->student_id ?? $user->code ?? $user->id,
+        ];
+
+        // Test the view first to catch any errors
+        try {
+            $viewContent = view('examtimetables.student', $data)->render();
+            Log::info('Blade template rendered successfully', [
+                'content_length' => strlen($viewContent),
+                'user_id' => $user->id
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Blade template rendering failed', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return redirect()->back()->with('error', 'Error rendering PDF template: ' . $e->getMessage());
+        }
+
+        // Generate PDF using examtimetables/student.blade.php template
+        $pdf = PDF::loadView('examtimetables.student', $data);
         $pdf->setPaper('a4', 'portrait');
         
-        // Set PDF options
+        // Set PDF options for better rendering
         $pdf->setOptions([
             'defaultFont' => 'Arial',
             'isHtml5ParserEnabled' => true,
@@ -1011,18 +970,31 @@ public function downloadStudentTimetable(Request $request)
             'debugCss' => false,
         ]);
 
-        $filename = "exam-timetable-{$user->student_id}-" . now()->format('Y-m-d') . ".pdf";
+        $studentId = $user->student_id ?? $user->code ?? $user->id;
+        $filename = "exam-timetable-{$studentId}-" . now()->format('Y-m-d') . ".pdf";
         
         Log::info('PDF generated successfully', [
             'user_id' => $user->id,
             'filename' => $filename
         ]);
 
-        // Force download with proper headers
-        return response($pdf->output(), 200, [
+        // Generate PDF content and check if it's actually PDF
+        $pdfContent = $pdf->output();
+        
+        // Check if the content is actually a PDF (starts with %PDF)
+        if (substr($pdfContent, 0, 4) !== '%PDF') {
+            Log::error('Generated content is not a valid PDF', [
+                'user_id' => $user->id,
+                'content_start' => substr($pdfContent, 0, 100)
+            ]);
+            return redirect()->back()->with('error', 'Failed to generate valid PDF. Please try again.');
+        }
+
+        // Return PDF as download with proper headers
+        return response($pdfContent, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            'Content-Length' => strlen($pdf->output()),
+            'Content-Length' => strlen($pdfContent),
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
             'Expires' => '0'
@@ -1035,115 +1007,123 @@ public function downloadStudentTimetable(Request $request)
             'trace' => $e->getTraceAsString()
         ]);
 
-        return redirect()->back()->with('error', 'Failed to generate PDF. Please try again or contact support.');
+        return redirect()->back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
     }
 }
-
-/**
- * Generate HTML content for student PDF
- */
-private function generateStudentPdfHtml($examTimetables, $user)
+ public function viewStudentTimetable(Request $request)
 {
-    $html = '
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Student Exam Timetable</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #4f46e5; padding-bottom: 15px; }
-            .header h1 { color: #4f46e5; margin: 0; font-size: 24px; }
-            .student-info { background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-            .student-info h2 { margin: 0 0 10px 0; color: #374151; font-size: 18px; }
-            .student-info p { margin: 5px 0; color: #6b7280; }
-            .timetable-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            .timetable-table th { background-color: #4f46e5; color: white; padding: 12px; text-align: left; font-weight: bold; font-size: 12px; }
-            .timetable-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
-            .timetable-table tr:nth-child(even) { background-color: #f9fafb; }
-            .unit-code { font-weight: bold; color: #4f46e5; }
-            .unit-name { color: #6b7280; font-size: 10px; }
-            .venue { background-color: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
-            .time-slot { font-family: monospace; background-color: #f1f5f9; padding: 4px 8px; border-radius: 4px; font-size: 10px; }
-            .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 15px; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Student Exam Timetable</h1>
-            <p>Academic Examination Schedule</p>
-        </div>
+    $user = $request->user();
 
-        <div class="student-info">
-            <h2>Student Information</h2>
-            <p><strong>Name:</strong> ' . htmlspecialchars($user->first_name . ' ' . $user->last_name) . '</p>
-            <p><strong>Student ID:</strong> ' . htmlspecialchars($user->student_id ?? $user->code ?? 'N/A') . '</p>
-            <p><strong>Email:</strong> ' . htmlspecialchars($user->email) . '</p>
-            <p><strong>Generated:</strong> ' . now()->format('Y-m-d H:i:s') . '</p>
-        </div>';
+    // Get student's enrollments
+    $enrollments = $user->enrollments()->with(['unit', 'semester', 'class'])->get();
 
-    if ($examTimetables->count() > 0) {
-        $html .= '
-        <table class="timetable-table">
-            <thead>
-                <tr>
-                    <th>Date & Day</th>
-                    <th>Unit</th>
-                    <th>Time</th>
-                    <th>Venue</th>
-                    <th>Invigilator</th>
-                    <th>Students</th>
-                </tr>
-            </thead>
-            <tbody>';
+    // Get exam timetables for enrolled units
+    $examTimetables = \App\Models\ExamTimetable::whereIn('unit_id', $enrollments->pluck('unit_id'))
+        ->whereIn('semester_id', $enrollments->pluck('semester_id'))
+        ->with(['unit', 'semester', 'class', 'examroom'])
+        ->orderBy('date')
+        ->orderBy('start_time')
+        ->get();
 
-        foreach ($examTimetables as $exam) {
-            $examDate = \Carbon\Carbon::parse($exam->exam_date);
-            $html .= '
-                <tr>
-                    <td>
-                        <div style="font-weight: bold;">' . $examDate->format('M d, Y') . '</div>
-                        <div class="unit-name">' . htmlspecialchars($exam->day) . '</div>
-                    </td>
-                    <td>
-                        <div class="unit-code">' . htmlspecialchars($exam->unit_code) . '</div>
-                        <div class="unit-name">' . htmlspecialchars($exam->unit_name) . '</div>
-                    </td>
-                    <td>
-                        <div class="time-slot">' . htmlspecialchars($exam->start_time . ' - ' . $exam->end_time) . '</div>
-                    </td>
-                    <td>
-                        <div class="venue">' . htmlspecialchars($exam->venue) . '</div>';
-            if ($exam->location) {
-                $html .= '<div class="unit-name">' . htmlspecialchars($exam->location) . '</div>';
-            }
-            $html .= '
-                    </td>
-                    <td>' . htmlspecialchars($exam->chief_invigilator) . '</td>
-                    <td style="text-align: center; font-weight: bold;">' . $exam->no . '</td>
-                </tr>';
+    return \Inertia\Inertia::render('Student/ExamTimetable', [
+        'examTimetables' => $examTimetables,
+    ]);
+}
+
+public function studentExamTimetable(Request $request)
+{
+    $user = auth()->user();
+    
+    try {
+        // Get student's enrollments
+        $enrollments = $user->enrollments()->with(['unit', 'semester', 'class'])->get();
+        
+        if ($enrollments->isEmpty()) {
+            return Inertia::render('Student/ExamTimetable', [
+                'examTimetables' => collect([]),
+                'semesters' => collect([]),
+                'selectedSemesterId' => null,
+                'message' => 'No enrollments found. Please enroll in units to view your exam timetable.'
+            ]);
         }
 
-        $html .= '
-            </tbody>
-        </table>';
-    } else {
-        $html .= '
-        <div style="text-align: center; padding: 40px; color: #6b7280;">
-            <h3>No Exam Timetables Found</h3>
-            <p>You don\'t have any scheduled examinations at this time.</p>
-        </div>';
+        // Get available semesters from enrollments
+        $semesters = $enrollments->pluck('semester')->unique('id')->values();
+        
+        // Determine selected semester
+        $selectedSemesterId = $request->get('semester_id');
+        if (!$selectedSemesterId) {
+            // Default to the first semester or current semester
+            $selectedSemesterId = $semesters->first()->id ?? null;
+        }
+
+        // Get exam timetables for enrolled units
+        $query = ExamTimetable::query()
+            ->leftJoin('units', 'exam_timetables.unit_id', '=', 'units.id')
+            ->leftJoin('semesters', 'exam_timetables.semester_id', '=', 'semesters.id')
+            ->leftJoin('classes', 'exam_timetables.class_id', '=', 'classes.id')
+            ->whereIn('exam_timetables.unit_id', $enrollments->pluck('unit_id'))
+            ->whereIn('exam_timetables.semester_id', $enrollments->pluck('semester_id'))
+            ->select(
+                'exam_timetables.id',
+                'exam_timetables.date',
+                'exam_timetables.day',
+                'exam_timetables.start_time',
+                'exam_timetables.end_time',
+                'exam_timetables.venue',
+                'exam_timetables.location',
+                'exam_timetables.no',
+                'exam_timetables.chief_invigilator',
+                'exam_timetables.unit_id',
+                'exam_timetables.semester_id',
+                'exam_timetables.class_id',
+                'units.name as unit_name',
+                'units.code as unit_code',
+                'classes.name as class_name',
+                \Schema::hasColumn('classes', 'code') 
+                    ? 'classes.code as class_code'
+                    : DB::raw('CONCAT("CLASS-", classes.id) as class_code'),
+                'semesters.name as semester_name'
+            );
+
+        // Filter by selected semester if specified
+        if ($selectedSemesterId) {
+            $query->where('exam_timetables.semester_id', $selectedSemesterId);
+        }
+
+        $examTimetables = $query->orderBy('exam_timetables.date')
+            ->orderBy('exam_timetables.start_time')
+            ->get();
+
+        Log::info('Student exam timetable loaded', [
+            'user_id' => $user->id,
+            'enrollments_count' => $enrollments->count(),
+            'semesters_count' => $semesters->count(),
+            'exams_count' => $examTimetables->count(),
+            'selected_semester_id' => $selectedSemesterId
+        ]);
+
+        return Inertia::render('Student/ExamTimetable', [
+            'examTimetables' => $examTimetables,
+            'semesters' => $semesters,
+            'selectedSemesterId' => $selectedSemesterId,
+            'enrollments' => $enrollments,
+            'student' => $user
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error loading student exam timetable', [
+            'user_id' => $user->id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return Inertia::render('Student/ExamTimetable', [
+            'examTimetables' => collect([]),
+            'semesters' => collect([]),
+            'selectedSemesterId' => null,
+            'message' => 'Error loading exam timetable. Please try again or contact support.'
+        ]);
     }
-
-    $html .= '
-        <div class="footer">
-            <p>This document was automatically generated on ' . now()->format('Y-m-d H:i:s') . '</p>
-            <p>For any discrepancies, please contact the examination office immediately.</p>
-            <p>© ' . date('Y') . ' Timetabling System Management - All rights reserved</p>
-        </div>
-    </body>
-    </html>';
-
-    return $html;
 }
 }
