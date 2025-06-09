@@ -1,8 +1,9 @@
-"use client";
+
 
 import React, { useState, useEffect } from "react";
 import { Head, usePage, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import { Shield, Plus, Edit, Trash2, X, Check, CheckCircle, Users, Key, Lock, Unlock, AlertTriangle, Settings } from 'lucide-react';
 
 interface Role {
   id: number;
@@ -147,332 +148,389 @@ const RolesIndex = () => {
   return (
     <AuthenticatedLayout>
       <Head title="Roles Management" />
-      <div className="p-6 bg-white rounded-lg shadow-md">
-        {/* Success message toast */}
-        {successMessage && (
-          <div className="fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md z-50 animate-fade-in-out">
-            <div className="flex items-center">
-              <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <p>{successMessage}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="max-w-7xl mx-auto p-6">
+          {/* Success message toast */}
+          {successMessage && (
+            <div className="fixed top-6 right-6 bg-gradient-to-r from-green-400 to-green-600 text-white p-4 rounded-2xl shadow-2xl z-50 transform transition-all duration-500 ease-in-out animate-bounce">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-6 w-6" />
+                <p className="font-medium">{successMessage}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Roles Management</h1>
-          <button
-            onClick={() => handleOpenModal("create")}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center shadow-sm transition-colors duration-200"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Create Role
-          </button>
-        </div>
-
-        {roles.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permissions</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {roles.map((role, index) => (
-                  role && (
-                    <tr key={role.id} className="hover:bg-gray-50 transition-colors duration-150">
-                      <td className="px-4 py-3 whitespace-nowrap">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{role.name || "N/A"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1 max-w-md">
-                          {role.permissions?.map((permission) => (
-                            permission && (
-                              <span
-                                key={permission.id}
-                                className="inline-block bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-full"
-                              >
-                                {permission.name || "N/A"}
-                              </span>
-                            )
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleOpenModal("edit", role)}
-                            className="px-3 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors duration-200 flex items-center"
-                          >
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleOpenModal("delete", role)}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200 flex items-center"
-                          >
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="bg-gray-50 rounded-lg p-8 text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No roles found</h3>
-            <p className="mt-1 text-sm text-gray-500">Get started by creating a new role.</p>
-            <div className="mt-6">
-              <button
-                onClick={() => handleOpenModal("create")}
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                New Role
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-96 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-800">
-                  {modalType === "create" && "Create Role"}
-                  {modalType === "edit" && "Edit Role"}
-                  {modalType === "delete" && "Delete Role"}
-                </h2>
+          {/* Header Section */}
+          <div className="mb-8">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+                    <Shield className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                      Roles Management
+                    </h1>
+                    <p className="text-gray-600 text-lg">
+                      Manage user roles and permissions for your system
+                    </p>
+                  </div>
+                </div>
+                
                 <button
-                  onClick={handleCloseModal}
-                  className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                  onClick={() => handleOpenModal("create")}
+                  className="group flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
                 >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                  Create Role
                 </button>
               </div>
-
-              {modalType === "delete" ? (
-                <>
-                  <div className="p-4 mb-4 bg-red-50 border-l-4 border-red-400 text-red-700">
-                    <div className="flex">
-                      <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      <p>
-                        Are you sure you want to delete the role <strong>{selectedRole?.name || "N/A"}</strong>?
-                        This action cannot be undone.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end space-x-2 mt-4">
-                    <button
-                      onClick={handleCloseModal}
-                      className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors duration-200"
-                      disabled={isLoading}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSubmit}
-                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200 flex items-center"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Delete
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <form onSubmit={handleSubmit}>
-                  <div className="mb-4">
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                      Role Name
-                    </label>
-                    <input
-                      id="name"
-                      type="text"
-                      value={formState.name}
-                      onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                      required
-                      className={`w-full border rounded px-3 py-2 mt-1 focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.name ? "border-red-500" : "border-gray-300"
-                      }`}
-                      placeholder="Enter role name"
-                      disabled={isLoading}
-                    />
-                    {errors.name && (
-                      <p className="text-red-500 text-xs mt-1">{errors.name}</p>
-                    )}
-                  </div>
-                  <div className="mb-4">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Permissions 
-                      </label>
-                      {formState.permissions.length > 0 && 
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                          {formState.permissions.length} selected
-                        </span>
-                      }
-                    </div>
-                    <div className="flex space-x-2 mb-2">
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const allPermIds = allPermissions.map(p => p.id);
-                          setFormState(prev => ({
-                            ...prev,
-                            permissions: allPermIds
-                          }));
-                        }}
-                        className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full hover:bg-green-200 transition-colors duration-200 flex items-center shadow-sm"
-                        disabled={isLoading}
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Select All
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setFormState(prev => ({
-                            ...prev,
-                            permissions: []
-                          }));
-                        }}
-                        className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full hover:bg-red-200 transition-colors duration-200 flex items-center shadow-sm"
-                        disabled={isLoading}
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Clear All
-                      </button>
-                    </div>
-                    <div className={`h-72 overflow-y-auto border rounded p-3 mt-2 ${
-                      errors.permissions ? "border-red-500" : "border-gray-300"
-                    }`}>
-                      <div className="grid grid-cols-2 gap-2">
-                        {allPermissions.map((permission) => (
-                          permission && (
-                            <div 
-                              key={`perm-${permission.id}-${permissionKey}`} 
-                              className={`flex items-center p-2 rounded ${formState.permissions.includes(permission.id) ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                            >
-                              <input
-                                type="checkbox"
-                                id={`permission-${permission.id}`}
-                                checked={formState.permissions.includes(permission.id)}
-                                onChange={() => togglePermission(permission.id)}
-                                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
-                                disabled={isLoading}
-                              />
-                              <label 
-                                htmlFor={`permission-${permission.id}`} 
-                                className={`text-sm cursor-pointer ${formState.permissions.includes(permission.id) ? 'font-medium text-blue-700' : 'text-gray-700'}`}
-                              >
-                                {permission.name || "N/A"}
-                              </label>
-                            </div>
-                          )
-                        ))}
-                      </div>
-                      {modalType === "edit" && formState.permissions.length === 0 && (
-                        <div className="text-yellow-600 text-sm italic mt-2 text-center">
-                          No permissions selected. Please select at least one permission.
-                        </div>
-                      )}
-                    </div>
-                    {errors.permissions && (
-                      <p className="text-red-500 text-xs mt-1">{errors.permissions}</p>
-                    )}
-                  </div>
-                  <div className="flex justify-end space-x-2 mt-4">
-                    <button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors duration-200"
-                      disabled={isLoading}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200 flex items-center"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          {modalType === "create" ? "Creating..." : "Updating..."}
-                        </>
-                      ) : (
-                        <>
-                          {modalType === "create" && (
-                            <>
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              Create
-                            </>
-                          )}
-                          {modalType === "edit" && (
-                            <>
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Update
-                            </>
-                          )}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              )}
             </div>
           </div>
-        )}
+
+          {/* Roles Content */}
+          {roles.length > 0 ? (
+            <div className="grid gap-6">
+              {roles.map((role, index) => (
+                role && (
+                  <div
+                    key={role.id}
+                    className="group bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2"
+                  >
+                    <div className="flex flex-col lg:flex-row gap-6">
+                      {/* Role Info Section */}
+                      <div className="flex-1">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <span className="text-white font-bold text-lg">#{index + 1}</span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h3 className="text-2xl font-bold text-gray-800">{role.name || "N/A"}</h3>
+                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full font-medium">
+                                Role
+                              </span>
+                            </div>
+                            
+                            <div className="mb-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Key className="w-4 h-4 text-indigo-500" />
+                                <span className="text-sm font-medium text-gray-600">
+                                  Permissions ({role.permissions?.length || 0})
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {role.permissions?.map((permission) => (
+                                  permission && (
+                                    <span
+                                      key={permission.id}
+                                      className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 text-xs font-medium px-3 py-1 rounded-full border border-blue-200"
+                                    >
+                                      <Lock className="w-3 h-3" />
+                                      {permission.name || "N/A"}
+                                    </span>
+                                  )
+                                )) || (
+                                  <span className="text-gray-500 text-sm italic">No permissions assigned</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions Section */}
+                      <div className="flex lg:flex-col gap-3 lg:w-40">
+                        <button
+                          onClick={() => handleOpenModal("edit", role)}
+                          className="group/btn flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex-1 lg:flex-none"
+                        >
+                          <Edit className="w-4 h-4 group-hover/btn:rotate-12 transition-transform duration-300" />
+                          <span>Edit</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => handleOpenModal("delete", role)}
+                          className="group/btn flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex-1 lg:flex-none"
+                        >
+                          <Trash2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform duration-300" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 border border-white/20 shadow-lg max-w-2xl mx-auto">
+                <div className="w-24 h-24 bg-gradient-to-r from-purple-400 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Users className="w-12 h-12 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">No Roles Found</h3>
+                <p className="text-gray-600 text-lg mb-6">
+                  Get started by creating your first role to manage user permissions.
+                </p>
+                <button
+                  onClick={() => handleOpenModal("create")}
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+                >
+                  <Plus className="w-5 h-5" />
+                  Create First Role
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Enhanced Modal */}
+          {isModalOpen && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100" onClick={(e) => e.stopPropagation()}>
+                <div className="p-8">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        modalType === "create" ? "bg-gradient-to-r from-green-400 to-green-600" :
+                        modalType === "edit" ? "bg-gradient-to-r from-amber-400 to-orange-500" :
+                        "bg-gradient-to-r from-red-400 to-red-600"
+                      }`}>
+                        {modalType === "create" && <Plus className="w-5 h-5 text-white" />}
+                        {modalType === "edit" && <Edit className="w-5 h-5 text-white" />}
+                        {modalType === "delete" && <Trash2 className="w-5 h-5 text-white" />}
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-800">
+                        {modalType === "create" && "Create New Role"}
+                        {modalType === "edit" && "Edit Role"}
+                        {modalType === "delete" && "Delete Role"}
+                      </h2>
+                    </div>
+                    <button
+                      onClick={handleCloseModal}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+
+                  {modalType === "delete" ? (
+                    <div className="space-y-6">
+                      <div className="p-6 bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-2xl">
+                        <div className="flex items-start gap-4">
+                          <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />
+                          <div>
+                            <h3 className="font-semibold text-red-800 mb-2">Confirm Deletion</h3>
+                            <p className="text-red-700">
+                              Are you sure you want to delete the role <strong>{selectedRole?.name || "N/A"}</strong>?
+                              This action cannot be undone and will remove all associated permissions.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          onClick={handleCloseModal}
+                          className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-colors duration-200"
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSubmit}
+                          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="w-4 h-4" />
+                              Delete Role
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      <div>
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Settings className="w-4 h-4 text-indigo-500" />
+                          Role Name
+                        </label>
+                        <input
+                          id="name"
+                          type="text"
+                          value={formState.name}
+                          onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+                          required
+                          className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 ${
+                            errors.name ? "border-red-500 bg-red-50" : "border-gray-300"
+                          }`}
+                          placeholder="Enter role name (e.g., Admin, Editor, Viewer)"
+                          disabled={isLoading}
+                        />
+                        {errors.name && (
+                          <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            {errors.name}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-3">
+                          <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <Key className="w-4 h-4 text-green-500" />
+                            Permissions 
+                          </label>
+                          {formState.permissions.length > 0 && 
+                            <span className="text-xs bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-3 py-1 rounded-full font-medium">
+                              {formState.permissions.length} selected
+                            </span>
+                          }
+                        </div>
+                        
+                        <div className="flex gap-3 mb-4">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const allPermIds = allPermissions.map(p => p.id);
+                              setFormState(prev => ({
+                                ...prev,
+                                permissions: allPermIds
+                              }));
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-100 to-green-200 hover:from-green-200 hover:to-green-300 text-green-700 text-sm rounded-xl font-medium transition-all duration-200"
+                            disabled={isLoading}
+                          >
+                            <Check className="w-3 h-3" />
+                            Select All
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setFormState(prev => ({
+                                ...prev,
+                                permissions: []
+                              }));
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-100 to-red-200 hover:from-red-200 hover:to-red-300 text-red-700 text-sm rounded-xl font-medium transition-all duration-200"
+                            disabled={isLoading}
+                          >
+                            <X className="w-3 h-3" />
+                            Clear All
+                          </button>
+                        </div>
+                        
+                        <div className={`h-80 overflow-y-auto border rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100 ${
+                          errors.permissions ? "border-red-500" : "border-gray-300"
+                        }`}>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {allPermissions.map((permission) => (
+                              permission && (
+                                <div 
+                                  key={`perm-${permission.id}-${permissionKey}`} 
+                                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                                    formState.permissions.includes(permission.id) 
+                                      ? 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 shadow-sm' 
+                                      : 'bg-white hover:bg-gray-50 border border-gray-200'
+                                  }`}
+                                  onClick={() => togglePermission(permission.id)}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    id={`permission-${permission.id}`}
+                                    checked={formState.permissions.includes(permission.id)}
+                                    onChange={() => togglePermission(permission.id)}
+                                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                    disabled={isLoading}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    {formState.permissions.includes(permission.id) ? (
+                                      <Unlock className="w-4 h-4 text-blue-600" />
+                                    ) : (
+                                      <Lock className="w-4 h-4 text-gray-400" />
+                                    )}
+                                    <label 
+                                      htmlFor={`permission-${permission.id}`} 
+                                      className={`text-sm cursor-pointer select-none ${
+                                        formState.permissions.includes(permission.id) 
+                                          ? 'font-medium text-blue-700' 
+                                          : 'text-gray-700'
+                                      }`}
+                                    >
+                                      {permission.name || "N/A"}
+                                    </label>
+                                  </div>
+                                </div>
+                              )
+                            ))}
+                          </div>
+                          {modalType === "edit" && formState.permissions.length === 0 && (
+                            <div className="text-center py-8">
+                              <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+                              <p className="text-yellow-600 text-sm italic">
+                                No permissions selected. Please select at least one permission.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {errors.permissions && (
+                          <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            {errors.permissions}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4 border-t">
+                        <button
+                          type="button"
+                          onClick={handleCloseModal}
+                          className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-colors duration-200"
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              {modalType === "create" ? "Creating..." : "Updating..."}
+                            </>
+                          ) : (
+                            <>
+                              {modalType === "create" ? (
+                                <>
+                                  <Plus className="w-4 h-4" />
+                                  Create Role
+                                </>
+                              ) : (
+                                <>
+                                  <Edit className="w-4 h-4" />
+                                  Update Role
+                                </>
+                              )}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </AuthenticatedLayout>
   );

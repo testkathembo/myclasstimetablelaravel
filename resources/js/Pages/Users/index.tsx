@@ -171,11 +171,10 @@ const Users = () => {
     return (
         <AuthenticatedLayout>
             <Head title="Users" />
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
                     {/* Header Section */}
-                    <div className="mb-8">
-                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+                    <div className="">
+                        <div className="bg-white rounded-2xl shadow-xl border p-8">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <h1 className="text-4xl font-bold text-slate-800 mb-2">User Management</h1>
@@ -195,7 +194,7 @@ const Users = () => {
                     </div>
 
                     {/* Controls Section */}
-                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 mb-8">
+                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                             {/* Search */}
                             <form onSubmit={handleSearch} className="flex items-center space-x-3">
@@ -242,8 +241,8 @@ const Users = () => {
                     </div>
 
                     {/* Users Table */}
-                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-                        <div className="overflow-x-auto">
+                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200">
+                        <div className="">
                             <table className="w-full">
                                 <thead className="bg-slate-50">
                                     <tr>
@@ -360,8 +359,7 @@ const Users = () => {
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
+                </div>            
 
             {/* Modal */}
             {isModalOpen && (

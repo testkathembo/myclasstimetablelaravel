@@ -300,21 +300,14 @@ export default function Sidebar() {
               >
                 <Settings className="mr-3 h-5 w-5" />
                 Settings
-              </Link>
-              <Link
-                href="/schools"
-                className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Building className="mr-3 h-5 w-5" />
-                Schools
-              </Link>
+              </Link>              
             </div>
           </RoleAwareComponent>
 
           {/* Academic Management Section - For Admin and Academic Staff */}
           <RoleAwareComponent requiredRoles={["Admin", "Academic Staff"]}>
             <div className="pt-4">
-              {/* <button
+               <button
                 onClick={() => toggleSection("academic")}
                 className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
               >
@@ -323,27 +316,21 @@ export default function Sidebar() {
                   <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Academic Management
                   </span>
-                </div>
-                {openSection === "academic" ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </div>                
               </button>
+              <Link
+                href="/schools"
+                className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Building className="mr-3 h-5 w-5" />
+                Schools
+              </Link>
 
-              {openSection === "academic" && (
-                <div className="ml-4 mt-1 space-y-1">
-                  
-                  <Link
-                    href="/schools"
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                  >
-                    <Users className="mr-3 h-5 w-5" />
-                    Schools
-                  </Link>
-                </div>
-              )} */}
+         
             </div>
-          </RoleAwareComponent>
+        
 
-          {/* Schools Section - For Admin and Academic Staff */}
-          <RoleAwareComponent requiredRoles={["Admin", "Academic Staff"]}>
+    
             <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Schools</p>
             {schools.map((school) => (
               <div key={school.name} className="mt-1">

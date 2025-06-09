@@ -43,6 +43,8 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\PortalPreviewController;
 use Illuminate\Http\Request;
+use App\Http\Controllers\SchoolController;
+
 
 $moduleRoutes = glob(base_path('Modules/*/routes/web.php'));
 
@@ -534,6 +536,19 @@ Route::middleware(['auth', 'permission:download-own-examtimetables'])->group(fun
     Route::get('/examtimetable/lecturer/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])
         ->name('examtimetable.lecturer.download');
 });
+
+// School routes
+Route::resource('schools', SchoolController::class);
+
+// Or individual routes:
+Route::get('/schools', [SchoolController::class, 'index'])->name('schools.index');
+Route::get('/schools/create', [SchoolController::class, 'create'])->name('schools.create');
+Route::post('/schools', [SchoolController::class, 'store'])->name('schools.store');
+Route::get('/schools/{school}', [SchoolController::class, 'show'])->name('schools.show');
+Route::get('/schools/{school}/edit', [SchoolController::class, 'edit'])->name('schools.edit');
+Route::put('/schools/{school}', [SchoolController::class, 'update'])->name('schools.update');
+Route::delete('/schools/{school}', [SchoolController::class, 'destroy'])->name('schools.destroy');
+Route::get('/schools/{school}/dashboard', [SchoolController::class, 'dashboard'])->name('schools.dashboard');
 
 // Catch-all route for SPA (must be at the bottom)
 Route::get('/{any}', function () {
