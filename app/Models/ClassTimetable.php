@@ -21,6 +21,7 @@ class ClassTimetable extends Model
         'day',
         'start_time',
         'end_time',
+        'teaching_mode', // ✅ ADDED: for teaching mode functionality
         'venue',
         'location',
         'no',

@@ -263,6 +263,39 @@ class ClassTimetableController extends Controller
         }
     }
 
+    private function createSingleTimetable(Request $request, Unit $unit, $programId, $schoolId)
+{
+    // You may want to add more validation or logic here as needed
+    $classTimetable = ClassTimetable::create([
+        'day' => $request->day,
+        'unit_id' => $unit->id,
+        'semester_id' => $request->semester_id,
+        'class_id' => $request->class_id,
+        'group_id' => $request->group_id ?: null,
+        'venue' => $request->venue,
+        'location' => $request->location,
+        'no' => $request->no,
+        'lecturer' => $request->lecturer,
+        'start_time' => $request->start_time,
+        'end_time' => $request->end_time,
+        'teaching_mode' => $request->teaching_mode ?? 'physical',
+        'program_id' => $programId,
+        'school_id' => $schoolId,
+    ]);
+
+    \Log::info('Single timetable entry created', [
+        'timetable_id' => $classTimetable->id,
+        'unit_code' => $unit->code,
+        'day' => $request->day,
+        'start_time' => $request->start_time,
+        'end_time' => $request->end_time,
+        'venue' => $request->venue,
+    ]);
+
+    return redirect()->back()->with('success', 'Class timetable created successfully.');
+}
+
+
     /**
      * ✅ FIXED: API endpoint to get units by class and semester
      */

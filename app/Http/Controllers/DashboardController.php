@@ -9,12 +9,200 @@ use App\Models\Enrollment;
 use App\Models\Semester;
 use App\Models\ExamTimetable;
 use App\Models\Unit;
-use App\Models\ClassTimetable; // Add this model
+use App\Models\ClassTimetable;
+use App\Models\School;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    /**
+     * Display the admin dashboard with real statistics.
+     */
+    public function adminDashboard(Request $request)
+    {
+        try {
+            // Get current semester
+            $currentSemester = Semester::where('is_active', true)->first();
+            if (!$currentSemester) {
+                $currentSemester = Semester::latest()->first();
+            }
+            
+            // Get previous month for comparison
+            $currentMonth = now();
+            $previousMonth = now()->subMonth();
+            $previousWeek = now()->subWeek();
+            
+            // Total Users Statistics
+            $totalUsers = User::count();
+            $usersLastMonth = User::where('created_at', '>=', $previousMonth)
+                                 ->where('created_at', '<', $currentMonth)
+                                 ->count();
+            $usersPreviousMonth = User::where('created_at', '>=', $previousMonth->copy()->subMonth())
+                                     ->where('created_at', '<', $previousMonth)
+                                     ->count();
+            
+            $usersGrowthRate = $usersPreviousMonth > 0 
+                ? round((($usersLastMonth - $usersPreviousMonth) / $usersPreviousMonth) * 100, 1)
+                : ($usersLastMonth > 0 ? 100 : 0);
+            
+            // Active Enrollments Statistics - FIXED to count all real enrollments
+$activeEnrollments = Enrollment::whereNotNull('student_code')->count();
+
+$enrollmentsLastWeek = Enrollment::where('created_at', '>=', $previousWeek)
+                                ->where('created_at', '<', $currentMonth)
+                                ->whereNotNull('student_code')
+                                ->count();
+
+$enrollmentsPreviousWeek = Enrollment::where('created_at', '>=', $previousWeek->copy()->subWeek())
+                                   ->where('created_at', '<', $previousWeek)
+                                   ->whereNotNull('student_code')
+                                   ->count();
+            if ($currentSemester) {
+                $activeEnrollments = Enrollment::where('semester_id', $currentSemester->id)
+                                              ->whereNotNull('student_code')
+                                              ->count();
+                
+                $enrollmentsLastWeek = Enrollment::where('semester_id', $currentSemester->id)
+                                                ->where('created_at', '>=', $previousWeek)
+                                                ->whereNotNull('student_code')
+                                                ->count();
+                
+                $enrollmentsPreviousWeek = Enrollment::where('semester_id', $currentSemester->id)
+                                                   ->where('created_at', '>=', $previousWeek->copy()->subWeek())
+                                                   ->where('created_at', '<', $previousWeek)
+                                                   ->whereNotNull('student_code')
+                                                   ->count();
+            }
+            
+            $enrollmentsGrowthRate = $enrollmentsPreviousWeek > 0 
+                ? round((($enrollmentsLastWeek - $enrollmentsPreviousWeek) / $enrollmentsPreviousWeek) * 100, 1)
+                : ($enrollmentsLastWeek > 0 ? 100 : 0);
+            
+            // Active Classes Statistics
+            $activeClasses = 0;
+            $classesLastMonth = 0;
+            $classesPreviousMonth = 0;
+            
+            if ($currentSemester) {
+                // Count distinct units that have enrollments in current semester
+                $activeClasses = Unit::whereHas('enrollments', function($query) use ($currentSemester) {
+                    $query->where('semester_id', $currentSemester->id);
+                })->count();
+                
+                // Classes added last month
+                $classesLastMonth = Unit::where('created_at', '>=', $previousMonth)
+                                       ->where('created_at', '<', $currentMonth)
+                                       ->count();
+                
+                $classesPreviousMonth = Unit::where('created_at', '>=', $previousMonth->copy()->subMonth())
+                                           ->where('created_at', '<', $previousMonth)
+                                           ->count();
+            }
+            
+            $classesGrowthRate = $classesPreviousMonth > 0 
+                ? round((($classesLastMonth - $classesPreviousMonth) / $classesPreviousMonth) * 100, 1)
+                : ($classesLastMonth > 0 ? 100 : 0);
+            
+            // Exam Sessions Statistics
+            $examSessions = 0;
+            $examsLastWeek = 0;
+            $examsPreviousWeek = 0;
+            
+            if ($currentSemester) {
+                $examSessions = ExamTimetable::where('semester_id', $currentSemester->id)
+                                           ->where('date', '>=', now()->format('Y-m-d'))
+                                           ->count();
+                
+                $examsLastWeek = ExamTimetable::where('semester_id', $currentSemester->id)
+                                            ->where('created_at', '>=', $previousWeek)
+                                            ->count();
+                
+                $examsPreviousWeek = ExamTimetable::where('semester_id', $currentSemester->id)
+                                                ->where('created_at', '>=', $previousWeek->copy()->subWeek())
+                                                ->where('created_at', '<', $previousWeek)
+                                                ->count();
+            }
+            
+            $examsGrowthRate = $examsPreviousWeek > 0 
+                ? round((($examsLastWeek - $examsPreviousWeek) / $examsPreviousWeek) * 100, 1)
+                : 0; // For exams, we might expect no growth or even decline
+            
+            // Recent Activities (optional - for future enhancement)
+            $recentEnrollments = Enrollment::with(['unit', 'student'])
+                                          ->whereNotNull('student_code')
+                                          ->latest()
+                                          ->limit(5)
+                                          ->get();
+            
+            // System Statistics
+            $totalSchools = School::count();
+            $totalSemesters = Semester::count();
+            
+            $dashboardData = [
+                'statistics' => [
+                    'totalUsers' => [
+                        'count' => $totalUsers,
+                        'growthRate' => $usersGrowthRate,
+                        'period' => 'from last month'
+                    ],
+                    'activeEnrollments' => [
+                        'count' => $activeEnrollments,
+                        'growthRate' => $enrollmentsGrowthRate,
+                        'period' => 'from last week'
+                    ],
+                    'activeClasses' => [
+                        'count' => $activeClasses,
+                        'growthRate' => $classesGrowthRate,
+                        'period' => 'from last month'
+                    ],
+                    'examSessions' => [
+                        'count' => $examSessions,
+                        'growthRate' => $examsGrowthRate,
+                        'period' => 'from last week'
+                    ]
+                ],
+                'currentSemester' => $currentSemester,
+                'systemInfo' => [
+                    'totalSchools' => $totalSchools,
+                    'totalSemesters' => $totalSemesters,
+                ],
+                'recentEnrollments' => $recentEnrollments
+            ];
+            
+            Log::info('Admin dashboard data generated', [
+                'total_users' => $totalUsers,
+                'active_enrollments' => $activeEnrollments,
+                'active_classes' => $activeClasses,
+                'exam_sessions' => $examSessions,
+                'current_semester' => $currentSemester ? $currentSemester->name : 'None'
+            ]);
+            
+            return Inertia::render('Admin/Dashboard', $dashboardData);
+            
+        } catch (\Exception $e) {
+            Log::error('Error in admin dashboard', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Return safe defaults in case of error
+            return Inertia::render('Admin/Dashboard', [
+                'statistics' => [
+                    'totalUsers' => ['count' => 0, 'growthRate' => 0, 'period' => 'from last month'],
+                    'activeEnrollments' => ['count' => 0, 'growthRate' => 0, 'period' => 'from last week'],
+                    'activeClasses' => ['count' => 0, 'growthRate' => 0, 'period' => 'from last month'],
+                    'examSessions' => ['count' => 0, 'growthRate' => 0, 'period' => 'from last week']
+                ],
+                'currentSemester' => null,
+                'systemInfo' => ['totalSchools' => 0, 'totalSemesters' => 0],
+                'recentEnrollments' => [],
+                'error' => 'Unable to load dashboard data'
+            ]);
+        }
+    }
+
     /**
      * Display the student dashboard.
      */

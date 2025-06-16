@@ -128,6 +128,7 @@ interface FormState {
   lecturer: string
   start_time: string
   end_time: string
+  teaching_mode?: string | null
   semester_id: number
   unit_id?: number
   unit_code?: string
@@ -448,6 +449,7 @@ const ClassTimetable = () => {
         lecturer: "",
         start_time: "",
         end_time: "",
+        teaching_mode: "physical",
         semester_id: 0,
         unit_id: 0,
         unit_code: "",
@@ -481,7 +483,11 @@ const ClassTimetable = () => {
         lecturer_name: unitEnrollment?.lecturer_name || "",
         class_id: classtimetable.class_id || null,  // ✅ Use null instead of 0
         group_id: classtimetable.group_id || null,  // ✅ Use null instead of 0
+        teaching_mode: classtimetable.teaching_mode || "physical",
       })
+
+
+      
 
       if (classtimetable.semester_id) {
         const semesterUnits = units.filter((unit) => unit.semester_id === classtimetable.semester_id)
@@ -800,6 +806,7 @@ const ClassTimetable = () => {
     }))
   }
 
+  
   // ✅ UPDATED: handleSubmitForm with validation and proper null handling
   const handleSubmitForm = (data: FormState) => {
     console.log('Raw form data received:', data);
@@ -1080,7 +1087,7 @@ const ClassTimetable = () => {
                     <th className="px-3 py-2">Day</th>
                     <th className="px-3 py-2">Start Time</th>
                     <th className="px-3 py-2">End Time</th>
-                    <th className="px-3 py-2">Mode</th>
+                    <th className="px-3 py-2">Teaching Mode</th>
                     <th className="px-3 py-2">Venue</th>                   
                     <th className="px-3 py-2">No</th>
                     <th className="px-3 py-2">Lecturer</th>
@@ -1178,7 +1185,7 @@ const ClassTimetable = () => {
                       <strong>Number of Students:</strong> {selectedClassTimetable.no}
                     </p>
                     <p>
-                      <strong>Mode of Teaching:</strong> {selectedClassTimetable.teaching_mode}
+                      <strong>Teaching Mode:</strong> {selectedClassTimetable.teaching_mode}
                     </p>
                     <p>
                       <strong>Lecturer:</strong> {selectedClassTimetable.lecturer}
@@ -1325,6 +1332,16 @@ const ClassTimetable = () => {
                           {group.name}
                         </option>
                       ))}
+                    </select>
+
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Mode of Teaching</label>
+                 <select 
+                    value={formState.teaching_mode || "physical"}
+                    onChange={e => handleCreateChange("teaching_mode", e.target.value)}
+                    className="w-full border rounded p-2 mb-3"
+                  >
+                    <option value="physical">Physical</option>
+                    <option value="online">Online</option>
                     </select>
 
                     {/* Update the info section */}

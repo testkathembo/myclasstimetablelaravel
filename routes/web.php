@@ -72,6 +72,30 @@ Route::any('/debug', function (Request $request) {
     return response()->json(['message' => 'Debug route']);
 });
 
+// Add debug route for testing database connectivity
+Route::get('/debug-dashboard', function() {
+    try {
+        $totalUsers = App\Models\User::count();
+        $totalEnrollments = App\Models\Enrollment::count();
+        $totalSemesters = App\Models\Semester::count();
+        $totalSchools = App\Models\School::count();
+        
+        return response()->json([
+            'database_working' => true,
+            'total_users' => $totalUsers,
+            'total_enrollments' => $totalEnrollments,
+            'total_semesters' => $totalSemesters,
+            'total_schools' => $totalSchools,
+            'current_user' => auth()->user() ? auth()->user()->toArray() : 'No user',
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'database_working' => false
+        ]);
+    }
+})->middleware('auth')->name('debug.dashboard');
+
 // ✅ PDF TEST ROUTE - Add this for debugging PDF generation
 Route::get('/test-pdf-debug', function() {
     $user = auth()->user();
@@ -101,24 +125,23 @@ Route::middleware(['auth'])->group(function () {
     // Roles and permissions routes
     Route::get('/user/roles-permissions', [UserController::class, 'getUserRolesAndPermissions'])->name('user.roles-permissions');
     
-    // Dashboard routes based on role
-    Route::get('/dashboard', function () {
-        $user = auth()->user();
-        
-        if ($user->hasRole('Admin')) {
-            return redirect()->route('admin.dashboard');
-        } elseif ($user->hasRole('Exam office')) {
-            return redirect()->route('exam-office.dashboard');
-        } elseif ($user->hasRole('Faculty Admin')) {
-            return redirect()->route('faculty-admin.dashboard');
-        } elseif ($user->hasRole('Lecturer')) {
-            return redirect()->route('lecturer.dashboard');
-        } elseif ($user->hasRole('Student')) {
-            return redirect()->route('student.dashboard');
-        }
-        
-        return Inertia::render('Dashboard');
-    })->name('dashboard');      
+    // FIXED: Dashboard routes - Remove role restrictions and call adminDashboard method directly
+    Route::middleware(['auth', 'verified'])->group(function () {
+    
+    // Main dashboard route - Now calls adminDashboard with statistics for everyone
+    Route::get('/dashboard', [DashboardController::class, 'adminDashboard'])->name('dashboard');
+    
+    // Admin Dashboard Route - Same method, different route name
+    Route::get('/admin/dashboard', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
+    
+    // Student Dashboard Route - Keep separate for student-specific data
+    Route::get('/student/dashboard', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
+    
+    // Lecturer Dashboard Route - Keep separate for lecturer-specific data
+    Route::get('/lecturer/dashboard', [DashboardController::class, 'lecturerDashboard'])->name('lecturer.dashboard');
+
+    });
+
     
     // Profile routes (accessible to all authenticated users)
     Route::prefix('profile')->group(function () {
@@ -438,7 +461,7 @@ Route::middleware(['auth'])->group(function () {
 
 // Admin Routes - Admin role bypasses permission checks
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    Route::get('/admin', fn() => Inertia::render('Admin/Dashboard'))->name('admin.dashboard');
+    Route::get('/admin', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard.alt');
     Route::resource('roles', RoleController::class);
     Route::resource('permissions', PermissionController::class);
     Route::resource('schools', SchoolController::class);
