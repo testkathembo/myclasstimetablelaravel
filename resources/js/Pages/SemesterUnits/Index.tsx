@@ -316,35 +316,7 @@ const SemesterUnits = () => {
         </div>
       )}
 
-      {/* Debug Section */}
-      <div className="mt-10 p-4 bg-gray-100 rounded-lg">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Debug Information</h2>
-        <button
-          onClick={() => {
-            fetch("/debug/semester-unit-table")
-              .then((response) => response.json())
-              .then((data) => {
-                console.log("Database Debug Info:", data)
-                alert(
-                  `Database check: ${data.table_exists ? "Table exists" : "Table does not exist"}\nRecords: ${data.records_count || 0}`,
-                )
-              })
-              .catch((error) => {
-                console.error("Error fetching debug info:", error)
-                alert("Error fetching debug info. Check console.")
-              })
-          }}
-          className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
-        >
-          Check Database
-        </button>
-        <div className="mt-4">
-          <p className="text-sm text-gray-600">
-            If you're seeing units that don't appear to be saved in the database, they might be "suggested" units based
-            on naming patterns. These are not actual assignments and will be marked as "Suggested".
-          </p>
-        </div>
-      </div>
+      
     </AuthenticatedLayout>
   )
 }

@@ -15,36 +15,37 @@ use Inertia\Inertia;
 
 class SemesterUnitController extends Controller
 {
-    /**
-     * Display a listing of semester units.
-     *
-     * @return \Inertia\Response
-     */
     public function index()
     {
         // Log the start of the index method
         Log::debug('SemesterUnit Index method started');
         
-        // Get all semesters with their units
+        // Get all semesters with their units - FIXED VERSION
         $semesters = Semester::orderBy('name')->get();
         
-        // For each semester, load its units with class information
+        // For each semester, load its units with class information - IMPROVED
         foreach ($semesters as $semester) {
-            // Load units for this semester with their class information
-            $semester->units = $this->getSemesterUnits($semester->id);
+            $semester->units = $this->getSemesterUnitsWithClassInfo($semester->id);
         }
         
         $classes = ClassModel::orderBy('name')->get();
         $units = Unit::with(['program', 'school'])->get();
         
-        // Debug information
-        Log::info('Semesters with units:', [
-            'count' => count($semesters),
-            'first_semester' => $semesters->first() ? [
-                'id' => $semesters->first()->id,
-                'name' => $semesters->first()->name,
-                'units_count' => $semesters->first()->units ? count($semesters->first()->units) : 0
-            ] : null
+        // Enhanced debug information
+        Log::info('Semesters with units loaded:', [
+            'total_semesters' => count($semesters),
+            'semesters_detail' => $semesters->map(function($semester) {
+                return [
+                    'id' => $semester->id,
+                    'name' => $semester->name,
+                    'units_count' => $semester->units ? count($semester->units) : 0,
+                    'first_unit' => $semester->units && count($semester->units) > 0 ? [
+                        'id' => $semester->units[0]->id ?? null,
+                        'name' => $semester->units[0]->name ?? null,
+                        'pivot_class_id' => $semester->units[0]->pivot_class_id ?? null
+                    ] : null
+                ];
+            })->toArray()
         ]);
         
         return Inertia::render('SemesterUnits/Index', [
@@ -55,54 +56,18 @@ class SemesterUnitController extends Controller
     }
 
     /**
-     * Get all units for a specific semester with their class information.
+     * Get all units for a specific semester with their class information - FIXED VERSION.
      *
      * @param int $semesterId
      * @return \Illuminate\Support\Collection
      */
-    private function getSemesterUnits($semesterId)
+    private function getSemesterUnitsWithClassInfo($semesterId)
     {
-        Log::debug('Getting semester units', ['semester_id' => $semesterId]);
+        Log::debug('Getting semester units with class info', ['semester_id' => $semesterId]);
         
         $allUnits = collect();
         
-        // Check if units have a direct semester_id column
-        if (Schema::hasColumn('units', 'semester_id')) {
-            $directUnits = DB::table('units')
-                ->where('semester_id', $semesterId)
-                ->select(
-                    'units.id',
-                    'units.name',
-                    'units.code'
-                )
-                ->get();
-                
-            if ($directUnits->isNotEmpty()) {
-                Log::debug('Found units with direct semester_id', ['count' => count($directUnits)]);
-                $allUnits = $allUnits->merge($directUnits);
-            }
-        }
-        
-        // Check if we're using semester_unit_class table
-        if (Schema::hasTable('semester_unit_class')) {
-            $units = DB::table('units')
-                ->join('semester_unit_class', 'units.id', '=', 'semester_unit_class.unit_id')
-                ->where('semester_unit_class.semester_id', $semesterId)
-                ->select(
-                    'units.id',
-                    'units.name',
-                    'units.code',
-                    'semester_unit_class.class_id as pivot_class_id'
-                )
-                ->get();
-                
-            if ($units->isNotEmpty()) {
-                Log::debug('Found units in semester_unit_class table', ['count' => count($units)]);
-                $allUnits = $allUnits->merge($units);
-            }
-        }
-        
-        // Check semester_unit table
+        // PRIMARY: Check semester_unit table (this is your main table based on the screenshot)
         if (Schema::hasTable('semester_unit')) {
             $units = DB::table('units')
                 ->join('semester_unit', 'units.id', '=', 'semester_unit.unit_id')
@@ -111,67 +76,136 @@ class SemesterUnitController extends Controller
                     'units.id',
                     'units.name',
                     'units.code',
-                    'semester_unit.class_id as pivot_class_id'
+                    'semester_unit.class_id as pivot_class_id' // This is the key fix
                 )
                 ->get();
                 
             if ($units->isNotEmpty()) {
-                Log::debug('Found units in semester_unit table', ['count' => count($units)]);
+                Log::debug('Found units in semester_unit table', [
+                    'count' => count($units),
+                    'sample_unit' => $units->first()
+                ]);
                 $allUnits = $allUnits->merge($units);
             }
         }
         
-        // Check class_unit table
-        if (Schema::hasTable('class_unit')) {
-            $units = DB::table('units')
-                ->join('class_unit', 'units.id', '=', 'class_unit.unit_id')
-                ->where('class_unit.semester_id', $semesterId)
-                ->select(
-                    'units.id',
-                    'units.name',
-                    'units.code',
-                    'class_unit.class_id as pivot_class_id'
-                )
-                ->get();
-                
-            if ($units->isNotEmpty()) {
-                Log::debug('Found units in class_unit table', ['count' => count($units)]);
-                $allUnits = $allUnits->merge($units);
+        // SECONDARY: Check other tables only if no units found in primary table
+        if ($allUnits->isEmpty()) {
+            // Check if we're using semester_unit_class table
+            if (Schema::hasTable('semester_unit_class')) {
+                $units = DB::table('units')
+                    ->join('semester_unit_class', 'units.id', '=', 'semester_unit_class.unit_id')
+                    ->where('semester_unit_class.semester_id', $semesterId)
+                    ->select(
+                        'units.id',
+                        'units.name',
+                        'units.code',
+                        'semester_unit_class.class_id as pivot_class_id'
+                    )
+                    ->get();
+                    
+                if ($units->isNotEmpty()) {
+                    Log::debug('Found units in semester_unit_class table', ['count' => count($units)]);
+                    $allUnits = $allUnits->merge($units);
+                }
             }
-        }
-        
-        // Check enrollments table
-        $enrolledUnitIds = DB::table('enrollments')
-            ->where('semester_id', $semesterId)
-            ->distinct()
-            ->pluck('unit_id')
-            ->toArray();
             
-        if (!empty($enrolledUnitIds)) {
-            $enrolledUnits = DB::table('units')
-                ->whereIn('id', $enrolledUnitIds)
-                ->select(
-                    'units.id',
-                    'units.name',
-                    'units.code'
-                )
-                ->get();
-                
-            if ($enrolledUnits->isNotEmpty()) {
-                Log::debug('Found units from enrollments', ['count' => count($enrolledUnits)]);
-                $allUnits = $allUnits->merge($enrolledUnits);
+            // Check class_unit table
+            if ($allUnits->isEmpty() && Schema::hasTable('class_unit')) {
+                $units = DB::table('units')
+                    ->join('class_unit', 'units.id', '=', 'class_unit.unit_id')
+                    ->where('class_unit.semester_id', $semesterId)
+                    ->select(
+                        'units.id',
+                        'units.name',
+                        'units.code',
+                        'class_unit.class_id as pivot_class_id'
+                    )
+                    ->get();
+                    
+                if ($units->isNotEmpty()) {
+                    Log::debug('Found units in class_unit table', ['count' => count($units)]);
+                    $allUnits = $allUnits->merge($units);
+                }
+            }
+            
+            // Check if units have a direct semester_id column
+            if ($allUnits->isEmpty() && Schema::hasColumn('units', 'semester_id')) {
+                $directUnits = DB::table('units')
+                    ->where('semester_id', $semesterId)
+                    ->select(
+                        'units.id',
+                        'units.name',
+                        'units.code'
+                        // Note: No pivot_class_id for direct assignments
+                    )
+                    ->get();
+                    
+                if ($directUnits->isNotEmpty()) {
+                    Log::debug('Found units with direct semester_id', ['count' => count($directUnits)]);
+                    $allUnits = $allUnits->merge($directUnits);
+                }
+            }
+            
+            // Check enrollments table as last resort
+            if ($allUnits->isEmpty()) {
+                $enrolledUnitIds = DB::table('enrollments')
+                    ->where('semester_id', $semesterId)
+                    ->distinct()
+                    ->pluck('unit_id')
+                    ->toArray();
+                    
+                if (!empty($enrolledUnitIds)) {
+                    $enrolledUnits = DB::table('units')
+                        ->whereIn('id', $enrolledUnitIds)
+                        ->select(
+                            'units.id',
+                            'units.name',
+                            'units.code'
+                        )
+                        ->get();
+                        
+                    if ($enrolledUnits->isNotEmpty()) {
+                        Log::debug('Found units from enrollments', ['count' => count($enrolledUnits)]);
+                        $allUnits = $allUnits->merge($enrolledUnits);
+                    }
+                }
             }
         }
         
-        // Remove duplicates by unit ID
-        $uniqueUnits = $allUnits->unique('id');
+        // Remove duplicates by unit ID and convert to objects
+        $uniqueUnits = $allUnits->unique('id')->map(function($unit) {
+            // Ensure we return a proper object with all expected properties
+            return (object)[
+                'id' => $unit->id,
+                'name' => $unit->name,
+                'code' => $unit->code,
+                'pivot_class_id' => $unit->pivot_class_id ?? null,
+                'is_suggestion' => false // Default value
+            ];
+        });
         
         Log::debug('Final unique units for semester', [
             'semester_id' => $semesterId,
-            'count' => count($uniqueUnits)
+            'count' => count($uniqueUnits),
+            'units_with_class' => $uniqueUnits->where('pivot_class_id', '!=', null)->count(),
+            'units_without_class' => $uniqueUnits->where('pivot_class_id', null)->count()
         ]);
         
         return $uniqueUnits;
+    }
+
+    /**
+     * Get all units for a specific semester with their class information.
+     *
+     * @param int $semesterId
+     * @return \Illuminate\Support\Collection
+     * @deprecated Use getSemesterUnitsWithClassInfo instead
+     */
+    private function getSemesterUnits($semesterId)
+    {
+        // Keep the old method for backward compatibility but redirect to new method
+        return $this->getSemesterUnitsWithClassInfo($semesterId);
     }
     
     /**
@@ -302,6 +336,8 @@ class SemesterUnitController extends Controller
         }
     }
     
+    // ... [Keep all other existing methods unchanged] ...
+    
     /**
      * Remove a unit assignment.
      *
@@ -408,7 +444,7 @@ class SemesterUnitController extends Controller
             return redirect()->back()->withErrors(['error' => 'Failed to remove unit assignment: ' . $e->getMessage()]);
         }
     }
-    
+        
     /**
      * Get units assigned to classes for a semester.
      *
