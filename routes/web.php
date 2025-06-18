@@ -150,6 +150,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('api.examtimetable.units');
         Route::get('/lecturer-for-unit/{unitId}/{semesterId}', [ExamTimetableController::class, 'getLecturerForUnit'])
             ->name('api.lecturer-for-unit');
+            
+        // Enrollment API routes
+        Route::get('/enrollments/student/{studentCode}', [EnrollmentController::class, 'getEnrollmentsByStudent']);
+        Route::get('/enrollments/unit/{unitId}/students', [EnrollmentController::class, 'getStudentsByUnit']);
+        Route::get('/units/class-semester', [EnrollmentController::class, 'getUnitsByClassAndSemester']);
     });
 
     // ===============================================================
@@ -206,17 +211,54 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('schools/sces/bbit/groups', GroupController::class, ['as' => 'schools.sces.bbit']);
 
     // ===============================================================
-    // ENROLLMENT MANAGEMENT
+    // STUDENT ROUTES (Self-enrollment)
+    // ===============================================================
+    
+    Route::middleware(['role:Student'])->group(function () {
+        Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
+        Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
+        Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
+        Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
+        
+        // Student self-enrollment routes (separate from admin enrollment)
+        Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll.form');
+        Route::post('/student/enroll', [EnrollmentController::class, 'store'])->name('student.enroll.store');
+        
+        // Student timetables
+        Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.timetable');
+        Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable'])->name('student.classes');
+        Route::get('/my-exams', [ExamTimetableController::class, 'studentExamTimetable'])->name('student.exams');
+        Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])->name('student.exam.details');
+        
+        // Student downloads
+        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])->name('student.classes.download');
+        Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.exams.download');
+        Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
+    });
+
+    // ===============================================================
+    // ENROLLMENT MANAGEMENT (Admin routes - FIXED)
     // ===============================================================
     
     Route::middleware(['permission:manage-enrollments'])->group(function () {
-        Route::resource('enrollments', EnrollmentController::class);
+        // Admin enrollment management routes
+        Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
+        Route::get('/enrollments/create', [EnrollmentController::class, 'create'])->name('enrollments.create');
+        
+        // CRITICAL FIX: Use adminStore for admin enrollment, not store
+        Route::post('/enrollments', [EnrollmentController::class, 'adminStore'])->name('enrollments.store');
+        
+        Route::get('/enrollments/{enrollment}/edit', [EnrollmentController::class, 'edit'])->name('enrollments.edit');
+        Route::put('/enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
+        Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
+        
+        // Alternative routes for schools path
         Route::get('/schools/sces/bbit/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index.alt');
         
         // Bulk operations
         Route::post('/enrollments/bulk', [EnrollmentController::class, 'bulkEnroll'])->name('enrollments.bulk');
         Route::post('/enrollments/bulk-delete', [EnrollmentController::class, 'bulkDelete'])->name('enrollments.bulk-delete');
-        
+
         // Lecturer assignments
         Route::post('/assign-lecturers', [EnrollmentController::class, 'assignLecturers'])->name('assign.lecturers');
         Route::delete('/assign-lecturers/{unitId}', [EnrollmentController::class, 'destroyLecturerAssignment'])->name('assign-lecturers.destroy');
@@ -341,28 +383,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::middleware(['permission:view-own-examtimetables'])->group(function () {
         Route::get('/examtimetable/lecturer', [ExamTimetableController::class, 'viewLecturerTimetable'])->name('examtimetable.lecturer');
-    });
-
-    // ===============================================================
-    // STUDENT ROUTES
-    // ===============================================================
-    
-    Route::middleware(['role:Student'])->group(function () {
-        Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
-        Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
-        Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
-        Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
-        
-        // Student timetables
-        Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.timetable');
-        Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable'])->name('student.classes');
-        Route::get('/my-exams', [ExamTimetableController::class, 'studentExamTimetable'])->name('student.exams');
-        Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])->name('student.exam.details');
-        
-        // Student downloads
-        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])->name('student.classes.download');
-        Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.exams.download');
-        Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
     });
 
     // ===============================================================
@@ -509,10 +529,12 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::resource('programs', ProgramController::class, ['as' => 'admin']);
     Route::resource('units', UnitController::class, ['as' => 'admin']);
     Route::resource('semesters', SemesterController::class, ['as' => 'admin']);
-    Route::resource('enrollments', EnrollmentController::class, ['as' => 'admin']);
     Route::resource('classrooms', ClassroomController::class, ['as' => 'admin']);
     Route::resource('classtimetables', ClassTimetableController::class, ['as' => 'admin']);
     Route::resource('examtimetables', ExamTimetableController::class, ['as' => 'admin']);
+    
+    // REMOVED: Duplicate enrollment routes that were causing conflicts
+    // The enrollment routes are now properly defined in the permission-based section above
 });
 
 // ===================================================================

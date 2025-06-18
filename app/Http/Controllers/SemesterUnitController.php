@@ -15,6 +15,13 @@ use Inertia\Inertia;
 
 class SemesterUnitController extends Controller
 {
+
+
+    /**
+     * Display a listing of semester units.
+     *
+     * @return \Inertia\Response
+     */
     public function index()
     {
         // Log the start of the index method
@@ -444,7 +451,9 @@ class SemesterUnitController extends Controller
             return redirect()->back()->withErrors(['error' => 'Failed to remove unit assignment: ' . $e->getMessage()]);
         }
     }
-        
+   
+
+    
     /**
      * Get units assigned to classes for a semester.
      *

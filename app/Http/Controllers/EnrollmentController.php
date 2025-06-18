@@ -15,6 +15,198 @@ use Inertia\Inertia;
 
 class EnrollmentController extends Controller
 {
+    
+    public function adminStore(Request $request)
+    {
+        // CRITICAL DEBUG: Log everything at the start
+        Log::info('=== ADMIN STORE CALLED ===', [
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'route_name' => $request->route() ? $request->route()->getName() : 'no_route',
+            'raw_input' => $request->all(),
+            'auth_user_code' => Auth::user()->code,
+            'is_admin_store' => true,
+            'request_has_student_code' => $request->has('student_code'),
+            'student_code_value' => $request->get('student_code'),
+            'all_keys' => array_keys($request->all())
+        ]);
+        
+        // Check what field names are actually being sent
+        $allData = $request->all();
+        Log::info('All request data keys and values:', $allData);
+        
+        // Check for both possible field names
+        $studentCode = null;
+        if ($request->has('student_code')) {
+            $studentCode = $request->get('student_code');
+            Log::info('Found student_code field:', ['value' => $studentCode]);
+        } elseif ($request->has('code')) {
+            $studentCode = $request->get('code');
+            Log::info('Found code field (legacy):', ['value' => $studentCode]);
+        }
+        
+        if (!$studentCode || trim($studentCode) === '') {
+            Log::error('CRITICAL: No student code found in request', [
+                'available_fields' => array_keys($request->all()),
+                'student_code_exists' => $request->has('student_code'),
+                'code_exists' => $request->has('code'),
+                'student_code_value' => $request->get('student_code'),
+                'code_value' => $request->get('code')
+            ]);
+            
+            return redirect()->back()->withErrors([
+                'student_code' => 'Student code is required. Debug: Field not found in request data.'
+            ])->withInput();
+        }
+        
+        // Flexible validation - accept either field name
+        $validationRules = [
+            'group_id' => 'required|exists:groups,id',
+            'unit_ids' => 'required|array|min:1',
+            'unit_ids.*' => 'exists:units,id',
+            'semester_id' => 'required|exists:semesters,id',
+        ];
+        
+        // Add student code validation for whichever field is present
+        if ($request->has('student_code')) {
+            $validationRules['student_code'] = 'required|string|exists:users,code';
+        } elseif ($request->has('code')) {
+            $validationRules['code'] = 'required|string|exists:users,code';
+        }
+        
+        try {
+            $validated = $request->validate($validationRules);
+            Log::info('Validation passed:', $validated);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed:', [
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            throw $e;
+        }
+        
+        // Use the student code we found
+        $targetStudentCode = $studentCode;
+        $adminCode = Auth::user()->code;
+        
+        Log::info('ADMIN ENROLLMENT - Codes confirmed', [
+            'target_student' => $targetStudentCode,
+            'admin_performing_action' => $adminCode,
+            'these_should_be_different' => $targetStudentCode !== $adminCode
+        ]);
+        
+        // Verify the student exists
+        $targetStudent = User::where('code', $targetStudentCode)->first();
+        if (!$targetStudent) {
+            Log::error('Target student not found', ['student_code' => $targetStudentCode]);
+            return redirect()->back()->withErrors([
+                'student_code' => "Student with code '{$targetStudentCode}' not found."
+            ])->withInput();
+        }
+        
+        Log::info('Target student found:', [
+            'student_id' => $targetStudent->id,
+            'student_name' => $targetStudent->first_name . ' ' . $targetStudent->last_name,
+            'student_code' => $targetStudent->code
+        ]);
+        
+        try {
+            $enrollmentCount = 0;
+            $unitIds = $request->has('unit_ids') ? $request->get('unit_ids') : 
+                      ($request->has('unit_ids') ? $validated['unit_ids'] : []);
+            
+            foreach ($unitIds as $unitId) {
+                $unit = Unit::with(['program', 'school'])->find($unitId);
+                
+                if (!$unit) {
+                    Log::warning('Unit not found:', ['unit_id' => $unitId]);
+                    continue;
+                }
+
+                // Check if enrollment already exists
+                $existingEnrollment = Enrollment::where([
+                    'student_code' => $targetStudentCode,
+                    'unit_id' => $unitId,
+                    'semester_id' => $request->get('semester_id') ?? $validated['semester_id']
+                ])->first();
+                
+                if ($existingEnrollment) {
+                    Log::info('Enrollment already exists, skipping:', [
+                        'student_code' => $targetStudentCode,
+                        'unit_id' => $unitId
+                    ]);
+                    continue;
+                }
+
+                $enrollment = Enrollment::create([
+                    'student_code' => $targetStudentCode, // CRITICAL: Use target student
+                    'group_id' => $request->get('group_id') ?? $validated['group_id'],
+                    'unit_id' => $unitId,
+                    'semester_id' => $request->get('semester_id') ?? $validated['semester_id'],
+                    'program_id' => $unit->program_id ?? null,
+                    'school_id' => $unit->school_id ?? null,
+                ]);
+                
+                $enrollmentCount++;
+                
+                Log::info('Enrollment created successfully', [
+                    'enrollment_id' => $enrollment->id,
+                    'stored_student_code' => $enrollment->student_code,
+                    'target_was' => $targetStudentCode,
+                    'admin_was' => $adminCode,
+                    'unit_name' => $unit->name
+                ]);
+            }
+            
+            if ($enrollmentCount === 0) {
+                return redirect()->back()->withErrors([
+                    'error' => 'No new enrollments were created. Student may already be enrolled in selected units.'
+                ])->withInput();
+            }
+            
+            return redirect()->route('enrollments.index')->with('success', 
+                "Successfully enrolled {$targetStudentCode} in {$enrollmentCount} unit(s)!"
+            );
+            
+        } catch (\Exception $e) {
+            Log::error('Enrollment creation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'target_student' => $targetStudentCode,
+                'admin' => $adminCode
+            ]);
+            
+            return redirect()->back()->withErrors([
+                'error' => 'Failed to enroll student: ' . $e->getMessage()
+            ])->withInput();
+        }
+    }
+    
+    // Add a debug route to check what's being sent
+    public function debugEnrollmentRequest(Request $request)
+    {
+        Log::info('=== DEBUG ENROLLMENT REQUEST ===', [
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'all_data' => $request->all(),
+            'headers' => $request->headers->all(),
+            'content_type' => $request->header('Content-Type'),
+            'raw_content' => $request->getContent()
+        ]);
+        
+        return response()->json([
+            'received_data' => $request->all(),
+            'has_student_code' => $request->has('student_code'),
+            'has_code' => $request->has('code'),
+            'student_code_value' => $request->get('student_code'),
+            'code_value' => $request->get('code')
+        ]);
+    }
+    
+    
+    
+    
+    
     // STUDENT: Only enroll (not manage)
     public function showEnrollmentForm()
     {
@@ -105,35 +297,130 @@ class EnrollmentController extends Controller
         }
     }
 
-    // ADMIN: Manage enrollments (CRUD)
-    public function index()
+public function index(Request $request)
     {
-        $enrollments = Enrollment::with(['student', 'unit', 'group.class', 'semester'])->paginate(20);
-        
-        // Add the missing data that the frontend component expects
-        $semesters = Semester::all();
-        $classes = ClassModel::with('semester')->get();
-        $groups = Group::with('class')->get();
-        $units = Unit::with(['program', 'school'])->get();
-        
-        // Debug information
-        Log::info('Enrollments loaded for admin view', [
-            'count' => $enrollments->count(),
-            'semesters_count' => $semesters->count(),
-            'classes_count' => $classes->count(),
-            'groups_count' => $groups->count(),
-            'units_count' => $units->count(),
-            'first_enrollment' => $enrollments->first() ? $enrollments->first()->toArray() : null
-        ]);
-        
-        return inertia('Enrollments/Index', [
-            'enrollments' => $enrollments,
-            'semesters' => $semesters,
-            'classes' => $classes,
-            'groups' => $groups,
-            'units' => $units,
-        ]);
+        try {
+            // Get enrollments with relationships
+            $enrollments = Enrollment::with(['student', 'unit', 'group.class'])
+                ->orderBy('created_at', 'desc')
+                ->paginate(15);
+
+            // Get lecturer assignments - FIXED: Proper query to get unique lecturer-unit assignments
+            $lecturerAssignments = DB::table('enrollments')
+                ->select([
+                    'enrollments.unit_id',
+                    'units.name as unit_name',
+                    'units.code as unit_code',
+                    'enrollments.lecturer_code',
+                    'users.first_name',
+                    'users.last_name',
+                    DB::raw("CONCAT(users.first_name, ' ', users.last_name) as lecturer_name")
+                ])
+                ->join('units', 'enrollments.unit_id', '=', 'units.id')
+                ->leftJoin('users', 'enrollments.lecturer_code', '=', 'users.code')
+                ->whereNotNull('enrollments.lecturer_code')
+                ->where('enrollments.lecturer_code', '!=', '')
+                ->groupBy([
+                    'enrollments.unit_id', 
+                    'units.name', 
+                    'units.code',
+                    'enrollments.lecturer_code',
+                    'users.first_name',
+                    'users.last_name'
+                ])
+                ->orderBy('units.name')
+                ->paginate(15, ['*'], 'lecturer_page');
+
+            Log::info('Lecturer assignments query result:', [
+                'count' => $lecturerAssignments->count(),
+                'total' => $lecturerAssignments->total(),
+                'data' => $lecturerAssignments->items()
+            ]);
+
+            // Get other required data
+            $semesters = Semester::orderBy('name')->get();
+            $groups = Group::with('class')->orderBy('name')->get();
+            $classes = ClassModel::orderBy('name')->get();
+            $units = Unit::orderBy('name')->get();
+
+            return Inertia::render('Enrollments/Index', [
+                'enrollments' => $enrollments,
+                'lecturerAssignments' => [
+                    'data' => $lecturerAssignments->items(),
+                    'links' => $lecturerAssignments->linkCollection()->toArray()['data'] ?? [],
+                    'total' => $lecturerAssignments->total(),
+                    'current_page' => $lecturerAssignments->currentPage(),
+                    'per_page' => $lecturerAssignments->perPage()
+                ],
+                'semesters' => $semesters,
+                'groups' => $groups,
+                'classes' => $classes,
+                'units' => $units,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in enrollments index:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return Inertia::render('Enrollments/Index', [
+                'enrollments' => null,
+                'lecturerAssignments' => ['data' => [], 'links' => []],
+                'semesters' => [],
+                'groups' => [],
+                'classes' => [],
+                'units' => [],
+                'errors' => ['error' => 'Failed to load enrollments data.']
+            ]);
+        }
     }
+
+    
+
+    // FIXED: Method to assign units to lecturers
+    public function assignUnitToLecturer(Request $request)
+    {
+        Log::info('=== ASSIGN UNIT TO LECTURER ===', [
+            'request_data' => $request->all(),
+            'admin_user' => Auth::user()->code
+        ]);
+
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'lecturer_code' => 'required|string|exists:users,code',
+        ]);
+
+        try {
+            // Update all enrollments for this unit to have the lecturer
+            $updated = Enrollment::where('unit_id', $validated['unit_id'])
+                ->update(['lecturer_code' => $validated['lecturer_code']]);
+
+            Log::info('Unit assigned to lecturer', [
+                'unit_id' => $validated['unit_id'],
+                'lecturer_code' => $validated['lecturer_code'],
+                'enrollments_updated' => $updated
+            ]);
+
+            return redirect()->route('enrollments.index')->with('success', 
+                "Unit successfully assigned to lecturer {$validated['lecturer_code']}!"
+            );
+
+        } catch (\Exception $e) {
+            Log::error('Failed to assign unit to lecturer', [
+                'error' => $e->getMessage(),
+                'unit_id' => $validated['unit_id'],
+                'lecturer_code' => $validated['lecturer_code']
+            ]);
+
+            return redirect()->back()->withErrors([
+                'error' => 'Failed to assign unit to lecturer: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+
+    
 
     public function create()
     {
@@ -171,74 +458,7 @@ class EnrollmentController extends Controller
         ]);
     }
 
-    // ADMIN: Store enrollment for any student
-    public function adminStore(Request $request)
-    {
-        Log::info('Admin enrollment store request', $request->all());
-        
-        $validated = $request->validate([
-            'code' => 'required|exists:users,code', // Changed from student_code to code to match frontend
-            'group_id' => 'required|exists:groups,id',
-            'unit_ids' => 'required|array',
-            'unit_ids.*' => 'exists:units,id',
-            'semester_id' => 'required|exists:semesters,id',
-        ]);
-
-        $studentCode = $validated['code']; // Use the submitted student code
-        
-        $group = Group::findOrFail($validated['group_id']);
-        $class = $group->class;
-        if (!$class) {
-            return redirect()->back()->withErrors(['group_id' => 'Selected group does not belong to a valid class.']);
-        }
-
-        $currentEnrollmentCount = Enrollment::where('group_id', $group->id)
-            ->distinct('student_code')
-            ->count('student_code');
-
-        if ($currentEnrollmentCount >= $group->capacity) {
-            return redirect()->back()->withErrors([
-                'group_id' => "This group is already full. Capacity: {$group->capacity}",
-            ]);
-        }
-
-        $existingEnrollments = Enrollment::where('group_id', $group->id)
-            ->where('student_code', $studentCode)
-            ->where('semester_id', $validated['semester_id'])
-            ->pluck('unit_id')
-            ->toArray();
-
-        if (!empty($existingEnrollments)) {
-            $conflictingUnits = array_intersect($validated['unit_ids'], $existingEnrollments);
-            if (!empty($conflictingUnits)) {
-                $unitNames = Unit::whereIn('id', $conflictingUnits)->pluck('name')->toArray();
-                return redirect()->back()->withErrors([
-                    'unit_ids' => 'Student is already enrolled in: ' . implode(', ', $unitNames),
-                ]);
-            }
-        }
-
-        try {
-            foreach ($validated['unit_ids'] as $unitId) {
-                $unit = Unit::with(['program', 'school'])->find($unitId);
-
-                Enrollment::create([
-                    'student_code' => $studentCode, // Use the submitted student code
-                    'group_id' => $group->id,
-                    'unit_id' => $unitId,
-                    'semester_id' => $validated['semester_id'],
-                    'program_id' => $unit->program_id ?? $class->program_id ?? null,
-                    'school_id' => $unit->school_id ?? $class->school_id ?? null,
-                ]);
-            }
-
-            return redirect()->route('enrollments.index')->with('success', 'Successfully enrolled student in ' . count($validated['unit_ids']) . ' unit(s)!');
-        } catch (\Exception $e) {
-            Log::error('Error creating enrollment (admin): ' . $e->getMessage());
-            return redirect()->back()->withErrors(['error' => 'Failed to enroll student. Please try again.']);
-        }
-    }
-
+    
     public function edit(Enrollment $enrollment)
     {
         $enrollment->load(['student', 'unit', 'group', 'semester']);
@@ -275,19 +495,32 @@ class EnrollmentController extends Controller
             'semester_id' => 'required|exists:semesters,id',
             'student_code' => 'required|exists:users,code',
         ]);
+        
+        Log::info('Updating enrollment', [
+            'enrollment_id' => $enrollment->id,
+            'old_student_code' => $enrollment->student_code,
+            'new_student_code' => $validated['student_code'],
+            'updated_by' => Auth::user()->code
+        ]);
+        
         $enrollment->update($validated);
+        
         return redirect()->route('enrollments.index')->with('success', 'Enrollment updated.');
     }
 
     public function destroy(Enrollment $enrollment)
     {
+        Log::info('Deleting enrollment', [
+            'enrollment_id' => $enrollment->id,
+            'student_code' => $enrollment->student_code,
+            'deleted_by' => Auth::user()->code
+        ]);
+        
         $enrollment->delete();
         return redirect()->route('enrollments.index')->with('success', 'Enrollment deleted.');
     }
 
-    // Optionally, add bulkEnroll and other admin methods as needed
-
-    // --- Existing helper methods below (unchanged) ---
+    // --- Keep all existing helper methods unchanged ---
 
     public function getEnrollmentsByStudent(Request $request, $studentCode)
     {
