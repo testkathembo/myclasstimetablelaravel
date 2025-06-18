@@ -34,6 +34,9 @@ class EnrollmentController extends Controller
         // Check what field names are actually being sent
         $allData = $request->all();
         Log::info('All request data keys and values:', $allData);
+
+        // lecturer pagination
+        // ...existing code...
         
         // Check for both possible field names
         $studentCode = null;
@@ -306,6 +309,7 @@ public function index(Request $request)
                 ->paginate(15);
 
             // Get lecturer assignments - FIXED: Proper query to get unique lecturer-unit assignments
+            $lecturerPerPage = $request->input('lecturer_per_page', 15);
             $lecturerAssignments = DB::table('enrollments')
                 ->select([
                     'enrollments.unit_id',
@@ -329,7 +333,7 @@ public function index(Request $request)
                     'users.last_name'
                 ])
                 ->orderBy('units.name')
-                ->paginate(15, ['*'], 'lecturer_page');
+                ->paginate($lecturerPerPage, ['*'], 'lecturer_page');
 
             Log::info('Lecturer assignments query result:', [
                 'count' => $lecturerAssignments->count(),
