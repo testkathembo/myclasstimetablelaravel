@@ -1114,292 +1114,88 @@ private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = nu
     }
 
     /**
- * ✅ COMPLETE FIXED: Download PDF method for students with proper group filtering
- */
-public function downloadPDF(Request $request)
-{
-    try {
-        $user = auth()->user();
-
-        // If the user is a student, fetch their actual class timetable entries
-        if ($user->hasRole('Student')) {
-            $currentSemester = Semester::where('is_active', true)->first();
-            
-            if (!$currentSemester) {
-                $currentSemester = Semester::orderByDesc('id')->first();
+     * Download the class timetable as a PDF.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function downloadPDF(Request $request)
+    {
+        try {
+            // Ensure the view file exists
+            if (!view()->exists('classtimetables.pdf')) {
+                \Log::error('PDF template not found: classtimetables.pdf');
+                return redirect()->back()->with('error', 'PDF template not found. Please contact the administrator.');
             }
 
-            if (!$currentSemester) {
-                return redirect()->back()->with('error', 'No semester data available.');
+            // Fetch class timetables
+            $query = ClassTimetable::query()
+                ->join('units', 'class_timetable.unit_id', '=', 'units.id')
+                ->join('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+                ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
+                ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+                ->leftJoin('class_time_slots', function ($join) {
+                    $join->on('class_timetable.day', '=', 'class_time_slots.day')
+                        ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
+                        ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
+                })
+                ->select(
+                    'class_timetable.*',
+                    'units.name as unit_name',
+                    'units.code as unit_code',
+                    'semesters.name as semester_name',
+                    'classes.name as class_name',
+                    'groups.name as group_name',
+                    'class_time_slots.status as mode_of_teaching'
+                );
+
+            if ($request->has('semester_id')) {
+                $query->where('class_timetable.semester_id', $request->semester_id);
             }
 
-            // Get enrollments as Collection (for the template)
-            $enrollments = Enrollment::where('student_code', $user->code)
-                ->where('semester_id', $currentSemester->id)
-                ->with(['unit', 'semester', 'group'])
+            if ($request->has('class_id')) {
+                $query->where('class_timetable.class_id', $request->class_id);
+            }
+
+            if ($request->has('group_id')) {
+                $query->where('class_timetable.group_id', $request->group_id);
+            }
+
+            $classTimetables = $query->orderBy('class_timetable.day')
+                ->orderBy('class_timetable.start_time')
                 ->get();
 
-            \Log::info('Student PDF generation', [
-                'student_code' => $user->code,
-                'semester_id' => $currentSemester->id,
-                'enrollments_count' => $enrollments->count()
+            // Log the data being passed to the view for debugging
+            \Log::info('Generating PDF with data:', [
+                'count' => $classTimetables->count(),
+                'filters' => $request->only(['semester_id', 'class_id', 'group_id'])
             ]);
 
-            if ($enrollments->isEmpty()) {
-                return redirect()->back()->with('error', 'No enrollments found for the current semester.');
-            }
-
-            // Get the student's enrolled unit IDs AND group IDs
-            $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
-            $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
-
-            \Log::info('Student group filtering', [
-                'student_code' => $user->code,
-                'enrolled_units' => $enrolledUnitIds,
-                'student_groups' => $studentGroupIds
+            // Generate PDF
+            $pdf = Pdf::loadView('classtimetables.pdf', [
+                'classTimetables' => $classTimetables,
+                'title' => 'Class Timetable',
+                'generatedAt' => now()->format('Y-m-d H:i:s'),
+                'filters' => $request->only(['semester_id', 'class_id', 'group_id'])
             ]);
 
-            // Get class timetable entries FILTERED by student's groups and units
-            $classTimetables = collect();
-            
-            if (!empty($enrolledUnitIds)) {
-                $query = DB::table('class_timetable')
-                    ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
-                    ->where('class_timetable.semester_id', $currentSemester->id);
+            // Set paper size and orientation
+            $pdf->setPaper('a4', 'landscape');
 
-                // ✅ CRITICAL FIX: Filter by student's group(s)
-                if (!empty($studentGroupIds)) {
-                    $query->whereIn('class_timetable.group_id', $studentGroupIds);
-                } else {
-                    // If no specific group assigned, check if there are enrollments with null group_id
-                    $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
-                    if ($hasNullGroup) {
-                        $query->whereNull('class_timetable.group_id');
-                    }
-                }
-
-                $timetableData = $query
-                    ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
-                    ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
-                    ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
-                    ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
-                    ->select(
-                        'class_timetable.id',
-                        'class_timetable.day',
-                        'class_timetable.start_time',
-                        'class_timetable.end_time',
-                        'class_timetable.venue',
-                        'class_timetable.location',
-                        'class_timetable.teaching_mode',
-                        'class_timetable.group_id',
-                        'class_timetable.lecturer as lecturer_code',
-                        DB::raw("CASE 
-                            WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
-                            ELSE class_timetable.lecturer 
-                            END as lecturer"),
-                        'units.code as unit_code',
-                        'units.name as unit_name',
-                        'groups.name as group_name',
-                        'semesters.name as semester_name'
-                    )
-                    ->orderBy('class_timetable.day')
-                    ->orderBy('class_timetable.start_time')
-                    ->get();
-
-                \Log::info('Filtered timetable data', [
-                    'total_entries' => $timetableData->count(),
-                    'student_groups' => $studentGroupIds,
-                    'sample_entries' => $timetableData->take(3)->pluck('group_name')->toArray()
-                ]);
-
-                // Convert to Collection of objects (as expected by your Blade template)
-                $classTimetables = $timetableData->map(function ($item) {
-                    return (object) [
-                        'id' => $item->id,
-                        'day' => $item->day,
-                        'start_time' => $item->start_time,
-                        'end_time' => $item->end_time,
-                        'venue' => $item->venue,
-                        'location' => $item->location,
-                        'teaching_mode' => $item->teaching_mode,
-                        'lecturer' => $item->lecturer,
-                        'unit_code' => $item->unit_code,
-                        'unit_name' => $item->unit_name,
-                        'group_name' => $item->group_name,
-                        'semester_name' => $item->semester_name,
-                    ];
-                });
-            }
-
-            \Log::info('Final PDF Data prepared', [
-                'classTimetables_count' => $classTimetables->count(),
-                'enrollments_count' => $enrollments->count(),
-                'student_groups' => $studentGroupIds,
-                'template_exists' => view()->exists('classtimetables.student')
+            // Return the PDF for download
+            return $pdf->download('class-timetable-' . now()->format('Y-m-d') . '.pdf');
+        } catch (\Exception $e) {
+            // Log detailed error information
+            \Log::error('Failed to generate PDF: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
             ]);
 
-            // Generate PDF using your existing template
-            try {
-                // Check if the template exists
-                if (!view()->exists('classtimetables.student')) {
-                    \Log::error('Template not found: classtimetables.student');
-                    return redirect()->back()->with('error', 'PDF template not found. Please contact support.');
-                }
-
-                // Create the PDF
-                $pdf = Pdf::loadView('classtimetables.student', [
-                    'classTimetables' => $classTimetables,
-                    'enrollments' => $enrollments,
-                    'currentSemester' => $currentSemester,
-                    'student' => $user,
-                    'generatedAt' => now()->format('Y-m-d H:i:s'),
-                ]);
-
-                // Set PDF options
-                $pdf->setPaper('a4', 'portrait');
-                $pdf->setOptions([
-                    'isHtml5ParserEnabled' => true,
-                    'isRemoteEnabled' => false, // Disable remote resources for security
-                    'defaultFont' => 'sans-serif',
-                    'dpi' => 150,
-                    'debugKeepTemp' => false,
-                ]);
-
-                // Generate the PDF content
-                $pdfContent = $pdf->output();
-                
-                // Verify PDF was generated
-                if (empty($pdfContent)) {
-                    throw new \Exception('PDF content is empty');
-                }
-
-                $filename = 'my-timetable-' . now()->format('Y-m-d') . '.pdf';
-
-                // Return proper PDF response with correct headers
-                return response($pdfContent)
-                    ->header('Content-Type', 'application/pdf')
-                    ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
-                    ->header('Content-Length', strlen($pdfContent))
-                    ->header('Cache-Control', 'must-revalidate, post-check=0, pre-check=0')
-                    ->header('Pragma', 'public');
-
-            } catch (\Exception $pdfError) {
-                \Log::error('PDF generation failed', [
-                    'error' => $pdfError->getMessage(),
-                    'trace' => $pdfError->getTraceAsString(),
-                    'student_code' => $user->code
-                ]);
-
-                // Try with simplified fallback PDF
-                try {
-                    $simplePdf = Pdf::loadHTML('
-                        <html>
-                        <head>
-                            <title>My Timetable</title>
-                            <style>
-                                body { font-family: Arial, sans-serif; margin: 20px; }
-                                .header { text-align: center; margin-bottom: 20px; }
-                                .info { margin-bottom: 15px; }
-                                table { width: 100%; border-collapse: collapse; }
-                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                                th { background-color: #f2f2f2; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="header">
-                                <h1>My Timetable</h1>
-                                <h3>' . $currentSemester->name . '</h3>
-                            </div>
-                            <div class="info">
-                                <p><strong>Student:</strong> ' . $user->first_name . ' ' . $user->last_name . ' (' . $user->code . ')</p>
-                                <p><strong>Generated:</strong> ' . now()->format('Y-m-d H:i:s') . '</p>
-                                <p><strong>Total Units:</strong> ' . $enrollments->count() . '</p>
-                                <p><strong>Total Classes:</strong> ' . $classTimetables->count() . '</p>
-                            </div>
-                            ' . ($classTimetables->count() > 0 ? '
-                            <h3>📅 CLASS SCHEDULE</h3>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Day</th>
-                                        <th>Time</th>
-                                        <th>Unit</th>
-                                        <th>Venue</th>
-                                        <th>Lecturer</th>
-                                        <th>Group</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ' . $classTimetables->map(function($class) {
-                                        return '<tr>
-                                            <td>' . $class->day . '</td>
-                                            <td>' . $class->start_time . ' - ' . $class->end_time . '</td>
-                                            <td>' . $class->unit_code . '<br><small>' . $class->unit_name . '</small></td>
-                                            <td>' . ($class->venue ?? 'TBA') . '</td>
-                                            <td>' . ($class->lecturer ?? 'TBA') . '</td>
-                                            <td>' . ($class->group_name ?? 'N/A') . '</td>
-                                        </tr>';
-                                    })->implode('') . '
-                                </tbody>
-                            </table>' : '<p>No class schedule available yet.</p>') . '
-                            
-                            <h3>📚 ENROLLED UNITS</h3>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Unit Code</th>
-                                        <th>Unit Name</th>
-                                        <th>Group</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ' . $enrollments->map(function($enrollment) {
-                                        return '<tr>
-                                            <td>' . ($enrollment->unit->code ?? 'N/A') . '</td>
-                                            <td>' . ($enrollment->unit->name ?? 'N/A') . '</td>
-                                            <td>' . ($enrollment->group->name ?? 'N/A') . '</td>
-                                        </tr>';
-                                    })->implode('') . '
-                                </tbody>
-                            </table>
-                            
-                            <div style="margin-top: 30px; text-align: center; font-size: 10px; color: #666;">
-                                <p>This is an official timetable document generated from the Timetabling System.</p>
-                            </div>
-                        </body>
-                        </html>
-                    ');
-                    
-                    $simplePdf->setPaper('a4', 'portrait');
-                    $simpleContent = $simplePdf->output();
-                    
-                    return response($simpleContent)
-                        ->header('Content-Type', 'application/pdf')
-                        ->header('Content-Disposition', 'attachment; filename="my-timetable-simple-' . now()->format('Y-m-d') . '.pdf"');
-                    
-                } catch (\Exception $fallbackError) {
-                    \Log::error('Even simple PDF generation failed', [
-                        'error' => $fallbackError->getMessage()
-                    ]);
-                    
-                    return redirect()->back()->with('error', 'PDF generation failed. Please try again later or contact support.');
-                }
-            }
+            // Return a more informative error response
+            return redirect()->back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
         }
-
-        // For non-students (admin/lecturer view) - simplified
-        return redirect()->back()->with('error', 'PDF download is only available for students.');
-
-    } catch (\Exception $e) {
-        \Log::error('Critical error in downloadPDF', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-            'user_id' => auth()->id()
-        ]);
-
-        return redirect()->back()->with('error', 'An unexpected error occurred. Please try again.');
     }
-}
+
  /**
      * Helper method to detect conflicts in the timetable
      */
