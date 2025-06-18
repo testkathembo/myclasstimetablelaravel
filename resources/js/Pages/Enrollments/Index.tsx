@@ -398,45 +398,62 @@ const Enrollments: React.FC = () => {
   return (
     <AuthenticatedLayout>
       <Head title="Enrollments" />
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header Section */}
           <div className="mb-8">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h1 className="text-4xl font-bold text-slate-800 mb-2">Student Enrollments</h1>
-                  <p className="text-slate-600 text-lg">Manage student course registrations and lecturer assignments</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 mt-6 sm:mt-0">
-                  <button
-                    onClick={handleOpenModal}
-                    className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg hover:from-emerald-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                    Enroll Student
-                  </button>
-                  <button
-                    onClick={handleOpenAssignModal}
-                    className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl shadow-lg hover:from-blue-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-200"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-6.5L12 18l-3-3"
-                      />
-                    </svg>
-                    Assign Lecturer
-                  </button>
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl border border-slate-200/50 p-8 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
+              <div className="relative">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-2 animate-in slide-in-from-left duration-500">
+                      Student Enrollments
+                    </h1>
+                    <p className="text-slate-600 text-lg">
+                      Manage student course registrations and lecturer assignments
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 mt-6 sm:mt-0">
+                    <button
+                      onClick={handleOpenModal}
+                      className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transform hover:scale-105 hover:-translate-y-0.5 transition-all duration-300 group"
+                    >
+                      <svg
+                        className="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                      </svg>
+                      Enroll Student
+                    </button>
+                    <button
+                      onClick={handleOpenAssignModal}
+                      className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 transform hover:scale-105 hover:-translate-y-0.5 transition-all duration-300 group"
+                    >
+                      <svg
+                        className="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-6.5L12 18l-3-3"
+                        />
+                      </svg>
+                      Assign Lecturer
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -444,7 +461,7 @@ const Enrollments: React.FC = () => {
 
           {/* Warning Section */}
           {(!semesters || semesters.length === 0) && (
-            <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 p-6 rounded-xl shadow-md">
+            <div className="mb-6 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-l-4 border-amber-400 p-6 rounded-xl shadow-lg backdrop-blur-sm border border-amber-200/50">
               <div className="flex items-center">
                 <svg className="w-6 h-6 text-amber-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -463,8 +480,8 @@ const Enrollments: React.FC = () => {
           )}
 
           {/* Enrollments Table */}
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-8">
-            <div className="px-8 py-6 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-200/50 overflow-hidden mb-8 hover:shadow-3xl transition-shadow duration-300">
+            <div className="px-8 py-6 bg-gradient-to-r from-slate-50 via-blue-50 to-indigo-50 border-b border-slate-200/50">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-800">Current Enrollments</h2>
@@ -534,11 +551,7 @@ const Enrollments: React.FC = () => {
                     enrollments.data.map((enrollment, index) => (
                       <tr
                         key={enrollment.id}
-                        className={`hover:bg-slate-50 transition-colors duration-150 ${
-                          index % 2 === 0 ? "bg-white" : "bg-slate-25"
-                        } ${
-                          selectedEnrollments.includes(enrollment.id) ? "bg-blue-50 border-l-4 border-blue-500" : ""
-                        }`}
+                        className={`hover:bg-slate-50 transition-colors duration-150 ${index % 2 === 0 ? "bg-white" : "bg-slate-25"} ${selectedEnrollments.includes(enrollment.id) ? "bg-blue-50 border-l-4 border-blue-500" : ""}`}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <input
@@ -617,7 +630,7 @@ const Enrollments: React.FC = () => {
             </div>
 
             {enrollments?.links && (
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+              <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-t border-slate-200/50">
                 <Pagination
                   links={enrollments.links}
                   onPageChange={handleEnrollmentsPageChange}
@@ -628,8 +641,8 @@ const Enrollments: React.FC = () => {
           </div>
 
           {/* Lecturer Assignments Table */}
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="px-8 py-6 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-200/50 overflow-hidden">
+            <div className="px-8 py-6 bg-gradient-to-r from-slate-50 via-blue-50 to-indigo-50 border-b border-slate-200/50">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-800">Lecturer Assignments</h2>
@@ -735,7 +748,7 @@ const Enrollments: React.FC = () => {
             </div>
 
             {lecturerAssignments?.links && lecturerAssignments.links.length > 3 && (
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+              <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-t border-slate-200/50">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-slate-600">
                     Showing {(lecturerAssignments.current_page - 1) * lecturerAssignments.per_page + 1} to{" "}
@@ -759,8 +772,8 @@ const Enrollments: React.FC = () => {
 
       {/* Enrollment Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 animate-in fade-in duration-300">
+          <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-2xl max-w-lg w-full mx-4 border border-slate-200/50 animate-in slide-in-from-bottom-4 duration-300">
             <h2 className="text-xl font-bold mb-4">Enroll Student</h2>
             {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
             <form onSubmit={handleSubmit}>
@@ -775,7 +788,7 @@ const Enrollments: React.FC = () => {
                       student_code: e.target.value,
                     }))
                   }
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white hover:border-slate-400"
                   required
                   placeholder="Enter student code (e.g., BBIT0001)"
                 />
@@ -786,7 +799,7 @@ const Enrollments: React.FC = () => {
                 <select
                   value={currentEnrollment?.semester_id || ""}
                   onChange={(e) => handleSemesterChange(Number(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white hover:border-slate-400"
                   required
                 >
                   <option value="">Select a semester</option>
@@ -809,7 +822,7 @@ const Enrollments: React.FC = () => {
                 <select
                   value={currentEnrollment?.class_id || ""}
                   onChange={(e) => handleClassChange(Number(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white hover:border-slate-400"
                   required
                   disabled={!currentEnrollment?.semester_id}
                 >
@@ -832,7 +845,7 @@ const Enrollments: React.FC = () => {
                       group_id: e.target.value,
                     }))
                   }
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white hover:border-slate-400"
                   required
                   disabled={!currentEnrollment?.class_id}
                 >
@@ -844,54 +857,86 @@ const Enrollments: React.FC = () => {
                   ))}
                 </select>
               </div>
-
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Units</label>
-                <div className="max-h-32 overflow-y-auto border rounded-lg p-2">
-                  {isLoading ? (
-                    <div className="text-center py-4">Loading units...</div>
-                  ) : filteredUnits.length > 0 ? (
-                    filteredUnits.map((unit) => (
-                      <div key={unit.id} className="flex items-center mb-2">
-                        <input
-                          type="checkbox"
-                          id={`unit-${unit.id}`}
-                          checked={currentEnrollment?.unit_ids.includes(unit.id) || false}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked
-                            setCurrentEnrollment((prev) => ({
-                              ...prev!,
-                              unit_ids: isChecked
-                                ? [...prev!.unit_ids, unit.id]
-                                : prev!.unit_ids.filter((id) => id !== unit.id),
-                            }))
-                          }}
-                          className="mr-2"
-                        />
-                        <label htmlFor={`unit-${unit.id}`} className="text-sm">
-                          {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
-                        </label>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4 text-gray-500">
-                      {currentEnrollment?.class_id ? "No units available for this class" : "Select a class first"}
-                    </div>
-                  )}
-                </div>
-              </div>
+                  <div className="mb-6">
+  <label className="block text-sm font-medium text-gray-700 mb-2">Units</label>
+  {/* Select All Units Checkbox */}
+  {filteredUnits.length > 0 && (
+    <div className="flex items-center mb-2">
+      <input
+        type="checkbox"
+        id="select-all-units"
+        checked={
+          currentEnrollment?.unit_ids.length === filteredUnits.length &&
+          filteredUnits.length > 0
+        }
+        onChange={() => {
+          if (
+            currentEnrollment?.unit_ids.length === filteredUnits.length &&
+            filteredUnits.length > 0
+          ) {
+            setCurrentEnrollment((prev) => ({
+              ...prev!,
+              unit_ids: [],
+            }))
+          } else {
+            setCurrentEnrollment((prev) => ({
+              ...prev!,
+              unit_ids: filteredUnits.map((unit) => unit.id),
+            }))
+          }
+        }}
+        className="mr-2 accent-blue-600"
+      />
+      <label htmlFor="select-all-units" className="text-sm font-medium text-blue-700">
+        Select All Units
+      </label>
+    </div>
+  )}
+  <div className="max-h-32 overflow-y-auto border rounded-lg p-2">
+    {isLoading ? (
+      <div className="text-center py-4">Loading units...</div>
+    ) : filteredUnits.length > 0 ? (
+      filteredUnits.map((unit) => (
+        <div key={unit.id} className="flex items-center mb-2">
+          <input
+            type="checkbox"
+            id={`unit-${unit.id}`}
+            checked={currentEnrollment?.unit_ids.includes(unit.id) || false}
+            onChange={(e) => {
+              const isChecked = e.target.checked
+              setCurrentEnrollment((prev) => ({
+                ...prev!,
+                unit_ids: isChecked
+                  ? [...prev!.unit_ids, unit.id]
+                  : prev!.unit_ids.filter((id) => id !== unit.id),
+              }))
+            }}
+            className="mr-2"
+          />
+          <label htmlFor={`unit-${unit.id}`} className="text-sm">
+            {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
+          </label>
+        </div>
+      ))
+    ) : (
+      <div className="text-center py-4 text-gray-500">
+        {currentEnrollment?.class_id ? "No units available for this class" : "Select a class first"}
+      </div>
+    )}
+  </div>
+</div>
 
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-lg hover:from-gray-300 hover:to-gray-400 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                   disabled={isLoading}
                 >
                   {isLoading ? "Loading..." : "Enroll"}
@@ -904,8 +949,8 @@ const Enrollments: React.FC = () => {
 
       {/* Assignment Modal */}
       {isAssignModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 animate-in fade-in duration-300">
+          <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-2xl max-w-lg w-full mx-4 border border-slate-200/50 animate-in slide-in-from-bottom-4 duration-300">
             <h2 className="text-xl font-bold mb-4">Assign Unit to Lecturer</h2>
             {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
             <form
@@ -935,7 +980,7 @@ const Enrollments: React.FC = () => {
                       unit_id: Number(e.target.value),
                     }))
                   }
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white hover:border-slate-400"
                   required
                 >
                   <option value="">Select a unit</option>
@@ -959,7 +1004,7 @@ const Enrollments: React.FC = () => {
                       lecturer_code: e.target.value,
                     }))
                   }
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white hover:border-slate-400"
                   required
                   placeholder="Enter lecturer code (e.g., BBITLEC001)"
                 />
@@ -969,13 +1014,13 @@ const Enrollments: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCloseAssignModal}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-lg hover:from-gray-300 hover:to-gray-400 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   Assign
                 </button>
@@ -989,3 +1034,4 @@ const Enrollments: React.FC = () => {
 }
 
 export default Enrollments
+
