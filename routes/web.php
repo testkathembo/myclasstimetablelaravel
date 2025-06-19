@@ -299,6 +299,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('classtimetables', ClassTimetableController::class, ['as' => 'classtimetable']);
         Route::get('/schools/sces/bbit/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index.alt');
         Route::get('/classtimetable/download', [ClassTimetableController::class, 'downloadTimetable'])->name('classtimetable.download');
+        
     });
 
     // Exam Timetables

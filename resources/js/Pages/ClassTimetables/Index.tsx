@@ -117,7 +117,6 @@ interface PaginatedClassTimetables {
   current_page: number
 }
 
-// ✅ Updated FormState interface to allow null values
 interface FormState {
   id: number
   day: string
@@ -141,62 +140,150 @@ interface FormState {
   school_id?: number | null
 }
 
+// Helper function to format time for display
+const formatTimeToHi = (time: string) => {
+  if (!time) return ""
+  return time.slice(0, 5) // Returns HH:MM format
+}
+
+// Helper function to convert time to minutes for sorting
+const timeToMinutes = (time: string) => {
+  if (!time) return 0
+  const [hours, minutes] = time.split(":").map(Number)
+  return hours * 60 + minutes
+}
+
+// Helper function to get day order for sorting
+const getDayOrder = (day: string) => {
+  const dayOrder = {
+    Monday: 1,
+    Tuesday: 2,
+    Wednesday: 3,
+    Thursday: 4,
+    Friday: 5,
+    Saturday: 6,
+    Sunday: 7,
+  }
+  return dayOrder[day as keyof typeof dayOrder] || 8
+}
+
+// Helper function to organize timetables by day and time
+const organizeTimetablesByDayAndTime = (timetables: ClassTimetable[]) => {
+  // Sort timetables by day and then by start time
+  const sortedTimetables = [...timetables].sort((a, b) => {
+    const dayComparison = getDayOrder(a.day) - getDayOrder(b.day)
+    if (dayComparison !== 0) return dayComparison
+
+    return timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+  })
+
+  // Group by day
+  const groupedByDay = sortedTimetables.reduce(
+    (acc, timetable) => {
+      if (!acc[timetable.day]) {
+        acc[timetable.day] = []
+      }
+      acc[timetable.day].push(timetable)
+      return acc
+    },
+    {} as Record<string, ClassTimetable[]>,
+  )
+
+  return groupedByDay
+}
+
+// Helper to check if two time slots are consecutive
+const areConsecutiveSlots = (slotA: ClassTimeSlot, slotB: ClassTimeSlot) => {
+  return slotA.day === slotB.day && slotA.end_time === slotB.start_time
+}
+
 const isTimeSlotAvailable = (
   slot: ClassTimeSlot,
   day: string,
   venue: string,
   lecturer: string,
   unitId: number,
-  classTimetables: PaginatedClassTimetables
+  classTimetables: PaginatedClassTimetables,
+  groupId?: number | null,
+  groupSlots?: ClassTimeSlot[],
+  unitCreditHours?: number,
 ) => {
-  return !classTimetables.data.some((ct) => {
-    if (ct.day !== slot.day) return false;
+  // 1. No overlap for venue, lecturer, unit
+  const overlap = classTimetables.data.some((ct) => {
+    if (ct.day !== slot.day) return false
     if (venue && ct.venue === venue) {
-      return (ct.start_time < slot.end_time && ct.end_time > slot.start_time);
+      return ct.start_time < slot.end_time && ct.end_time > slot.start_time
     }
     if (lecturer && ct.lecturer === lecturer) {
-      return (ct.start_time < slot.end_time && ct.end_time > slot.start_time);
+      return ct.start_time < slot.end_time && ct.end_time > slot.start_time
     }
     if (unitId && ct.unit_id === unitId) {
-      return (ct.start_time < slot.end_time && ct.end_time > slot.start_time);
+      return ct.start_time < slot.end_time && ct.end_time > slot.start_time
     }
-    return false;
-  });
-};
+    return false
+  })
+  if (overlap) return false
 
-// ✅ FIXED: Updated to work without requiring a specific day
+  // 2. Lecturer break: no consecutive slots
+  const lecturerSlots = classTimetables.data.filter((ct) => ct.lecturer === lecturer && ct.day === slot.day)
+  for (const ct of lecturerSlots) {
+    if (ct.end_time === slot.start_time || ct.start_time === slot.end_time) {
+      return false // consecutive
+    }
+  }
+
+  // 3. Group break: no consecutive slots for the same group
+  if (groupId) {
+    const groupSlots = classTimetables.data.filter((ct) => ct.group_id === groupId && ct.day === slot.day)
+    for (const ct of groupSlots) {
+      if (ct.end_time === slot.start_time || ct.start_time === slot.end_time) {
+        return false // consecutive
+      }
+    }
+  }
+
+  // 4. Unit spread: for 3 or 4 credit units, must be on at least 2 days
+  if (unitCreditHours && unitCreditHours >= 3) {
+    const unitDays = [...new Set(classTimetables.data.filter((ct) => ct.unit_id === unitId).map((ct) => ct.day))]
+    // If all hours are on one day, block further assignment to that day
+    if (
+      unitDays.length === 1 &&
+      unitDays[0] === slot.day &&
+      classTimetables.data.filter((ct) => ct.unit_id === unitId && ct.day === slot.day).length >= unitCreditHours - 1
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
 const getRandomAvailableTimeSlot = (
   venue: string,
   lecturer: string,
   unitId: number,
   classTimetables: PaginatedClassTimetables,
-  classtimeSlots: ClassTimeSlot[]
+  classtimeSlots: ClassTimeSlot[],
+  groupId?: number | null,
+  unitCreditHours?: number,
 ): ClassTimeSlot | null => {
-  // Get all available time slots across all days
+  // Get all available time slots across all days, enforcing new rules
   const availableSlots = classtimeSlots.filter((slot) =>
-    isTimeSlotAvailable(slot, slot.day, venue, lecturer, unitId, classTimetables)
-  );
-  
-  if (availableSlots.length === 0) return null;
-  return availableSlots[Math.floor(Math.random() * availableSlots.length)];
-};
+    isTimeSlotAvailable(
+      slot,
+      slot.day,
+      venue,
+      lecturer,
+      unitId,
+      classTimetables,
+      groupId,
+      classtimeSlots,
+      unitCreditHours,
+    ),
+  )
 
-// Helper function to ensure time is in H:i format
-const formatTimeToHi = (timeStr: string) => {
-  if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
-    return timeStr
-  }
-  if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(timeStr)) {
-    return timeStr.substring(0, 5)
-  }
-  if (timeStr.includes("AM") || timeStr.includes("PM")) {
-    const [time, modifier] = timeStr.split(" ")
-    let [hours, minutes] = time.split(":").map(Number)
-    if (modifier === "PM" && hours < 12) hours += 12
-    if (modifier === "AM" && hours === 12) hours = 0
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
-  }
-  return timeStr
+  if (availableSlots.length === 0) return null
+  return availableSlots[Math.floor(Math.random() * availableSlots.length)]
 }
 
 // Helper function to check for time overlap
@@ -261,11 +348,11 @@ const ClassTimetable = () => {
     classes: Class[]
     groups: Group[]
     programs: Program[]
-    schools: { id: number, code: string, name: string }[] // Add schools here
+    schools: { id: number; code: string; name: string }[]
     can: {
       create: boolean
       edit: boolean
-      delete: boolean      
+      delete: boolean
       solve_conflicts: boolean
       download: boolean
     }
@@ -317,6 +404,9 @@ const ClassTimetable = () => {
   const [autoClasses, setAutoClassesRaw] = useState<Class[]>([])
   const [autoGroups, setAutoGroupsRaw] = useState<Group[]>([])
   const [autoLoading, setAutoLoading] = useState(false)
+
+  // Organize timetables by day and time
+  const organizedTimetables = organizeTimetablesByDayAndTime(classTimetables.data)
 
   // Initialize available timeslots
   useEffect(() => {
@@ -457,9 +547,9 @@ const ClassTimetable = () => {
         classtimeslot_id: 0,
         lecturer_id: null,
         lecturer_name: "",
-        class_id: null,  // ✅ Initialize as null instead of 0
-        group_id: null,  // ✅ Initialize as null instead of 0
-        school_id: null, // ✅ Initialize as null instead of 0
+        class_id: null,
+        group_id: null,
+        school_id: null,
       })
       setFilteredUnits([])
     } else if (classtimetable) {
@@ -481,13 +571,10 @@ const ClassTimetable = () => {
         classtimeslot_id: classtimeSlot?.id || 0,
         lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
         lecturer_name: unitEnrollment?.lecturer_name || "",
-        class_id: classtimetable.class_id || null,  // ✅ Use null instead of 0
-        group_id: classtimetable.group_id || null,  // ✅ Use null instead of 0
+        class_id: classtimetable.class_id || null,
+        group_id: classtimetable.group_id || null,
         teaching_mode: classtimetable.teaching_mode || "physical",
       })
-
-
-      
 
       if (classtimetable.semester_id) {
         const semesterUnits = units.filter((unit) => unit.semester_id === classtimetable.semester_id)
@@ -521,7 +608,7 @@ const ClassTimetable = () => {
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this class timetable?")) {
       try {
-        await router.delete(`/classtimetable/${id}`, {
+        await router.delete(`/classtimetables/${id}`, {
           onSuccess: () => toast.success("Class timetable deleted successfully."),
           onError: (errors) => {
             console.error("Failed to delete class timetable:", errors)
@@ -631,8 +718,8 @@ const ClassTimetable = () => {
     setFormState((prev) => ({
       ...prev!,
       semester_id: numericSemesterId,
-      class_id: null,  // ✅ Reset to null instead of 0
-      group_id: null,  // ✅ Reset to null instead of 0
+      class_id: null,
+      group_id: null,
       unit_id: 0,
       unit_code: "",
       unit_name: "",
@@ -648,17 +735,15 @@ const ClassTimetable = () => {
     setIsLoading(false)
   }
 
-  // ✅ NEW: Added handleClassChange function
   const handleClassChange = async (classId: number | string) => {
     if (!formState) return
 
-    // Convert string to number, handle empty string properly
     const numericClassId = classId === "" ? null : Number(classId)
 
     setFormState((prev) => ({
       ...prev!,
-      class_id: numericClassId,  // ✅ Store null for empty selection
-      group_id: null, // Reset group selection to null
+      class_id: numericClassId,
+      group_id: null,
       unit_id: 0,
       unit_code: "",
       unit_name: "",
@@ -666,18 +751,15 @@ const ClassTimetable = () => {
       lecturer: "",
     }))
 
-    // Only proceed if valid class selected
     if (numericClassId === null) {
       setFilteredGroups([])
       setFilteredUnits([])
       return
     }
 
-    // Simple fetch of groups for the selected class
     const filteredGroupsForClass = groups.filter((group) => group.class_id === numericClassId)
     setFilteredGroups(filteredGroupsForClass)
 
-    // Fetch ALL units for the selected class
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -711,16 +793,14 @@ const ClassTimetable = () => {
     }
   }
 
-  // ✅ UPDATED: handleGroupChange function to handle null properly
   const handleGroupChange = (groupId: number | string) => {
     if (!formState) return
 
-    // Convert string to number, handle empty string properly
     const numericGroupId = groupId === "" ? null : Number(groupId)
 
     setFormState((prev) => ({
       ...prev!,
-      group_id: numericGroupId,  // ✅ Store null for empty selection
+      group_id: numericGroupId,
     }))
   }
 
@@ -741,7 +821,6 @@ const ClassTimetable = () => {
         lecturer: lecturerName,
       }))
 
-      // Find lecturers for this unit
       if (formState.semester_id) {
         findLecturersForUnit(unitId, formState.semester_id)
       }
@@ -806,41 +885,33 @@ const ClassTimetable = () => {
     }))
   }
 
-  
-  // ✅ UPDATED: handleSubmitForm with validation and proper null handling
   const handleSubmitForm = (data: FormState) => {
-    console.log('Raw form data received:', data);
-    console.log('class_id:', data.class_id, 'type:', typeof data.class_id);
-    console.log('group_id:', data.group_id, 'type:', typeof data.group_id);
-    
-    // ✅ Add frontend validation
+    console.log("Raw form data received:", data)
+    console.log("class_id:", data.class_id, "type:", typeof data.class_id)
+    console.log("group_id:", data.group_id, "type:", typeof data.group_id)
+
     if (!data.class_id) {
       toast.error("Please select a class before submitting.")
       return
     }
-    
-    // Remove undefined/null fields that are not in the DB table
+
     const formattedData: any = {
       ...data,
       start_time: formatTimeToHi(data.start_time),
       end_time: formatTimeToHi(data.end_time),
-    };
+    }
 
-    // Only send fields that exist in the DB table
-    // Remove fields like unit_code, unit_name, classtimeslot_id, lecturer_id, lecturer_name, enrollment_id
-    delete formattedData.unit_code;
-    delete formattedData.unit_name;
-    delete formattedData.classtimeslot_id;
-    delete formattedData.lecturer_id;
-    delete formattedData.lecturer_name;
-    delete formattedData.enrollment_id;
+    delete formattedData.unit_code
+    delete formattedData.unit_name
+    delete formattedData.classtimeslot_id
+    delete formattedData.lecturer_id
+    delete formattedData.lecturer_name
+    delete formattedData.enrollment_id
 
-    // Remove any undefined fields (especially group_id/class_id if not set)
-    Object.keys(formattedData).forEach(
-      (key) => (formattedData[key] === undefined ? delete formattedData[key] : undefined)
-    );
+    Object.keys(formattedData).forEach((key) =>
+      formattedData[key] === undefined ? delete formattedData[key] : undefined,
+    )
 
-    // Client-side conflict detection for semesters
     const semesterConflictExists = checkSemesterConflict(
       classTimetables,
       formattedData.day,
@@ -854,7 +925,6 @@ const ClassTimetable = () => {
       return
     }
 
-    // Client-side conflict detection
     const conflictExists = checkLecturerConflict(
       classTimetables,
       formattedData.day,
@@ -869,23 +939,19 @@ const ClassTimetable = () => {
     }
 
     if (data.id === 0) {
-      router.post(`/classtimetable`, formattedData, {
+      router.post(`/classtimetables`, formattedData, {
         onSuccess: () => {
           toast.success("Class timetable created successfully.")
           handleCloseModal()
           router.reload({ only: ["classTimetables"] })
         },
         onError: (errors: any) => {
-          // Show all error messages from Laravel validation or SQL errors
           let msg = "Failed to create class timetable."
           if (errors && typeof errors === "object") {
             if (errors.error) {
               msg = errors.error
             } else {
-              const errorMsgs = Object.values(errors)
-                .flat()
-                .filter(Boolean)
-                .join(" ")
+              const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
               if (errorMsgs) msg = errorMsgs
             }
           }
@@ -905,10 +971,7 @@ const ClassTimetable = () => {
             if (errors.error) {
               msg = errors.error
             } else {
-              const errorMsgs = Object.values(errors)
-                .flat()
-                .filter(Boolean)
-                .join(" ")
+              const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
               if (errorMsgs) msg = errorMsgs
             }
           }
@@ -916,7 +979,7 @@ const ClassTimetable = () => {
         },
       })
     }
-  }  
+  }
 
   const handleDownloadClassTimetable = () => {
     toast.promise(
@@ -955,7 +1018,6 @@ const ClassTimetable = () => {
 
   const handleOpenAutoGenerateModal = () => {
     setIsAutoGenerateModalOpen(true)
-    // Reset form state when opening modal
     setAutoGenerateFormState({
       semester_id: "",
       program_id: "",
@@ -989,19 +1051,15 @@ const ClassTimetable = () => {
 
   const handleAutoGenerateSubmit = async () => {
     try {
-      // Validate form
       if (!autoGenerateFormState.semester_id || !autoGenerateFormState.program_id || !autoGenerateFormState.class_id) {
         toast.error("Please fill in all required fields")
         return
       }
 
-      // Show loading toast
       const loadingToast = toast.loading("Generating timetable...")
 
-      // Make the request using axios for better error handling
       const response = await axios.post("/auto-generate-timetable", autoGenerateFormState)
 
-      // Dismiss loading toast
       toast.dismiss(loadingToast)
 
       if (response.data.success) {
@@ -1012,7 +1070,6 @@ const ClassTimetable = () => {
         toast.error(response.data.message || "Failed to generate timetable.")
       }
     } catch (error: any) {
-      // Dismiss loading toast
       toast.dismiss()
 
       console.error("Auto-generate error:", error)
@@ -1075,73 +1132,94 @@ const ClassTimetable = () => {
 
         {classTimetables?.data?.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full mt-6 border text-sm text-left">
-                <thead className="bg-gray-100 border-b">
-                  <tr>
-                    <th className="px-3 py-2">ID</th>
-                    <th className="px-3 py-2">Semester</th>
-                    <th className="px-3 py-2">Unit</th>
-                    <th className="px-3 py-2">Class</th>
-                    <th className="px-3 py-2">Group</th>
-                    <th className="px-3 py-2">Day</th>
-                    <th className="px-3 py-2">Start Time</th>
-                    <th className="px-3 py-2">End Time</th>
-                    <th className="px-3 py-2">Teaching Mode</th>
-                    <th className="px-3 py-2">Venue</th>                   
-                    <th className="px-3 py-2">No</th>
-                    <th className="px-3 py-2">Lecturer</th>
-                    <th className="px-3 py-2">Program</th>
-                    <th className="px-3 py-2">School</th>                    
-                    <th className="px-3 py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classTimetables.data.map((ct) => (
-                    <tr key={ct.id} className="border-b hover:bg-gray-50">
-                      <td className="px-3 py-2">{ct.id}</td>
-                      <td className="px-3 py-2">{ct.semester_name || ct.semester_id}</td>
-                      <td className="px-3 py-2">{ct.unit_code || ct.unit_id}</td>
-                      <td className="px-3 py-2">{ct.class_name || ct.class_id || "-"}</td>
-                      <td className="px-3 py-2">{ct.group_name || ct.group_id || "-"}</td>
-                      <td className="px-3 py-2">{ct.day}</td>
-                      <td className="px-3 py-2">{ct.start_time}</td>
-                      <td className="px-3 py-2">{ct.end_time}</td>
-                      <td className="px-3 py-2">{ct.teaching_mode}</td>
-                      <td className="px-3 py-2">{ct.venue}</td>                     
-                      <td className="px-3 py-2">{ct.no}</td>
-                      <td className="px-3 py-2">{ct.lecturer}</td>
-                      <td className="px-3 py-2">{ct.program_code}</td>
-                      <td className="px-3 py-2">{ct.school_code}</td>
-                      
-                      <td className="px-3 py-2 flex space-x-2">
-                        <Button
-                          onClick={() => handleOpenModal("view", ct)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white"
-                        >
-                          View
-                        </Button>
-                        {can.edit && (
-                          <Button
-                            onClick={() => handleOpenModal("edit", ct)}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                          >
-                            Edit
-                          </Button>
-                        )}
-                        {can.delete && (
-                          <Button
-                            onClick={() => handleDelete(ct.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white"
-                          >
-                            Delete
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Organized Timetable Display */}
+            <div className="space-y-6">
+              {Object.entries(organizedTimetables).map(([day, dayTimetables]) => (
+                <div key={day} className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-100 px-4 py-3 border-b">
+                    <h3 className="text-lg font-semibold text-gray-800">{day}</h3>
+                    <p className="text-sm text-gray-600">{dayTimetables.length} classes scheduled</p>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-3 py-2">Time</th>
+                          <th className="px-3 py-2">Unit</th>
+                          <th className="px-3 py-2">Class</th>
+                          <th className="px-3 py-2">Group</th>
+                          <th className="px-3 py-2">Venue</th>
+                          <th className="px-3 py-2">Students</th>
+                          <th className="px-3 py-2">Lecturer</th>
+                          <th className="px-3 py-2">Mode</th>
+                          <th className="px-3 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dayTimetables.map((ct) => (
+                          <tr key={ct.id} className="border-b hover:bg-gray-50">
+                            <td className="px-3 py-2 font-medium">
+                              {formatTimeToHi(ct.start_time)} - {formatTimeToHi(ct.end_time)}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div>
+                                <div className="font-medium">{ct.unit_code}</div>
+                                <div className="text-xs text-gray-500">{ct.unit_name}</div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">{ct.class_name || ct.class_id || "-"}</td>
+                            <td className="px-3 py-2">{ct.group_name || ct.group_id || "-"}</td>
+                            <td className="px-3 py-2">
+                              <div>
+                                <div className="font-medium">{ct.venue}</div>
+                                <div className="text-xs text-gray-500">{ct.location}</div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">{ct.no}</td>
+                            <td className="px-3 py-2">{ct.lecturer}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                ct.teaching_mode === 'online' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {ct.teaching_mode || 'Physical'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex space-x-1">
+                                <Button
+                                  onClick={() => handleOpenModal("view", ct)}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1"
+                                >
+                                  View
+                                </Button>
+                                {can.edit && (
+                                  <Button
+                                    onClick={() => handleOpenModal("edit", ct)}
+                                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-2 py-1"
+                                  >
+                                    Edit
+                                  </Button>
+                                )}
+                                {can.delete && (
+                                  <Button
+                                    onClick={() => handleDelete(ct.id)}
+                                    className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1"
+                                  >
+                                    Delete
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <Pagination links={classTimetables?.links || []} />
@@ -1149,8 +1227,6 @@ const ClassTimetable = () => {
         ) : (
           <p className="mt-6 text-gray-600">No class timetables available yet.</p>
         )}
-
-        
 
         {/* Regular Modal for Create/Edit/View/Delete */}
         {isModalOpen && (
@@ -1208,63 +1284,59 @@ const ClassTimetable = () => {
                       handleSubmitForm(formState)
                     }}
                   >
-                   {/* ✅ UPDATED: Time Slot Selection - Now handles random assignment properly */}
-                   <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot *</label>
-                   <select
-                     value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
-                     onChange={e => {
-                       if (e.target.value === "Random Time Slot (auto-assign)") {
-                         // ✅ FIXED: Use updated function that doesn't require a day parameter
-                         const slot = getRandomAvailableTimeSlot(
-                           formState.venue || "",
-                           formState.lecturer || "",
-                           formState.unit_id || 0,
-                           classTimetables,
-                           classtimeSlots
-                         );
-                         if (slot) {
-                           setFormState(prev => ({
-                             ...prev!,
-                             start_time: slot.start_time,
-                             end_time: slot.end_time,
-                             day: slot.day,
-                           }));
-                           setConflictWarning(null);
-                         } else {
-                           setFormState(prev => ({
-                             ...prev!,
-                             start_time: "",
-                             end_time: "",
-                             day: "",
-                           }));
-                           setConflictWarning("No available time slot found for the given constraints.");
-                         }
-                       } else {
-                         // Find the specific time slot
-                         const slot = classtimeSlots.find(s => s.start_time === e.target.value);
-                         if (slot) {
-                           setFormState(prev => ({
-                             ...prev!,
-                             start_time: slot.start_time,
-                             end_time: slot.end_time,
-                             day: slot.day,
-                           }));
-                           setConflictWarning(null);
-                         }
-                       }
-                     }}
-                     className="w-full border rounded p-2 mb-3"
-                     required
-                   >
-                     <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
-                     {classtimeSlots.map(slot => (
-                       <option key={slot.id} value={slot.start_time}>
-                         {slot.day} {slot.start_time} - {slot.end_time}
-                       </option>
-                     ))}
-                   </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot *</label>
+                    <select
+                      value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
+                      onChange={e => {
+                        if (e.target.value === "Random Time Slot (auto-assign)") {
+                          const slot = getRandomAvailableTimeSlot(
+                            formState.venue || "",
+                            formState.lecturer || "",
+                            formState.unit_id || 0,
+                            classTimetables,
+                            classtimeSlots
+                          );
+                          if (slot) {
+                            setFormState(prev => ({
+                              ...prev!,
+                              start_time: slot.start_time,
+                              end_time: slot.end_time,
+                              day: slot.day,
+                            }));
+                            setConflictWarning(null);
+                          } else {
+                            setFormState(prev => ({
+                              ...prev!,
+                              start_time: "",
+                              end_time: "",
+                              day: "",
+                            }));
+                            setConflictWarning("No available time slot found for the given constraints.");
+                          }
+                        } else {
+                          const slot = classtimeSlots.find(s => s.start_time === e.target.value);
+                          if (slot) {
+                            setFormState(prev => ({
+                              ...prev!,
+                              start_time: slot.start_time,
+                              end_time: slot.end_time,
+                              day: slot.day,
+                            }));
+                            setConflictWarning(null);
+                          }
+                        }
+                      }}
+                      className="w-full border rounded p-2 mb-3"
+                      required
+                    >
+                      <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
+                      {classtimeSlots.map(slot => (
+                        <option key={slot.id} value={slot.start_time}>
+                          {slot.day} {slot.start_time} - {slot.end_time}
+                        </option>
+                      ))}
+                    </select>
 
-                    {/* --- SCHOOL SELECT DROPDOWN --- */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
                     <select
                       value={formState.school_id || ""}
@@ -1279,7 +1351,6 @@ const ClassTimetable = () => {
                         </option>
                       ))}
                     </select>
-
 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
                     <select
@@ -1296,7 +1367,6 @@ const ClassTimetable = () => {
                       )) || null}
                     </select>
 
-                    {/* --- CLASS SELECT DROPDOWN --- */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
                     <select
                       value={formState.class_id || ""}
@@ -1313,7 +1383,6 @@ const ClassTimetable = () => {
                       ))}
                     </select>
 
-                    {/* --- GROUP SELECT DROPDOWN --- */}
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Group{" "}
                       <span className="text-sm text-gray-500">
@@ -1334,17 +1403,16 @@ const ClassTimetable = () => {
                       ))}
                     </select>
 
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Mode of Teaching</label>
-                 <select 
-                    value={formState.teaching_mode || "physical"}
-                    onChange={e => handleCreateChange("teaching_mode", e.target.value)}
-                    className="w-full border rounded p-2 mb-3"
-                  >
-                    <option value="physical">Physical</option>
-                    <option value="online">Online</option>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mode of Teaching</label>
+                    <select 
+                      value={formState.teaching_mode || "physical"}
+                      onChange={e => handleCreateChange("teaching_mode", e.target.value)}
+                      className="w-full border rounded p-2 mb-3"
+                    >
+                      <option value="physical">Physical</option>
+                      <option value="online">Online</option>
                     </select>
 
-                    {/* Update the info section */}
                     {formState.class_id && (
                       <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
                         <p className="text-blue-700">
@@ -1435,7 +1503,6 @@ const ClassTimetable = () => {
                       value={formState.venue}
                       onChange={(e) => handleVenueChange(e.target.value)}
                       className="w-full border rounded p-2 mb-3"
-                      // Remove required to allow random assignment
                     >
                       <option value="">Random Venue (auto-assign)</option>
                       {classrooms?.map((classroom) => (
@@ -1480,7 +1547,6 @@ const ClassTimetable = () => {
                       required
                     />
 
-                    
                     <div className="mt-4 flex justify-end space-x-2">
                       <Button
                         type="submit"
@@ -1517,6 +1583,7 @@ const ClassTimetable = () => {
             </div>
           </div>
         )}
+      {/* End of Modal */}
       </div>
     </AuthenticatedLayout>
   )
