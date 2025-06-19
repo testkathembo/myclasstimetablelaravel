@@ -153,6 +153,75 @@ const timeToMinutes = (time: string) => {
   return hours * 60 + minutes
 }
 
+// Helper function to validate group daily hour constraints
+const validateGroupDailyHours = (
+  groupId: number | null,
+  day: string,
+  startTime: string,
+  endTime: string,
+  classTimetables: PaginatedClassTimetables,
+  excludeId?: number,
+) => {
+  if (!groupId) return { isValid: true, message: "" }
+
+  // Get all slots for this group on this day (excluding current edit if applicable)
+  const groupDaySlots = classTimetables.data.filter(
+    (ct) => ct.group_id === groupId && ct.day === day && ct.id !== excludeId,
+  )
+
+  // Calculate total hours already assigned
+  const totalHoursAssigned = groupDaySlots.reduce((total, ct) => {
+    const startMinutes = timeToMinutes(ct.start_time)
+    const endMinutes = timeToMinutes(ct.end_time)
+    return total + (endMinutes - startMinutes) / 60
+  }, 0)
+
+  // Calculate hours for the new/edited slot
+  const slotStartMinutes = timeToMinutes(startTime)
+  const slotEndMinutes = timeToMinutes(endTime)
+  const newSlotHours = (slotEndMinutes - slotStartMinutes) / 60
+
+  const totalHours = totalHoursAssigned + newSlotHours
+
+  // Check constraints
+  if (totalHours > 5) {
+    return {
+      isValid: false,
+      message: `Group cannot have more than 5 hours per day. Current total would be ${totalHours.toFixed(1)} hours.`,
+    }
+  }
+
+  if (totalHours < 2 && groupDaySlots.length === 0) {
+    // This is a soft warning for planning purposes
+    return {
+      isValid: true,
+      message: `Note: Groups should have at least 2 hours per day. Current slot is ${newSlotHours.toFixed(1)} hours.`,
+      isWarning: true,
+    }
+  }
+
+  return { isValid: true, message: "" }
+}
+
+// Helper function to get group daily hours summary
+const getGroupDailyHoursSummary = (groupId: number | null, classTimetables: PaginatedClassTimetables) => {
+  if (!groupId) return {}
+
+  const groupSlots = classTimetables.data.filter((ct) => ct.group_id === groupId)
+
+  const dailyHours: Record<string, number> = {}
+
+  groupSlots.forEach((ct) => {
+    const startMinutes = timeToMinutes(ct.start_time)
+    const endMinutes = timeToMinutes(ct.end_time)
+    const hours = (endMinutes - startMinutes) / 60
+
+    dailyHours[ct.day] = (dailyHours[ct.day] || 0) + hours
+  })
+
+  return dailyHours
+}
+
 // Helper function to get day order for sorting
 const getDayOrder = (day: string) => {
   const dayOrder = {
@@ -242,7 +311,32 @@ const isTimeSlotAvailable = (
     }
   }
 
-  // 4. Unit spread: for 3 or 4 credit units, must be on at least 2 days
+  // 4. Group daily hour limits: min 2 hours, max 5 hours per day
+  if (groupId) {
+    const groupDaySlots = classTimetables.data.filter((ct) => ct.group_id === groupId && ct.day === slot.day)
+
+    // Calculate total hours already assigned to this group on this day
+    const totalHoursAssigned = groupDaySlots.reduce((total, ct) => {
+      const startMinutes = timeToMinutes(ct.start_time)
+      const endMinutes = timeToMinutes(ct.end_time)
+      return total + (endMinutes - startMinutes) / 60
+    }, 0)
+
+    // Calculate hours for the new slot
+    const slotStartMinutes = timeToMinutes(slot.start_time)
+    const slotEndMinutes = timeToMinutes(slot.end_time)
+    const newSlotHours = (slotEndMinutes - slotStartMinutes) / 60
+
+    // Check if adding this slot would exceed 5 hours per day
+    if (totalHoursAssigned + newSlotHours > 5) {
+      return false
+    }
+
+    // If this is the first slot of the day, ensure we can meet minimum 2 hours
+    // (This is more of a planning constraint - we'll handle it in the scheduling logic)
+  }
+
+  // 5. Unit spread: for 3 or 4 credit units, must be on at least 2 days
   if (unitCreditHours && unitCreditHours >= 3) {
     const unitDays = [...new Set(classTimetables.data.filter((ct) => ct.unit_id === unitId).map((ct) => ct.day))]
     // If all hours are on one day, block further assignment to that day
@@ -330,6 +424,70 @@ const checkSemesterConflict = (
       (classtimetable.start_time >= startTime && classtimetable.end_time <= endTime)
     )
   })
+}
+
+const checkForConflicts = (
+  day: string,
+  startTime: string,
+  endTime: string,
+  unitId: number | undefined,
+  venueId: string,
+  groupId?: number | null,
+) => {
+  if (!day || !startTime || !endTime || !unitId || !venueId) {
+    setConflictWarning(null)
+    return false
+  }
+
+  const conflicts = classTimetables.data.filter((classtimetable) => {
+    if (selectedClassTimetable && classtimetable.id === selectedClassTimetable.id) return false
+    const hasTimeOverlap = classtimetable.day === day && checkTimeOverlap(classtimetable, day, startTime, endTime)
+    const isSameUnit = classtimetable.unit_code === units.find((u) => u.id === unitId)?.code
+    const isSameVenue = classtimetable.venue === venueId
+    return hasTimeOverlap && (isSameUnit || isSameVenue)
+  })
+
+  const warningMessages: string[] = []
+
+  if (conflicts.length > 0) {
+    const unitConflicts = conflicts.filter(
+      (classtimetable) => classtimetable.unit_code === units.find((u) => u.id === unitId)?.code,
+    )
+    const venueConflicts = conflicts.filter((classtimetable) => classtimetable.venue === venueId)
+
+    if (unitConflicts.length > 0) {
+      warningMessages.push("This unit already has a class scheduled at this time.")
+    }
+    if (venueConflicts.length > 0) {
+      warningMessages.push("This venue is already booked at this time.")
+    }
+  }
+
+  // Check group daily hour constraints
+  if (groupId) {
+    const groupValidation = validateGroupDailyHours(
+      groupId,
+      day,
+      startTime,
+      endTime,
+      classTimetables,
+      selectedClassTimetable?.id,
+    )
+
+    if (!groupValidation.isValid) {
+      warningMessages.push(groupValidation.message)
+    } else if (groupValidation.isWarning) {
+      warningMessages.push(groupValidation.message)
+    }
+  }
+
+  if (warningMessages.length > 0) {
+    setConflictWarning(warningMessages.join(" "))
+    return !warningMessages.some((msg) => msg.includes("cannot") || msg.includes("already"))
+  }
+
+  setConflictWarning(null)
+  return false
 }
 
 const ClassTimetable = () => {
@@ -622,48 +780,6 @@ const ClassTimetable = () => {
     }
   }
 
-  const checkForConflicts = (
-    day: string,
-    startTime: string,
-    endTime: string,
-    unitId: number | undefined,
-    venueId: string,
-  ) => {
-    if (!day || !startTime || !endTime || !unitId || !venueId) {
-      setConflictWarning(null)
-      return false
-    }
-
-    const conflicts = classTimetables.data.filter((classtimetable) => {
-      if (selectedClassTimetable && classtimetable.id === selectedClassTimetable.id) return false
-      const hasTimeOverlap = classtimetable.day === day && checkTimeOverlap(classtimetable, day, startTime, endTime)
-      const isSameUnit = classtimetable.unit_code === units.find((u) => u.id === unitId)?.code
-      const isSameVenue = classtimetable.venue === venueId
-      return hasTimeOverlap && (isSameUnit || isSameVenue)
-    })
-
-    if (conflicts.length > 0) {
-      const unitConflicts = conflicts.filter(
-        (classtimetable) => classtimetable.unit_code === units.find((u) => u.id === unitId)?.code,
-      )
-      const venueConflicts = conflicts.filter((classtimetable) => classtimetable.venue === venueId)
-
-      let warningMsg = "Scheduling conflicts detected: "
-      if (unitConflicts.length > 0) {
-        warningMsg += `This unit already has a class scheduled at this time. `
-      }
-      if (venueConflicts.length > 0) {
-        warningMsg += `This venue is already booked at this time.`
-      }
-
-      setConflictWarning(warningMsg)
-      return true
-    }
-
-    setConflictWarning(null)
-    return false
-  }
-
   const handleClassTimeSlotChange = (classtimeSlotId: number) => {
     if (!formState) return
 
@@ -684,6 +800,7 @@ const ClassTimetable = () => {
           selectedClassTimeSlot.end_time,
           formState.unit_id,
           formState.venue,
+          formState.group_id,
         )
       }
     }
@@ -871,7 +988,14 @@ const ClassTimetable = () => {
       }))
 
       if (formState.day && formState.start_time && formState.end_time && formState.unit_id) {
-        checkForConflicts(formState.day, formState.start_time, formState.end_time, formState.unit_id, venueName)
+        checkForConflicts(
+          formState.day,
+          formState.start_time,
+          formState.end_time,
+          formState.unit_id,
+          venueName,
+          formState.group_id,
+        )
       }
     }
   }
@@ -1097,13 +1221,13 @@ const ClassTimetable = () => {
               <Button onClick={() => handleOpenModal("create", null)} className="bg-green-500 hover:bg-green-600">
                 + Add
               </Button>
-            )}          
+            )}
 
             {can.download && (
               <Button onClick={handleDownloadClassTimetable} className="bg-indigo-500 hover:bg-indigo-600">
                 Download
               </Button>
-            )}            
+            )}
           </div>
 
           <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
@@ -1140,7 +1264,7 @@ const ClassTimetable = () => {
                     <h3 className="text-lg font-semibold text-gray-800">{day}</h3>
                     <p className="text-sm text-gray-600">{dayTimetables.length} classes scheduled</p>
                   </div>
-                  
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                       <thead className="bg-gray-50 border-b">
@@ -1179,12 +1303,14 @@ const ClassTimetable = () => {
                             <td className="px-3 py-2">{ct.no}</td>
                             <td className="px-3 py-2">{ct.lecturer}</td>
                             <td className="px-3 py-2">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                ct.teaching_mode === 'online' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
-                                {ct.teaching_mode || 'Physical'}
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  ct.teaching_mode === "online"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-green-100 text-green-800"
+                                }`}
+                              >
+                                {ct.teaching_mode || "Physical"}
                               </span>
                             </td>
                             <td className="px-3 py-2">
@@ -1287,42 +1413,43 @@ const ClassTimetable = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot *</label>
                     <select
                       value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
-                      onChange={e => {
+                      onChange={(e) => {
                         if (e.target.value === "Random Time Slot (auto-assign)") {
                           const slot = getRandomAvailableTimeSlot(
                             formState.venue || "",
                             formState.lecturer || "",
                             formState.unit_id || 0,
                             classTimetables,
-                            classtimeSlots
-                          );
+                            classtimeSlots,
+                            formState.group_id,
+                          )
                           if (slot) {
-                            setFormState(prev => ({
+                            setFormState((prev) => ({
                               ...prev!,
                               start_time: slot.start_time,
                               end_time: slot.end_time,
                               day: slot.day,
-                            }));
-                            setConflictWarning(null);
+                            }))
+                            setConflictWarning(null)
                           } else {
-                            setFormState(prev => ({
+                            setFormState((prev) => ({
                               ...prev!,
                               start_time: "",
                               end_time: "",
                               day: "",
-                            }));
-                            setConflictWarning("No available time slot found for the given constraints.");
+                            }))
+                            setConflictWarning("No available time slot found for the given constraints.")
                           }
                         } else {
-                          const slot = classtimeSlots.find(s => s.start_time === e.target.value);
+                          const slot = classtimeSlots.find((s) => s.start_time === e.target.value)
                           if (slot) {
-                            setFormState(prev => ({
+                            setFormState((prev) => ({
                               ...prev!,
                               start_time: slot.start_time,
                               end_time: slot.end_time,
                               day: slot.day,
-                            }));
-                            setConflictWarning(null);
+                            }))
+                            setConflictWarning(null)
                           }
                         }
                       }}
@@ -1330,7 +1457,7 @@ const ClassTimetable = () => {
                       required
                     >
                       <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
-                      {classtimeSlots.map(slot => (
+                      {classtimeSlots.map((slot) => (
                         <option key={slot.id} value={slot.start_time}>
                           {slot.day} {slot.start_time} - {slot.end_time}
                         </option>
@@ -1340,14 +1467,15 @@ const ClassTimetable = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
                     <select
                       value={formState.school_id || ""}
-                      onChange={e => handleCreateChange("school_id", e.target.value ? Number(e.target.value) : null)}
+                      onChange={(e) => handleCreateChange("school_id", e.target.value ? Number(e.target.value) : null)}
                       className="w-full border rounded p-2 mb-3"
                       required
                     >
                       <option value="">Select School</option>
                       {schools.map((school) => (
                         <option key={school.id} value={school.id}>
-                          {school.code ? `${school.code} - ` : ""}{school.name}
+                          {school.code ? `${school.code} - ` : ""}
+                          {school.name}
                         </option>
                       ))}
                     </select>
@@ -1403,10 +1531,41 @@ const ClassTimetable = () => {
                       ))}
                     </select>
 
+                    {formState.group_id && (
+                      <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
+                        <h4 className="font-medium text-gray-700 mb-2">Group Daily Hours Summary:</h4>
+                        {(() => {
+                          const dailyHours = getGroupDailyHoursSummary(formState.group_id, classTimetables)
+                          return Object.keys(dailyHours).length > 0 ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              {Object.entries(dailyHours).map(([day, hours]) => (
+                                <div key={day} className="flex justify-between">
+                                  <span>{day}:</span>
+                                  <span
+                                    className={`font-medium ${
+                                      hours > 5 ? "text-red-600" : hours < 2 ? "text-yellow-600" : "text-green-600"
+                                    }`}
+                                  >
+                                    {hours.toFixed(1)}h
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500">No classes scheduled yet for this group.</p>
+                          )
+                        })()}
+                        <div className="mt-2 text-xs text-gray-600">
+                          <p>• Minimum: 2 hours per day</p>
+                          <p>• Maximum: 5 hours per day</p>
+                        </div>
+                      </div>
+                    )}
+
                     <label className="block text-sm font-medium text-gray-700 mb-1">Mode of Teaching</label>
-                    <select 
+                    <select
                       value={formState.teaching_mode || "physical"}
-                      onChange={e => handleCreateChange("teaching_mode", e.target.value)}
+                      onChange={(e) => handleCreateChange("teaching_mode", e.target.value)}
                       className="w-full border rounded p-2 mb-3"
                     >
                       <option value="physical">Physical</option>
@@ -1583,7 +1742,114 @@ const ClassTimetable = () => {
             </div>
           </div>
         )}
-      {/* End of Modal */}
+
+        {/* Auto Generate Modal */}
+        {isAutoGenerateModalOpen && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white p-6 rounded shadow-md w-[400px]">
+              <h2 className="text-xl font-semibold mb-4">Auto Generate Timetable</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
+                  <select
+                    value={autoGenerateFormState.semester_id}
+                    onChange={(e) => handleAutoGenerateChange("semester_id", e.target.value)}
+                    className="w-full border rounded p-2"
+                    required
+                  >
+                    <option value="">Select Semester</option>
+                    {semesters.map((semester) => (
+                      <option key={semester.id} value={semester.id}>
+                        {semester.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Program *</label>
+                  <select
+                    value={autoGenerateFormState.program_id}
+                    onChange={(e) => handleAutoGenerateChange("program_id", e.target.value)}
+                    className="w-full border rounded p-2"
+                    disabled={!autoGenerateFormState.semester_id || autoLoading}
+                    required
+                  >
+                    <option value="">Select Program</option>
+                    {autoPrograms.map((program) => (
+                      <option key={program.id} value={program.id}>
+                        {program.code} - {program.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+                  <select
+                    value={autoGenerateFormState.class_id}
+                    onChange={(e) => handleAutoGenerateChange("class_id", e.target.value)}
+                    className="w-full border rounded p-2"
+                    disabled={!autoGenerateFormState.program_id || autoLoading}
+                    required
+                  >
+                    <option value="">Select Class</option>
+                    {autoClasses.map((classItem) => (
+                      <option key={classItem.id} value={classItem.id}>
+                        {classItem.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Group <span className="text-gray-500">(Optional)</span>
+                  </label>
+                  <select
+                    value={autoGenerateFormState.group_id}
+                    onChange={(e) => handleAutoGenerateChange("group_id", e.target.value)}
+                    className="w-full border rounded p-2"
+                    disabled={!autoGenerateFormState.class_id || autoLoading}
+                  >
+                    <option value="">All Groups</option>
+                    {autoGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {autoLoading && (
+                  <div className="text-center py-2">
+                    <span className="inline-block animate-spin mr-2">⟳</span>
+                    Loading...
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-2">
+                <Button
+                  onClick={handleAutoGenerateSubmit}
+                  disabled={
+                    !autoGenerateFormState.semester_id ||
+                    !autoGenerateFormState.program_id ||
+                    !autoGenerateFormState.class_id ||
+                    autoLoading
+                  }
+                  className="bg-green-500 hover:bg-green-600 text-white"
+                >
+                  Generate Timetable
+                </Button>
+                <Button onClick={handleCloseAutoGenerateModal} className="bg-gray-400 hover:bg-gray-500 text-white">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AuthenticatedLayout>
   )
