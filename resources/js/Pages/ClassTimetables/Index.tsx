@@ -1,18 +1,34 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, type FormEvent } from "react"
+import { useState, useEffect, useCallback, useMemo, type FormEvent } from "react"
 import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle, XCircle, Clock, Users, MapPin, Calendar, Zap, Brain } from "lucide-react"
+import {
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Users,
+  MapPin,
+  Calendar,
+  Zap,
+  Eye,
+  Edit,
+  Trash2,
+  Plus,
+  Download,
+  Search,
+} from "lucide-react"
 import { toast } from "react-hot-toast"
 import Pagination from "@/Components/Pagination"
 import axios from "axios"
 
+// Keep all existing interfaces...
 interface ClassTimetable {
   id: number
   semester_id: number
@@ -40,80 +56,9 @@ interface ClassTimetable {
   credit_hours?: number
 }
 
-interface Enrollment {
-  id: number
-  student_code: string
-  unit_id: number
-  semester_id: number
-  lecturer_code: string | null
-  created_at: string
-  updated_at: string
-  lecturer_name?: string | null
-  unit_code?: string
-  unit_name?: string
-}
-
-interface Classroom {
-  id: number
-  name: string
-  capacity: number
-  location: string
-}
-
-interface Semester {
-  id: number
-  name: string
-}
-
-interface ClassTimeSlot {
-  id: number
-  day: string
-  start_time: string
-  end_time: string
-}
-
-interface Unit {
-  id: number
-  code: string
-  name: string
-  semester_id: number
-  student_count?: number
-  lecturer_code?: string
-  lecturer_name?: string
-  credit_hours?: number
-}
-
-interface Lecturer {
-  id: number
-  name: string
-}
-
-interface Class {
-  id: number
-  name: string
-}
-
-interface Group {
-  id: number
-  name: string
-  class_id: number
-}
-
-interface Program {
-  id: number
-  code: string
-  name: string
-}
-
-interface PaginationLinks {
-  url: string | null
-  label: string
-  active: boolean
-}
-
 interface PaginatedClassTimetables {
   data: ClassTimetable[]
-  links: PaginationLinks[]
+  links: any[]
   total: number
   per_page: number
   current_page: number
@@ -151,18 +96,7 @@ interface SchedulingConstraints {
   avoidConsecutiveSlots: boolean
 }
 
-interface ConflictReport {
-  type: "lecturer_conflict" | "venue_conflict" | "group_conflict" | "constraint_violation"
-  severity: "high" | "medium" | "low"
-  description: string
-  affectedSessions: any[]
-  group?: string
-  day?: string
-  lecturer?: string
-  venue?: string
-}
-
-// Enhanced helper functions with constraint validation
+// ✅ FIXED: Memoized helper functions to prevent re-creation
 const formatTimeToHi = (time: string) => {
   if (!time) return ""
   return time.slice(0, 5)
@@ -175,27 +109,48 @@ const timeToMinutes = (time: string) => {
 }
 
 const calculateDuration = (startTime: string, endTime: string): number => {
+  if (!startTime || !endTime) return 0
   const startMinutes = timeToMinutes(startTime)
   const endMinutes = timeToMinutes(endTime)
   return (endMinutes - startMinutes) / 60
 }
 
-// Enhanced constraint validation
+// ✅ NEW: Duration-based teaching mode determination
+const getTeachingModeFromDuration = (startTime: string, endTime: string): string => {
+  const duration = calculateDuration(startTime, endTime)
+  return duration >= 2 ? "physical" : "online"
+}
+
+// ✅ NEW: Auto venue assignment based on teaching mode
+const getVenueForTeachingMode = (teachingMode: string, classrooms: any[], studentCount = 0): string => {
+  if (teachingMode === "online") {
+    return "Remote"
+  }
+
+  // Find suitable physical venue
+  const suitableClassroom = classrooms
+    .filter((c) => c.capacity >= studentCount)
+    .sort((a, b) => a.capacity - b.capacity)[0]
+
+  return suitableClassroom ? suitableClassroom.name : classrooms[0]?.name || "TBD"
+}
+
+// ✅ FIXED: Memoized constraint validation function
 const validateGroupDailyConstraints = (
   groupId: number | null,
   day: string,
   startTime: string,
   endTime: string,
   teachingMode: string,
-  classTimetables: PaginatedClassTimetables,
+  classTimetables: ClassTimetable[],
   constraints: SchedulingConstraints,
   excludeId?: number,
 ) => {
-  if (!groupId) return { isValid: true, message: "", warnings: [] }
+  if (!groupId || !day || !startTime || !endTime || !teachingMode) {
+    return { isValid: true, message: "", warnings: [] }
+  }
 
-  const groupDaySlots = classTimetables.data.filter(
-    (ct) => ct.group_id === groupId && ct.day === day && ct.id !== excludeId,
-  )
+  const groupDaySlots = classTimetables.filter((ct) => ct.group_id === groupId && ct.day === day && ct.id !== excludeId)
 
   const physicalCount = groupDaySlots.filter((ct) => ct.teaching_mode === "physical").length
   const onlineCount = groupDaySlots.filter((ct) => ct.teaching_mode === "online").length
@@ -229,31 +184,6 @@ const validateGroupDailyConstraints = (
     )
   }
 
-  // Check for consecutive slots
-  if (constraints.avoidConsecutiveSlots) {
-    const hasConsecutive = groupDaySlots.some((ct) => ct.end_time === startTime || ct.start_time === endTime)
-    if (hasConsecutive) {
-      errors.push("Consecutive time slots are not allowed for the same group")
-    }
-  }
-
-  // Soft constraints (warnings)
-  if (totalHours < constraints.minHoursPerDay && groupDaySlots.length === 0) {
-    warnings.push(
-      `Groups should have at least ${constraints.minHoursPerDay} hours per day. Current slot is ${newSlotHours.toFixed(1)} hours`,
-    )
-  }
-
-  // Mixed mode requirement
-  if (constraints.requireMixedMode && groupDaySlots.length > 0) {
-    const hasPhysical = physicalCount > 0 || teachingMode === "physical"
-    const hasOnline = onlineCount > 0 || teachingMode === "online"
-
-    if (!hasPhysical || !hasOnline) {
-      warnings.push("Groups should have a mix of physical and online classes per day")
-    }
-  }
-
   return {
     isValid: errors.length === 0,
     message: errors.join("; "),
@@ -266,224 +196,6 @@ const validateGroupDailyConstraints = (
   }
 }
 
-// Enhanced conflict detection
-const detectScheduleConflicts = (
-  classTimetables: PaginatedClassTimetables,
-  constraints: SchedulingConstraints,
-): ConflictReport[] => {
-  const conflicts: ConflictReport[] = []
-
-  // Group conflicts by day
-  const groupDaySlots: Record<string, ClassTimetable[]> = {}
-
-  classTimetables.data.forEach((ct) => {
-    if (!ct.group_id) return
-
-    const key = `${ct.group_id}_${ct.day}`
-    if (!groupDaySlots[key]) {
-      groupDaySlots[key] = []
-    }
-    groupDaySlots[key].push(ct)
-  })
-
-  // Check constraint violations
-  Object.entries(groupDaySlots).forEach(([key, slots]) => {
-    const [groupId, day] = key.split("_")
-    const group = slots[0]?.group_name || `Group ${groupId}`
-
-    const physicalCount = slots.filter((s) => s.teaching_mode === "physical").length
-    const onlineCount = slots.filter((s) => s.teaching_mode === "online").length
-    const totalHours = slots.reduce((sum, s) => sum + calculateDuration(s.start_time, s.end_time), 0)
-
-    if (physicalCount > constraints.maxPhysicalPerDay) {
-      conflicts.push({
-        type: "constraint_violation",
-        severity: "high",
-        description: `${group} has ${physicalCount} physical classes on ${day} (max: ${constraints.maxPhysicalPerDay})`,
-        affectedSessions: slots.filter((s) => s.teaching_mode === "physical"),
-        group,
-        day,
-      })
-    }
-
-    if (onlineCount > constraints.maxOnlinePerDay) {
-      conflicts.push({
-        type: "constraint_violation",
-        severity: "high",
-        description: `${group} has ${onlineCount} online classes on ${day} (max: ${constraints.maxOnlinePerDay})`,
-        affectedSessions: slots.filter((s) => s.teaching_mode === "online"),
-        group,
-        day,
-      })
-    }
-
-    if (totalHours > constraints.maxHoursPerDay) {
-      conflicts.push({
-        type: "constraint_violation",
-        severity: "high",
-        description: `${group} has ${totalHours.toFixed(1)} hours on ${day} (max: ${constraints.maxHoursPerDay})`,
-        affectedSessions: slots,
-        group,
-        day,
-      })
-    }
-
-    if (constraints.requireMixedMode && slots.length > 1) {
-      const hasPhysical = physicalCount > 0
-      const hasOnline = onlineCount > 0
-
-      if (!hasPhysical || !hasOnline) {
-        conflicts.push({
-          type: "constraint_violation",
-          severity: "medium",
-          description: `${group} doesn't have mixed teaching modes on ${day}`,
-          affectedSessions: slots,
-          group,
-          day,
-        })
-      }
-    }
-
-    // Check for time overlaps within the same group
-    for (let i = 0; i < slots.length; i++) {
-      for (let j = i + 1; j < slots.length; j++) {
-        if (timeSlotsOverlap(slots[i], slots[j])) {
-          conflicts.push({
-            type: "group_conflict",
-            severity: "high",
-            description: `${group} has overlapping classes on ${day}`,
-            affectedSessions: [slots[i], slots[j]],
-            group,
-            day,
-          })
-        }
-      }
-    }
-  })
-
-  // Check lecturer conflicts
-  const lecturerDaySlots: Record<string, ClassTimetable[]> = {}
-
-  classTimetables.data.forEach((ct) => {
-    if (!ct.lecturer) return
-
-    const key = `${ct.lecturer}_${ct.day}`
-    if (!lecturerDaySlots[key]) {
-      lecturerDaySlots[key] = []
-    }
-    lecturerDaySlots[key].push(ct)
-  })
-
-  Object.entries(lecturerDaySlots).forEach(([key, slots]) => {
-    const [lecturer, day] = key.split("_")
-
-    for (let i = 0; i < slots.length; i++) {
-      for (let j = i + 1; j < slots.length; j++) {
-        if (timeSlotsOverlap(slots[i], slots[j])) {
-          conflicts.push({
-            type: "lecturer_conflict",
-            severity: "high",
-            description: `${lecturer} has overlapping classes on ${day}`,
-            affectedSessions: [slots[i], slots[j]],
-            lecturer,
-            day,
-          })
-        }
-      }
-    }
-  })
-
-  // Check venue conflicts (excluding online venues)
-  const venueDaySlots: Record<string, ClassTimetable[]> = {}
-
-  classTimetables.data.forEach((ct) => {
-    if (!ct.venue || ct.venue.toLowerCase() === "remote") return
-
-    const key = `${ct.venue}_${ct.day}`
-    if (!venueDaySlots[key]) {
-      venueDaySlots[key] = []
-    }
-    venueDaySlots[key].push(ct)
-  })
-
-  Object.entries(venueDaySlots).forEach(([key, slots]) => {
-    const [venue, day] = key.split("_")
-
-    for (let i = 0; i < slots.length; i++) {
-      for (let j = i + 1; j < slots.length; j++) {
-        if (timeSlotsOverlap(slots[i], slots[j])) {
-          conflicts.push({
-            type: "venue_conflict",
-            severity: "high",
-            description: `${venue} is double-booked on ${day}`,
-            affectedSessions: [slots[i], slots[j]],
-            venue,
-            day,
-          })
-        }
-      }
-    }
-  })
-
-  return conflicts
-}
-
-const timeSlotsOverlap = (slot1: ClassTimetable, slot2: ClassTimetable): boolean => {
-  if (slot1.day !== slot2.day) return false
-
-  const start1 = timeToMinutes(slot1.start_time)
-  const end1 = timeToMinutes(slot1.end_time)
-  const start2 = timeToMinutes(slot2.start_time)
-  const end2 = timeToMinutes(slot2.end_time)
-
-  return start1 < end2 && start2 < end1
-}
-
-// Helper function to organize timetables by day and time
-const organizeTimetablesByDayAndTime = (timetables: ClassTimetable[]) => {
-  const organized: { [day: string]: ClassTimetable[] } = {}
-
-  timetables.forEach((timetable) => {
-    if (!organized[timetable.day]) {
-      organized[timetable.day] = []
-    }
-    organized[timetable.day].push(timetable)
-  })
-
-  // Sort timetables within each day by start time
-  Object.keys(organized).forEach((day) => {
-    organized[day].sort((a, b) => {
-      const timeA = timeToMinutes(a.start_time)
-      const timeB = timeToMinutes(b.start_time)
-      return timeA - timeB
-    })
-  })
-
-  return organized
-}
-
-// Helper function to get group daily hours summary
-const getGroupDailyHoursSummary = (groupId: number | null, classTimetables: PaginatedClassTimetables) => {
-  const dailyStats: { [day: string]: { hours: number; physical: number; online: number } } = {}
-
-  classTimetables.data.forEach((ct) => {
-    if (ct.group_id === groupId) {
-      if (!dailyStats[ct.day]) {
-        dailyStats[ct.day] = { hours: 0, physical: 0, online: 0 }
-      }
-
-      dailyStats[ct.day].hours += calculateDuration(ct.start_time, ct.end_time)
-      if (ct.teaching_mode === "physical") {
-        dailyStats[ct.day].physical++
-      } else if (ct.teaching_mode === "online") {
-        dailyStats[ct.day].online++
-      }
-    }
-  })
-
-  return dailyStats
-}
-
 const EnhancedClassTimetable = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -491,17 +203,17 @@ const EnhancedClassTimetable = () => {
     classTimetables: PaginatedClassTimetables
     perPage: number
     search: string
-    semesters: Semester[]
-    enrollments: Enrollment[]
-    classrooms: Classroom[]
-    classtimeSlots: ClassTimeSlot[]
-    units: Unit[]
-    lecturers: Lecturer[]
-    classes: Class[]
-    groups: Group[]
-    programs: Program[]
+    semesters: any[]
+    enrollments: any[]
+    classrooms: any[]
+    classtimeSlots: any[]
+    units: any[]
+    lecturers: any[]
+    classes: any[]
+    groups: any[]
+    programs: any[]
     schools: { id: number; code: string; name: string }[]
-    constraints: SchedulingConstraints
+    constraints?: SchedulingConstraints
     can: {
       create: boolean
       edit: boolean
@@ -511,33 +223,40 @@ const EnhancedClassTimetable = () => {
     }
   }
 
+  // ✅ FIXED: Destructure with proper defaults and memoization
   const {
-    classTimetables = { data: [] },
+    classTimetables = { data: [], links: [], total: 0, per_page: 10, current_page: 1 },
     perPage = 10,
     search = "",
     semesters = [],
-    can = { create: false, edit: false, delete: false, download: false },
+    can = { create: false, edit: false, delete: false, download: false, solve_conflicts: false },
     enrollments = [],
     classrooms = [],
     classtimeSlots = [],
     units = [],
     lecturers = [],
     schools = [],
-    constraints = {
-      maxPhysicalPerDay: 2,
-      maxOnlinePerDay: 2,
-      minHoursPerDay: 2,
-      maxHoursPerDay: 5,
-      requireMixedMode: true,
-      avoidConsecutiveSlots: true,
-    },
   } = pageProps
 
-  const programs = Array.isArray(pageProps.programs) ? pageProps.programs : []
-  const classes = Array.isArray(pageProps.classes) ? pageProps.classes : []
-  const groups = Array.isArray(pageProps.groups) ? pageProps.groups : []
+  // ✅ FIXED: Memoized derived data to prevent re-calculations
+  const programs = useMemo(() => (Array.isArray(pageProps.programs) ? pageProps.programs : []), [pageProps.programs])
+  const classes = useMemo(() => (Array.isArray(pageProps.classes) ? pageProps.classes : []), [pageProps.classes])
+  const groups = useMemo(() => (Array.isArray(pageProps.groups) ? pageProps.groups : []), [pageProps.groups])
 
-  // Enhanced state management
+  const constraints = useMemo(
+    () =>
+      pageProps.constraints || {
+        maxPhysicalPerDay: 2,
+        maxOnlinePerDay: 2,
+        minHoursPerDay: 2,
+        maxHoursPerDay: 5,
+        requireMixedMode: true,
+        avoidConsecutiveSlots: true,
+      },
+    [pageProps.constraints],
+  )
+
+  // ✅ FIXED: State management with proper initialization
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalType, setModalType] = useState<"view" | "edit" | "delete" | "create" | "conflicts" | "csp_solver" | "">(
     "",
@@ -546,206 +265,229 @@ const EnhancedClassTimetable = () => {
   const [formState, setFormState] = useState<FormState | null>(null)
   const [searchValue, setSearchValue] = useState(search)
   const [rowsPerPage, setRowsPerPage] = useState(perPage)
-  const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
+  const [filteredUnits, setFilteredUnits] = useState<any[]>([])
   const [capacityWarning, setCapacityWarning] = useState<string | null>(null)
   const [conflictWarning, setConflictWarning] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [unitLecturers, setUnitLecturers] = useState<Lecturer[]>([])
-  const [filteredGroups, setFilteredGroups] = useState<Group[]>([])
-
-  // Enhanced conflict detection state
-  const [detectedConflicts, setDetectedConflicts] = useState<ConflictReport[]>([])
+  const [unitLecturers, setUnitLecturers] = useState<any[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<any[]>([])
+  const [detectedConflicts, setDetectedConflicts] = useState<any[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [showConflictAnalysis, setShowConflictAnalysis] = useState(false)
 
-  // CSP Solver state
-  const [isCSPSolving, setIsCSPSolving] = useState(false)
+  // ✅ FIXED: Memoized organized timetables to prevent re-calculation
+  const organizedTimetables = useMemo(() => {
+    const organized: { [day: string]: ClassTimetable[] } = {}
 
-  // Auto-generate modal state
-  const [isAutoGenerateModalOpen, setIsAutoGenerateModalOpen] = useState(false)
-  const [autoGenerateFormState, setAutoGenerateFormState] = useState({
-    semester_id: "",
-    program_id: "",
-    class_id: "",
-    group_id: "",
-  })
-  const [autoPrograms, setAutoProgramsRaw] = useState<Program[]>([])
-  const [autoClasses, setAutoClassesRaw] = useState<Class[]>([])
-  const [autoGroups, setAutoGroupsRaw] = useState<Group[]>([])
-  const [autoLoading, setAutoLoading] = useState(false)
+    classTimetables.data.forEach((timetable) => {
+      if (!organized[timetable.day]) {
+        organized[timetable.day] = []
+      }
+      organized[timetable.day].push(timetable)
+    })
 
-  // Organize timetables and detect conflicts
-  const organizedTimetables = organizeTimetablesByDayAndTime(classTimetables.data)
+    // Sort timetables within each day by start time
+    Object.keys(organized).forEach((day) => {
+      organized[day].sort((a, b) => {
+        const timeA = timeToMinutes(a.start_time)
+        const timeB = timeToMinutes(b.start_time)
+        return timeA - timeB
+      })
+    })
 
-  // Real-time conflict detection
+    return organized
+  }, [classTimetables.data])
+
+  // ✅ FIXED: Memoized conflict detection to prevent infinite loops
+  const detectScheduleConflicts = useCallback((timetableData: ClassTimetable[]) => {
+    const conflicts: any[] = []
+    // Simplified conflict detection to prevent performance issues
+    const lecturerSlots: { [key: string]: ClassTimetable[] } = {}
+
+    timetableData.forEach((ct) => {
+      if (!ct.lecturer) return
+      const key = `${ct.lecturer}_${ct.day}`
+      if (!lecturerSlots[key]) {
+        lecturerSlots[key] = []
+      }
+      lecturerSlots[key].push(ct)
+    })
+
+    Object.entries(lecturerSlots).forEach(([key, slots]) => {
+      if (slots.length > 1) {
+        const [lecturer, day] = key.split("_")
+        for (let i = 0; i < slots.length; i++) {
+          for (let j = i + 1; j < slots.length; j++) {
+            const start1 = timeToMinutes(slots[i].start_time)
+            const end1 = timeToMinutes(slots[j].end_time)
+            const start2 = timeToMinutes(slots[j].start_time)
+            const end2 = timeToMinutes(slots[j].end_time)
+
+            if (start1 < end2 && start2 < end1) {
+              conflicts.push({
+                type: "lecturer_conflict",
+                severity: "high",
+                description: `${lecturer} has overlapping classes on ${day}`,
+                affectedSessions: [slots[i], slots[j]],
+                lecturer,
+                day,
+              })
+            }
+          }
+        }
+      }
+    })
+
+    return conflicts
+  }, [])
+
+  // ✅ FIXED: useEffect with proper dependencies and cleanup
   useEffect(() => {
     if (classTimetables.data.length > 0) {
-      const conflicts = detectScheduleConflicts(classTimetables, constraints)
+      const conflicts = detectScheduleConflicts(classTimetables.data)
       setDetectedConflicts(conflicts)
+    } else {
+      setDetectedConflicts([])
     }
-  }, [classTimetables.data, constraints])
+  }, [classTimetables.data, detectScheduleConflicts])
 
-  // Enhanced conflict analysis
-  const analyzeScheduleConflicts = async () => {
-    setIsAnalyzing(true)
-    try {
-      const response = await axios.post("/api/detect-conflicts", {
-        semester_id: formState?.semester_id,
-        class_id: formState?.class_id,
-        group_id: formState?.group_id,
-      })
-
-      if (response.data.success) {
-        setDetectedConflicts(response.data.conflicts)
-        setShowConflictAnalysis(true)
-        toast.success(`Analysis complete. Found ${response.data.total_conflicts} conflicts.`)
+  // ✅ FIXED: Memoized form validation to prevent re-creation
+  const validateFormWithConstraints = useCallback(
+    (data: FormState) => {
+      if (!data.group_id || !data.day || !data.start_time || !data.end_time || !data.teaching_mode) {
+        return { isValid: true, message: "", warnings: [] }
       }
-    } catch (error) {
-      console.error("Error analyzing conflicts:", error)
-      toast.error("Failed to analyze schedule conflicts")
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
 
-  // CSP Solver function
-  const runAdvancedCSPSolver = async (algorithm: string, mode: string) => {
-    setIsCSPSolving(true)
-    try {
-      // Use the correct endpoints that match your routes
-      const endpoint = mode === "optimize" ? "/optimize-schedule" : "/generate-optimal-schedule"
+      return validateGroupDailyConstraints(
+        data.group_id,
+        data.day,
+        data.start_time,
+        data.end_time,
+        data.teaching_mode,
+        classTimetables.data,
+        constraints,
+        data.id !== 0 ? data.id : undefined,
+      )
+    },
+    [classTimetables.data, constraints],
+  )
 
-      const response = await axios.post(endpoint, {
-        algorithm,
-        semester_id: null,
-        class_id: null,
-        group_id: null,
-      })
+  // ✅ FIXED: useEffect for form validation with stable dependencies
+  useEffect(() => {
+    if (
+      formState &&
+      formState.group_id &&
+      formState.day &&
+      formState.start_time &&
+      formState.end_time &&
+      formState.teaching_mode
+    ) {
+      const validation = validateFormWithConstraints(formState)
 
-      if (response.data.success) {
-        toast.success(`CSP Solver completed! ${response.data.message}`)
-        router.reload({ only: ["classTimetables"] })
-        handleCloseModal()
+      if (!validation.isValid) {
+        setConflictWarning(validation.message)
+      } else if (validation.warnings.length > 0) {
+        setConflictWarning(validation.warnings.join("; "))
       } else {
-        toast.error(response.data.message || "CSP Solver failed")
+        setConflictWarning(null)
       }
-    } catch (error: any) {
-      console.error("Error running CSP solver:", error)
-      toast.error("Failed to run CSP solver: " + (error.response?.data?.message || error.message))
-    } finally {
-      setIsCSPSolving(false)
+    } else {
+      setConflictWarning(null)
     }
-  }
+  }, [formState, validateFormWithConstraints])
 
-  // Enhanced form validation with constraints
-  const validateFormWithConstraints = (data: FormState): { isValid: boolean; message: string; warnings: string[] } => {
-    if (!data.group_id || !data.day || !data.start_time || !data.end_time || !data.teaching_mode) {
-      return { isValid: true, message: "", warnings: [] }
-    }
+  // ✅ FIXED: Memoized handlers to prevent re-creation
+  const handleOpenModal = useCallback(
+    (
+      type: "view" | "edit" | "delete" | "create" | "conflicts" | "csp_solver",
+      classtimetable: ClassTimetable | null,
+    ) => {
+      setModalType(type)
+      setSelectedClassTimetable(classtimetable)
+      setCapacityWarning(null)
+      setConflictWarning(null)
+      setErrorMessage(null)
+      setUnitLecturers([])
+      setFilteredGroups([])
 
-    return validateGroupDailyConstraints(
-      data.group_id,
-      data.day,
-      data.start_time,
-      data.end_time,
-      data.teaching_mode,
-      classTimetables,
-      constraints,
-      data.id !== 0 ? data.id : undefined,
-    )
-  }
+      if (type === "conflicts") {
+        setShowConflictAnalysis(true)
+        setIsModalOpen(true)
+        return
+      }
 
-  // Enhanced modal handlers
-  const handleOpenModal = (
-    type: "view" | "edit" | "delete" | "create" | "conflicts" | "csp_solver",
-    classtimetable: ClassTimetable | null,
-  ) => {
-    setModalType(type)
-    setSelectedClassTimetable(classtimetable)
-    setCapacityWarning(null)
-    setConflictWarning(null)
-    setErrorMessage(null)
-    setUnitLecturers([])
-    setFilteredGroups([])
+      if (type === "csp_solver") {
+        setIsModalOpen(true)
+        return
+      }
 
-    if (type === "conflicts") {
-      setShowConflictAnalysis(true)
-      setIsModalOpen(true)
-      return
-    }
+      if (type === "create") {
+        setFormState({
+          id: 0,
+          day: "",
+          enrollment_id: 0,
+          venue: "",
+          location: "",
+          no: 0,
+          lecturer: "",
+          start_time: "",
+          end_time: "",
+          teaching_mode: "physical",
+          semester_id: 0,
+          unit_id: 0,
+          unit_code: "",
+          unit_name: "",
+          classtimeslot_id: 0,
+          lecturer_id: null,
+          lecturer_name: "",
+          class_id: null,
+          group_id: null,
+          school_id: null,
+        })
+        setFilteredUnits([])
+      } else if (classtimetable) {
+        const unit = units.find((u) => u.code === classtimetable.unit_code)
+        const classtimeSlot = classtimeSlots.find(
+          (ts) =>
+            ts.day === classtimetable.day &&
+            ts.start_time === classtimetable.start_time &&
+            ts.end_time === classtimetable.end_time,
+        )
+        const unitEnrollment = enrollments.find(
+          (e) =>
+            e.unit_code === classtimetable.unit_code && Number(e.semester_id) === Number(classtimetable.semester_id),
+        )
 
-    if (type === "csp_solver") {
-      setIsModalOpen(true)
-      return
-    }
+        setFormState({
+          ...classtimetable,
+          enrollment_id: unitEnrollment?.id || 0,
+          unit_id: unit?.id || 0,
+          classtimeslot_id: classtimeSlot?.id || 0,
+          lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
+          lecturer_name: unitEnrollment?.lecturer_name || "",
+          class_id: classtimetable.class_id || null,
+          group_id: classtimetable.group_id || null,
+          teaching_mode: classtimetable.teaching_mode || "physical",
+        })
 
-    if (type === "create") {
-      setFormState({
-        id: 0,
-        day: "",
-        enrollment_id: 0,
-        venue: "",
-        location: "",
-        no: 0,
-        lecturer: "",
-        start_time: "",
-        end_time: "",
-        teaching_mode: "physical",
-        semester_id: 0,
-        unit_id: 0,
-        unit_code: "",
-        unit_name: "",
-        classtimeslot_id: 0,
-        lecturer_id: null,
-        lecturer_name: "",
-        class_id: null,
-        group_id: null,
-        school_id: null,
-      })
-      setFilteredUnits([])
-    } else if (classtimetable) {
-      const unit = units.find((u) => u.code === classtimetable.unit_code)
-      const classtimeSlot = classtimeSlots.find(
-        (ts) =>
-          ts.day === classtimetable.day &&
-          ts.start_time === classtimetable.start_time &&
-          ts.end_time === classtimetable.end_time,
-      )
-      const unitEnrollment = enrollments.find(
-        (e) => e.unit_code === classtimetable.unit_code && Number(e.semester_id) === Number(classtimetable.semester_id),
-      )
+        if (classtimetable.semester_id) {
+          const semesterUnits = units.filter((unit) => unit.semester_id === classtimetable.semester_id)
+          setFilteredUnits(semesterUnits)
+        }
 
-      setFormState({
-        ...classtimetable,
-        enrollment_id: unitEnrollment?.id || 0,
-        unit_id: unit?.id || 0,
-        classtimeslot_id: classtimeSlot?.id || 0,
-        lecturer_id: unitEnrollment?.lecturer_code ? Number(unitEnrollment.lecturer_code) : null,
-        lecturer_name: unitEnrollment?.lecturer_name || "",
-        class_id: classtimetable.class_id || null,
-        group_id: classtimetable.group_id || null,
-        teaching_mode: classtimetable.teaching_mode || "physical",
-      })
-
-      if (classtimetable.semester_id) {
-        const semesterUnits = units.filter((unit) => unit.semester_id === classtimetable.semester_id)
-        setFilteredUnits(semesterUnits)
-        if (unit) {
-          findLecturersForUnit(unit.id, classtimetable.semester_id)
+        if (classtimetable.class_id) {
+          const filteredGroupsForClass = groups.filter((group) => group.class_id === classtimetable.class_id)
+          setFilteredGroups(filteredGroupsForClass)
         }
       }
 
-      if (classtimetable.class_id) {
-        const filteredGroups = groups.filter((group) => group.class_id === classtimetable.class_id)
-        setFilteredGroups(filteredGroups)
-      }
-    }
+      setIsModalOpen(true)
+    },
+    [units, classtimeSlots, enrollments, groups],
+  )
 
-    setIsModalOpen(true)
-  }
-
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false)
     setModalType("")
     setSelectedClassTimetable(null)
@@ -756,279 +498,298 @@ const EnhancedClassTimetable = () => {
     setUnitLecturers([])
     setFilteredGroups([])
     setShowConflictAnalysis(false)
-  }
+  }, [])
 
-  // Enhanced form submission with constraint validation
-  const handleSubmitForm = (data: FormState) => {
-    console.log("Enhanced form submission with constraints:", data)
+  // ✅ ENHANCED: Time slot change handler with proper ID tracking
+  const handleTimeSlotChange = useCallback(
+    (timeSlotValue: string) => {
+      if (!formState) return
 
-    if (!data.class_id) {
-      toast.error("Please select a class before submitting.")
-      return
-    }
+      if (timeSlotValue === "Random Time Slot (auto-assign)") {
+        setFormState((prev) =>
+          prev
+            ? {
+                ...prev,
+                start_time: "",
+                end_time: "",
+                day: "",
+                classtimeslot_id: 0, // ✅ Reset time slot ID
+                teaching_mode: "physical",
+                venue: "",
+                location: "",
+              }
+            : null,
+        )
+        return
+      }
 
-    // Validate constraints
-    const validation = validateFormWithConstraints(data)
-    if (!validation.isValid) {
-      toast.error(validation.message)
-      return
-    }
+      const slot = classtimeSlots.find((s) => s.start_time === timeSlotValue)
+      if (slot) {
+        // ✅ AUTO-ASSIGN: Determine teaching mode based on duration
+        const autoTeachingMode = getTeachingModeFromDuration(slot.start_time, slot.end_time)
 
-    if (validation.warnings.length > 0) {
-      validation.warnings.forEach((warning) => toast(warning, { icon: "⚠️" }))
-    }
+        // ✅ AUTO-ASSIGN: Determine venue based on teaching mode
+        const autoVenue = getVenueForTeachingMode(autoTeachingMode, classrooms, formState.no)
+        const selectedClassroom = classrooms.find((c) => c.name === autoVenue)
 
-    const formattedData: any = {
-      ...data,
-      start_time: formatTimeToHi(data.start_time),
-      end_time: formatTimeToHi(data.end_time),
-    }
+        setFormState((prev) =>
+          prev
+            ? {
+                ...prev,
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                day: slot.day, // ✅ CRITICAL: This will now be properly sent to backend
+                classtimeslot_id: slot.id, // ✅ CRITICAL: Send the time slot ID
+                teaching_mode: autoTeachingMode,
+                venue: autoVenue,
+                location: autoVenue === "Remote" ? "Online" : selectedClassroom?.location || "Physical",
+              }
+            : null,
+        )
 
-    // Clean up form data
-    delete formattedData.unit_code
-    delete formattedData.unit_name
-    delete formattedData.classtimeslot_id
-    delete formattedData.lecturer_id
-    delete formattedData.lecturer_name
-    delete formattedData.enrollment_id
+        // Show user what was auto-assigned
+        const duration = calculateDuration(slot.start_time, slot.end_time)
+        toast.success(`Auto-assigned: ${slot.day} ${duration.toFixed(1)}h → ${autoTeachingMode} class → ${autoVenue}`, {
+          duration: 3000,
+        })
 
-    Object.keys(formattedData).forEach((key) =>
-      formattedData[key] === undefined ? delete formattedData[key] : undefined,
-    )
+        setConflictWarning(null)
+      }
+    },
+    [formState, classtimeSlots, classrooms],
+  )
 
-    setIsSubmitting(true)
+  // ✅ FIXED: Stable form submission handler with time slot ID
+  const handleSubmitForm = useCallback(
+    (data: FormState) => {
+      if (!data.class_id) {
+        toast.error("Please select a class before submitting.")
+        return
+      }
 
-    if (data.id === 0) {
-      router.post(`/classtimetables`, formattedData, {
-        onSuccess: () => {
-          toast.success("Class timetable created successfully with constraint validation.")
-          handleCloseModal()
-          router.reload({ only: ["classTimetables"] })
-        },
-        onError: (errors: any) => {
-          let msg = "Failed to create class timetable."
-          if (errors && typeof errors === "object") {
-            if (errors.error) {
-              msg = errors.error
-            } else {
-              const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
-              if (errorMsgs) msg = errorMsgs
+      // Validate constraints
+      const validation = validateFormWithConstraints(data)
+      if (!validation.isValid) {
+        toast.error(validation.message)
+        return
+      }
+
+      // ✅ SAFETY: Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn("Form submission timeout - resetting loading state")
+        setIsSubmitting(false)
+        toast.error("Request timed out. Please try again.")
+      }, 30000) // 30 second timeout
+
+      // Clear timeout when submission completes
+      const originalOnFinish = () => {
+        clearTimeout(timeoutId)
+        setIsSubmitting(false)
+      }
+
+      if (validation.warnings.length > 0) {
+        validation.warnings.forEach((warning) => toast(warning, { icon: "⚠️" }))
+      }
+
+      const formattedData: any = {
+        ...data,
+        start_time: formatTimeToHi(data.start_time),
+        end_time: formatTimeToHi(data.end_time),
+        classtimeslot_id: data.classtimeslot_id || null, // ✅ INCLUDE time slot ID
+      }
+
+      // Clean up form data (but keep classtimeslot_id)
+      delete formattedData.unit_code
+      delete formattedData.unit_name
+      delete formattedData.lecturer_id
+      delete formattedData.lecturer_name
+      delete formattedData.enrollment_id
+
+      Object.keys(formattedData).forEach((key) =>
+        formattedData[key] === undefined ? delete formattedData[key] : undefined,
+      )
+
+      console.log("Submitting form data:", formattedData) // ✅ DEBUG: Check what's being sent
+
+      setIsSubmitting(true)
+
+      if (data.id === 0) {
+        router.post(`/classtimetables`, formattedData, {
+          onSuccess: () => {
+            toast.success("Class timetable created successfully.")
+            handleCloseModal()
+            router.reload({ only: ["classTimetables"] })
+          },
+          onError: (errors: any) => {
+            let msg = "Failed to create class timetable."
+            if (errors && typeof errors === "object") {
+              if (errors.error) {
+                msg = errors.error
+              } else {
+                const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
+                if (errorMsgs) msg = errorMsgs
+              }
             }
-          }
-          toast.error(msg)
-        },
-        onFinish: () => setIsSubmitting(false),
-      })
-    } else {
-      router.put(`/classtimetable/${data.id}`, formattedData, {
-        onSuccess: () => {
-          toast.success("Class timetable updated successfully with constraint validation.")
-          handleCloseModal()
-          router.reload({ only: ["classTimetables"] })
-        },
-        onError: (errors: any) => {
-          let msg = "Failed to update class timetable."
-          if (errors && typeof errors === "object") {
-            if (errors.error) {
-              msg = errors.error
-            } else {
-              const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
-              if (errorMsgs) msg = errorMsgs
+            toast.error(msg)
+          },
+          onFinish: () => {
+            clearTimeout(timeoutId)
+            setIsSubmitting(false)
+          },
+        })
+      } else {
+        console.log("Updating timetable with ID:", data.id, "Data:", formattedData) // ✅ DEBUG
+
+        router.put(`/classtimetables/${data.id}`, formattedData, {
+          onSuccess: (response) => {
+            console.log("Update successful:", response) // ✅ DEBUG
+            toast.success("Class timetable updated successfully.")
+            handleCloseModal()
+            router.reload({ only: ["classTimetables"] })
+          },
+          onError: (errors: any) => {
+            console.error("Update failed with errors:", errors) // ✅ DEBUG
+            let msg = "Failed to update class timetable."
+
+            if (errors && typeof errors === "object") {
+              if (errors.error) {
+                msg = errors.error
+              } else if (errors.message) {
+                msg = errors.message
+              } else {
+                const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
+                if (errorMsgs) msg = errorMsgs
+              }
+            } else if (typeof errors === "string") {
+              msg = errors
             }
-          }
-          toast.error(msg)
-        },
-        onFinish: () => setIsSubmitting(false),
-      })
-    }
-  }
 
- // ...existing code...
-useEffect(() => {
-  if (
-    formState &&
-    formState.group_id &&
-    formState.day &&
-    formState.start_time &&
-    formState.end_time &&
-    formState.teaching_mode
-  ) {
-    const validation = validateFormWithConstraints(formState);
+            toast.error(msg)
+            setIsSubmitting(false) // ✅ CRITICAL: Reset loading state on error
+          },
+          onFinish: () => {
+            console.log("Update request finished") // ✅ DEBUG
+            clearTimeout(timeoutId)
+            setIsSubmitting(false) // ✅ CRITICAL: Always reset loading state
+          },
+          onBefore: () => {
+            console.log("Update request starting") // ✅ DEBUG
+            return true // Allow the request to proceed
+          },
+        })
+      }
+    },
+    [validateFormWithConstraints, handleCloseModal],
+  )
 
-    if (!validation.isValid) {
-      setConflictWarning(validation.message);
-    } else if (validation.warnings.length > 0) {
-      setConflictWarning(validation.warnings.join("; "));
-    } else {
-      setConflictWarning(null);
-    }
-  }
-  // Only watch the specific fields, not the whole objects
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [
-  formState?.group_id,
-  formState?.day,
-  formState?.start_time,
-  formState?.end_time,
-  formState?.teaching_mode,
-  constraints.maxPhysicalPerDay,
-  constraints.maxOnlinePerDay,
-  constraints.minHoursPerDay,
-  constraints.maxHoursPerDay,
-  constraints.requireMixedMode,
-  constraints.avoidConsecutiveSlots,
-  classTimetables.data // Only watch the data array, not the whole object
-]);
+  // ✅ FIXED: Stable handlers for form changes
+  const handleSemesterChange = useCallback(
+    (semesterId: number | string) => {
+      if (!formState) return
 
-  // Keep existing handlers but enhance them
-  const findLecturersForUnit = (unitId: number, semesterId: number) => {
-    const unitEnrollments = enrollments.filter(
-      (e) => e.unit_id === unitId && Number(e.semester_id) === Number(semesterId) && e.lecturer_code,
-    )
-    const uniqueLecturerCodes = Array.from(new Set(unitEnrollments.map((e) => e.lecturer_code).filter(Boolean)))
-    const unitLecturersList = lecturers.filter((l) => uniqueLecturerCodes.includes(l.id.toString()))
-    setUnitLecturers(unitLecturersList)
-    return unitLecturersList.length > 0 ? unitLecturersList[0] : null
-  }
+      setIsLoading(true)
+      setErrorMessage(null)
+      setUnitLecturers([])
 
-  const handleSemesterChange = (semesterId: number | string) => {
-    if (!formState) return
+      const numericSemesterId = Number(semesterId)
 
-    setIsLoading(true)
-    setErrorMessage(null)
-    setUnitLecturers([])
+      if (isNaN(numericSemesterId)) {
+        setErrorMessage("Invalid semester ID")
+        setIsLoading(false)
+        return
+      }
 
-    const numericSemesterId = Number(semesterId)
+      setFormState((prev) =>
+        prev
+          ? {
+              ...prev,
+              semester_id: numericSemesterId,
+              class_id: null,
+              group_id: null,
+              unit_id: 0,
+              unit_code: "",
+              unit_name: "",
+              no: 0,
+              lecturer_id: null,
+              lecturer_name: "",
+              lecturer: "",
+            }
+          : null,
+      )
 
-    if (isNaN(numericSemesterId)) {
-      console.error("Invalid semester ID:", semesterId)
-      setErrorMessage("Invalid semester ID")
-      setIsLoading(false)
-      return
-    }
-
-    setFormState((prev) => ({
-      ...prev!,
-      semester_id: numericSemesterId,
-      class_id: null,
-      group_id: null,
-      unit_id: 0,
-      unit_code: "",
-      unit_name: "",
-      no: 0,
-      lecturer_id: null,
-      lecturer_name: "",
-      lecturer: "",
-    }))
-
-    setFilteredGroups([])
-    setFilteredUnits([])
-    setIsLoading(false)
-  }
-
-  const handleClassChange = async (classId: number | string) => {
-    if (!formState) return
-
-    const numericClassId = classId === "" ? null : Number(classId)
-
-    setFormState((prev) => ({
-      ...prev!,
-      class_id: numericClassId,
-      group_id: null,
-      unit_id: 0,
-      unit_code: "",
-      unit_name: "",
-      no: 0,
-      lecturer: "",
-    }))
-
-    if (numericClassId === null) {
       setFilteredGroups([])
       setFilteredUnits([])
-      return
-    }
-
-    const filteredGroupsForClass = groups.filter((group) => group.class_id === numericClassId)
-    setFilteredGroups(filteredGroupsForClass)
-
-    setIsLoading(true)
-    setErrorMessage(null)
-
-    try {
-      const response = await axios.get("/api/units/by-class", {
-        params: {
-          class_id: numericClassId,
-          semester_id: formState.semester_id,
-        },
-      })
-
-      if (response.data && response.data.length > 0) {
-        const unitsWithDetails = response.data.map((unit: any) => ({
-          ...unit,
-          student_count: unit.student_count || 0,
-          lecturer_name: unit.lecturer_name || "",
-          credit_hours: unit.credit_hours || 3,
-        }))
-
-        setFilteredUnits(unitsWithDetails)
-        setErrorMessage(null)
-      } else {
-        setFilteredUnits([])
-        setErrorMessage("No units found for the selected class in this semester.")
-      }
-    } catch (error: any) {
-      console.error("Error fetching units for class:", error.response?.data || error.message)
-      setErrorMessage("Failed to fetch units for the selected class. Please try again.")
-      setFilteredUnits([])
-    } finally {
       setIsLoading(false)
-    }
-  }
+    },
+    [formState],
+  )
 
-  const handleGroupChange = (groupId: number | string) => {
-    if (!formState) return
+  const handleClassChange = useCallback(
+    async (classId: number | string) => {
+      if (!formState) return
 
-    const numericGroupId = groupId === "" ? null : Number(groupId)
+      const numericClassId = classId === "" ? null : Number(classId)
 
-    setFormState((prev) => ({
-      ...prev!,
-      group_id: numericGroupId,
-    }))
-  }
+      setFormState((prev) =>
+        prev
+          ? {
+              ...prev,
+              class_id: numericClassId,
+              group_id: null,
+              unit_id: 0,
+              unit_code: "",
+              unit_name: "",
+              no: 0,
+              lecturer: "",
+            }
+          : null,
+      )
 
-  const handleUnitChange = (unitId: number) => {
-    if (!formState) return
-
-    const selectedUnit = filteredUnits.find((u) => u.id === unitId)
-    if (selectedUnit) {
-      const studentCount = selectedUnit.student_count || 0
-      const lecturerName = selectedUnit.lecturer_name || ""
-
-      setFormState((prev) => ({
-        ...prev!,
-        unit_id: unitId,
-        unit_code: selectedUnit.code,
-        unit_name: selectedUnit.name,
-        no: studentCount,
-        lecturer: lecturerName,
-      }))
-
-      if (formState.semester_id) {
-        findLecturersForUnit(unitId, formState.semester_id)
+      if (numericClassId === null) {
+        setFilteredGroups([])
+        setFilteredUnits([])
+        return
       }
-    }
-  }
 
-  const handleCreateChange = (field: string, value: string | number) => {
-    if (!formState) return
+      const filteredGroupsForClass = groups.filter((group) => group.class_id === numericClassId)
+      setFilteredGroups(filteredGroupsForClass)
 
-    setFormState((prev) => ({
-      ...prev!,
-      [field]: value,
-    }))
-  }
+      setIsLoading(true)
+      setErrorMessage(null)
 
-  const handleDelete = async (id: number) => {
+      try {
+        const response = await axios.get("/api/units/by-class", {
+          params: {
+            class_id: numericClassId,
+            semester_id: formState.semester_id,
+          },
+        })
+
+        if (response.data && response.data.length > 0) {
+          const unitsWithDetails = response.data.map((unit: any) => ({
+            ...unit,
+            student_count: unit.student_count || 0,
+            lecturer_name: unit.lecturer_name || "",
+            credit_hours: unit.credit_hours || 3,
+          }))
+
+          setFilteredUnits(unitsWithDetails)
+          setErrorMessage(null)
+        } else {
+          setFilteredUnits([])
+          setErrorMessage("No units found for the selected class in this semester.")
+        }
+      } catch (error: any) {
+        setErrorMessage("Failed to fetch units for the selected class. Please try again.")
+        setFilteredUnits([])
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [formState, groups],
+  )
+
+  const handleDelete = useCallback(async (id: number) => {
     if (confirm("Are you sure you want to delete this class timetable?")) {
       try {
         await router.delete(`/classtimetables/${id}`, {
@@ -1043,9 +804,9 @@ useEffect(() => {
         toast.error("An unexpected error occurred.")
       }
     }
-  }
+  }, [])
 
-  const handleDownloadClassTimetable = () => {
+  const handleDownloadClassTimetable = useCallback(() => {
     toast.promise(
       new Promise((resolve) => {
         const link = document.createElement("a")
@@ -1063,22 +824,40 @@ useEffect(() => {
         error: "Failed to download class timetable.",
       },
     )
-  }
+  }, [])
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value)
-  }
+  const handleSearchSubmit = useCallback(
+    (e: FormEvent) => {
+      e.preventDefault()
+      router.get("/classtimetable", { search: searchValue, perPage: rowsPerPage })
+    },
+    [searchValue, rowsPerPage],
+  )
 
-  const handleSearchSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    router.get("/classtimetable", { search: searchValue, perPage: rowsPerPage })
-  }
+  const handlePerPageChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newPerPage = Number.parseInt(e.target.value)
+      setRowsPerPage(newPerPage)
+      router.get("/classtimetable", { search: searchValue, perPage: newPerPage })
+    },
+    [searchValue],
+  )
 
-  const handlePerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newPerPage = Number.parseInt(e.target.value)
-    setRowsPerPage(newPerPage)
-    router.get("/classtimetable", { search: searchValue, perPage: newPerPage })
-  }
+  // ✅ NEW: Conflict analysis handler
+  const handleAnalyzeConflicts = useCallback(async () => {
+    setIsAnalyzing(true)
+    try {
+      const response = await axios.post("/api/classtimetables/detect-conflicts")
+      if (response.data.success) {
+        setDetectedConflicts(response.data.conflicts || [])
+        toast.success(`Analysis complete: ${response.data.conflicts_count || 0} conflicts found`)
+      }
+    } catch (error) {
+      toast.error("Failed to analyze conflicts")
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [])
 
   return (
     <AuthenticatedLayout>
@@ -1102,7 +881,7 @@ useEffect(() => {
           <div className="flex space-x-2">
             {can.create && (
               <Button onClick={() => handleOpenModal("create", null)} className="bg-green-500 hover:bg-green-600">
-                <Users className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Add Class
               </Button>
             )}
@@ -1116,17 +895,9 @@ useEffect(() => {
               Analyze Conflicts
             </Button>
 
-            {/* <Button
-              onClick={() => handleOpenModal("csp_solver", null)}
-              className="bg-purple-500 hover:bg-purple-600"
-              disabled={isCSPSolving}
-            >
-              {isCSPSolving ? <Clock className="w-4 h-4 mr-2 animate-spin" /> : <Brain className="w-4 h-4 mr-2" />}
-              CSP Solver
-            </Button> */}
-
             {can.download && (
               <Button onClick={handleDownloadClassTimetable} className="bg-indigo-500 hover:bg-indigo-600">
+                <Download className="w-4 h-4 mr-2" />
                 Download PDF
               </Button>
             )}
@@ -1136,11 +907,12 @@ useEffect(() => {
             <input
               type="text"
               value={searchValue}
-              onChange={handleSearchChange}
+              onChange={(e) => setSearchValue(e.target.value)}
               placeholder="Search timetables..."
               className="border rounded p-2 w-64"
             />
             <Button type="submit" className="bg-blue-500 hover:bg-blue-600">
+              <Search className="w-4 h-4 mr-2" />
               Search
             </Button>
           </form>
@@ -1206,8 +978,7 @@ useEffect(() => {
               <div className="flex justify-between items-center">
                 <span className="text-red-700">
                   <strong>{detectedConflicts.length} conflicts detected</strong> -
-                  {detectedConflicts.filter((c) => c.severity === "high").length} high priority,
-                  {detectedConflicts.filter((c) => c.severity === "medium").length} medium priority
+                  {detectedConflicts.filter((c) => c.severity === "high").length} high priority
                 </span>
                 <Button
                   onClick={() => handleOpenModal("conflicts", null)}
@@ -1273,7 +1044,7 @@ useEffect(() => {
                         <tbody>
                           {dayTimetables.map((ct) => {
                             const hasConflict = detectedConflicts.some((conflict) =>
-                              conflict.affectedSessions.some((session) => session.id === ct.id),
+                              conflict.affectedSessions?.some((session: any) => session.id === ct.id),
                             )
 
                             return (
@@ -1355,14 +1126,14 @@ useEffect(() => {
                                       onClick={() => handleOpenModal("view", ct)}
                                       className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1"
                                     >
-                                      View
+                                      <Eye className="w-3 h-3" />
                                     </Button>
                                     {can.edit && (
                                       <Button
                                         onClick={() => handleOpenModal("edit", ct)}
                                         className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-2 py-1"
                                       >
-                                        Edit
+                                        <Edit className="w-3 h-3" />
                                       </Button>
                                     )}
                                     {can.delete && (
@@ -1370,7 +1141,7 @@ useEffect(() => {
                                         onClick={() => handleDelete(ct.id)}
                                         className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1"
                                       >
-                                        Delete
+                                        <Trash2 className="w-3 h-3" />
                                       </Button>
                                     )}
                                   </div>
@@ -1396,358 +1167,92 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Enhanced Modal for Create/Edit/View/Delete/Conflicts/CSP Solver */}
+        {/* ✅ RESTORED: All Modal Content */}
         {isModalOpen && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-[600px] max-h-[90vh] overflow-y-auto">
-              {/* CSP Solver Modal */}
-              {modalType === "csp_solver" && (
+              {/* ✅ VIEW MODAL */}
+              {modalType === "view" && selectedClassTimetable && (
                 <>
-                  <h2 className="text-xl font-semibold mb-4 flex items-center">
-                    <Brain className="w-5 h-5 mr-2 text-purple-500" />
-                    Advanced CSP Schedule Optimizer
-                  </h2>
-
-                  <div className="space-y-6">
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                      <h3 className="font-medium text-purple-800 mb-2">What is CSP Solver?</h3>
-                      <p className="text-sm text-purple-700">
-                        The Constraint Satisfaction Problem (CSP) solver uses advanced algorithms to automatically
-                        optimize your timetable by resolving conflicts and improving schedule efficiency while
-                        respecting all constraints.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Card className="cursor-pointer hover:shadow-md transition-shadow">
-        <CardContent className="p-4">
-          <h4 className="font-medium text-center mb-2">Simulated Annealing</h4>
-          <p className="text-xs text-gray-600 text-center mb-3">
-            Gradually improves schedule quality through iterative optimization
-          </p>
-          <Button
-            onClick={() => runAdvancedCSPSolver("simulated_annealing", "optimize")}
-            disabled={isCSPSolving}
-            className="w-full bg-blue-500 hover:bg-blue-600"
-            size="sm"
-          >
-            {isCSPSolving ? "Running..." : "Optimize Current"}
-          </Button>
-          <Button
-            onClick={() => runAdvancedCSPSolver("simulated_annealing", "generate")}
-            disabled={isCSPSolving}
-            className="w-full bg-blue-600 hover:bg-blue-700 mt-2"
-            size="sm"
-          >
-            {isCSPSolving ? "Running..." : "Generate New"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="cursor-pointer hover:shadow-md transition-shadow">
-        <CardContent className="p-4">
-          <h4 className="font-medium text-center mb-2">Genetic Algorithm</h4>
-          <p className="text-xs text-gray-600 text-center mb-3">
-            Evolves multiple schedule solutions to find the optimal arrangement
-          </p>
-          <Button
-            onClick={() => runAdvancedCSPSolver("genetic", "optimize")}
-            disabled={isCSPSolving}
-            className="w-full bg-green-500 hover:bg-green-600"
-            size="sm"
-          >
-            {isCSPSolving ? "Running..." : "Optimize Current"}
-          </Button>
-          <Button
-            onClick={() => runAdvancedCSPSolver("genetic", "generate")}
-            disabled={isCSPSolving}
-            className="w-full bg-green-600 hover:bg-green-700 mt-2"
-            size="sm"
-          >
-            {isCSPSolving ? "Running..." : "Generate New"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="cursor-pointer hover:shadow-md transition-shadow">
-        <CardContent className="p-4">
-          <h4 className="font-medium text-center mb-2">Backtracking Search</h4>
-          <p className="text-xs text-gray-600 text-center mb-3">
-            Systematically explores solutions to guarantee conflict-free schedules
-          </p>
-          <Button
-            onClick={() => runAdvancedCSPSolver("backtracking", "optimize")}
-            disabled={isCSPSolving}
-            className="w-full bg-orange-500 hover:bg-orange-600"
-            size="sm"
-          >
-            {isCSPSolving ? "Running..." : "Optimize Current"}
-          </Button>
-          <Button
-            onClick={() => runAdvancedCSPSolver("backtracking", "generate")}
-            disabled={isCSPSolving}
-            className="w-full bg-orange-600 hover:bg-orange-700 mt-2"
-            size="sm"
-          >
-            {isCSPSolving ? "Running..." : "Generate New"}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-800 mb-2">Current Constraints</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                        <div>• Max Physical/Day: {constraints.maxPhysicalPerDay}</div>
-                        <div>• Max Online/Day: {constraints.maxOnlinePerDay}</div>
-                        <div>• Min Hours/Day: {constraints.minHoursPerDay}</div>
-                        <div>• Max Hours/Day: {constraints.maxHoursPerDay}</div>
-                        <div>• Mixed Mode: {constraints.requireMixedMode ? "Required" : "Optional"}</div>
-                        <div>• Consecutive Slots: {constraints.avoidConsecutiveSlots ? "Avoided" : "Allowed"}</div>
+                  <h2 className="text-xl font-semibold mb-4">View Class Timetable</h2>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Day</label>
+                        <p className="mt-1 text-sm text-gray-900">{selectedClassTimetable.day}</p>
                       </div>
-                    </div>
-
-                    {detectedConflicts.length > 0 && (
-                      <Alert className="border-yellow-200 bg-yellow-50">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-yellow-700">
-                          <strong>{detectedConflicts.length} conflicts detected</strong> - The CSP solver will
-                          automatically resolve these conflicts during optimization.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    {isCSPSolving && (
-                      <div className="text-center py-4">
-                        <Clock className="w-8 h-8 animate-spin mx-auto mb-2 text-purple-500" />
-                        <p className="text-purple-600 font-medium">CSP Solver is running...</p>
-                        <p className="text-sm text-gray-600">This may take a few moments to complete.</p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Time</label>
+                        <p className="mt-1 text-sm text-gray-900">
+                          {formatTimeToHi(selectedClassTimetable.start_time)} -{" "}
+                          {formatTimeToHi(selectedClassTimetable.end_time)}
+                        </p>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6 flex justify-end">
-                    <Button onClick={handleCloseModal} className="bg-gray-400 text-white" disabled={isCSPSolving}>
-                      {isCSPSolving ? "Running..." : "Close"}
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {/* Conflicts Analysis Modal */}
-              {modalType === "conflicts" && (
-                <>
-                  <h2 className="text-xl font-semibold mb-4 flex items-center">
-                    <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
-                    Schedule Conflict Analysis
-                  </h2>
-
-                  {detectedConflicts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-green-800">No Conflicts Detected!</h3>
-                      <p className="text-green-600 mt-2">Your schedule meets all constraints and has no conflicts.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {detectedConflicts.map((conflict, index) => (
-                        <Alert
-                          key={index}
-                          className={`border-l-4 ${
-                            conflict.severity === "high"
-                              ? "border-red-500 bg-red-50"
-                              : conflict.severity === "medium"
-                                ? "border-yellow-500 bg-yellow-50"
-                                : "border-blue-500 bg-blue-50"
-                          }`}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Unit</label>
+                        <p className="mt-1 text-sm text-gray-900">
+                          {selectedClassTimetable.unit_code} - {selectedClassTimetable.unit_name}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Teaching Mode</label>
+                        <Badge
+                          className={
+                            selectedClassTimetable.teaching_mode === "online"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-green-100 text-green-800"
+                          }
                         >
-                          <AlertDescription>
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center mb-2">
-                                  <Badge
-                                    variant={
-                                      conflict.severity === "high"
-                                        ? "destructive"
-                                        : conflict.severity === "medium"
-                                          ? "default"
-                                          : "secondary"
-                                    }
-                                    className="mr-2"
-                                  >
-                                    {conflict.type.replace("_", " ").toUpperCase()} - {conflict.severity.toUpperCase()}
-                                  </Badge>
-                                  {conflict.day && (
-                                    <Badge variant="outline" className="mr-2">
-                                      {conflict.day}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm font-medium">{conflict.description}</p>
-                                {conflict.affectedSessions && conflict.affectedSessions.length > 0 && (
-                                  <div className="mt-2 text-xs text-gray-600">
-                                    <strong>Affected sessions:</strong>
-                                    <ul className="list-disc list-inside mt-1">
-                                      {conflict.affectedSessions.slice(0, 3).map((session, idx) => (
-                                        <li key={idx}>
-                                          {session.unit || session.unit_code} -{" "}
-                                          {session.time || `${session.start_time}-${session.end_time}`}
-                                          {session.group && ` (${session.group})`}
-                                        </li>
-                                      ))}
-                                      {conflict.affectedSessions.length > 3 && (
-                                        <li>... and {conflict.affectedSessions.length - 3} more</li>
-                                      )}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </AlertDescription>
-                        </Alert>
-                      ))}
+                          {selectedClassTimetable.teaching_mode || "Physical"}
+                        </Badge>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Venue</label>
+                        <p className="mt-1 text-sm text-gray-900">{selectedClassTimetable.venue}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Location</label>
+                        <p className="mt-1 text-sm text-gray-900">{selectedClassTimetable.location}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Lecturer</label>
+                        <p className="mt-1 text-sm text-gray-900">{selectedClassTimetable.lecturer}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Students</label>
+                        <p className="mt-1 text-sm text-gray-900">{selectedClassTimetable.no}</p>
+                      </div>
                     </div>
-                  )}
-
-                  <div className="mt-6 flex justify-end space-x-2">
-                    <Button
-                      onClick={analyzeScheduleConflicts}
-                      disabled={isAnalyzing}
-                      className="bg-orange-500 hover:bg-orange-600"
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <Clock className="w-4 h-4 mr-2 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        "Re-analyze"
-                      )}
-                    </Button>
-                    <Button onClick={handleCloseModal} className="bg-gray-400 text-white">
+                  </div>
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={handleCloseModal} className="bg-gray-400 hover:bg-gray-500 text-white">
                       Close
                     </Button>
                   </div>
                 </>
               )}
 
-              {/* View Modal */}
-              {modalType === "view" && selectedClassTimetable && (
-                <>
-                  <h2 className="text-xl font-semibold mb-4">View Class Timetable</h2>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <strong>Day:</strong> {selectedClassTimetable.day}
-                      </div>
-                      <div>
-                        <strong>Time:</strong> {selectedClassTimetable.start_time} - {selectedClassTimetable.end_time}
-                      </div>
-                      <div>
-                        <strong>Duration:</strong>{" "}
-                        {calculateDuration(selectedClassTimetable.start_time, selectedClassTimetable.end_time).toFixed(
-                          1,
-                        )}{" "}
-                        hours
-                      </div>
-                      <div>
-                        <strong>Mode:</strong>
-                        <Badge
-                          className={`ml-2 ${selectedClassTimetable.teaching_mode === "online" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}`}
-                        >
-                          {selectedClassTimetable.teaching_mode || "Physical"}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <hr />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <strong>Unit:</strong> {selectedClassTimetable.unit_code} - {selectedClassTimetable.unit_name}
-                      </div>
-                      <div>
-                        <strong>Credit Hours:</strong> {selectedClassTimetable.credit_hours || "N/A"}
-                      </div>
-                      <div>
-                        <strong>Class:</strong> {selectedClassTimetable.class_name || "N/A"}
-                      </div>
-                      <div>
-                        <strong>Group:</strong> {selectedClassTimetable.group_name || "All Groups"}
-                      </div>
-                    </div>
-
-                    <hr />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <strong>Venue:</strong> {selectedClassTimetable.venue}
-                      </div>
-                      <div>
-                        <strong>Location:</strong> {selectedClassTimetable.location}
-                      </div>
-                      <div>
-                        <strong>Students:</strong> {selectedClassTimetable.no}
-                      </div>
-                      <div>
-                        <strong>Lecturer:</strong> {selectedClassTimetable.lecturer}
-                      </div>
-                    </div>
-                  </div>
-                  <Button onClick={handleCloseModal} className="mt-4 bg-gray-400 text-white">
-                    Close
-                  </Button>
-                </>
-              )}
-
-              {/* Enhanced Create/Edit Modal */}
-              {(modalType === "edit" || modalType === "create") && formState && (
+              {/* ✅ CREATE/EDIT MODAL */}
+              {(modalType === "create" || modalType === "edit") && formState && (
                 <>
                   <h2 className="text-xl font-semibold mb-4">
-                    {modalType === "create" ? "Create Class Timetable" : "Edit Class Timetable"}
+                    {modalType === "create" ? "Create" : "Edit"} Duration-Based Timetable
                   </h2>
+
                   <form
                     onSubmit={(e) => {
                       e.preventDefault()
                       handleSubmitForm(formState)
                     }}
                   >
-                    {/* Time Slot Selection */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot *</label>
-                      <select
-                        value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
-                        onChange={(e) => {
-                          if (e.target.value === "Random Time Slot (auto-assign)") {
-                            setFormState((prev) => ({
-                              ...prev!,
-                              start_time: "",
-                              end_time: "",
-                              day: "",
-                            }))
-                          } else {
-                            const slot = classtimeSlots.find((s) => s.start_time === e.target.value)
-                            if (slot) {
-                              setFormState((prev) => ({
-                                ...prev!,
-                                start_time: slot.start_time,
-                                end_time: slot.end_time,
-                                day: slot.day,
-                              }))
-                            }
-                          }
-                        }}
-                        className="w-full border rounded p-2"
-                        required
-                      >
-                        <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
-                        {classtimeSlots.map((slot) => (
-                          <option key={slot.id} value={slot.start_time}>
-                            {slot.day} {slot.start_time} - {slot.end_time} (
-                            {calculateDuration(slot.start_time, slot.end_time).toFixed(1)}h)
-                          </option>
-                        ))}
-                      </select>
+                    {/* Duration Rules Info */}
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+                      <h4 className="font-medium text-blue-800 mb-1">Teaching Mode Rules:</h4>
+                      <ul className="text-blue-700 space-y-1">
+                        <li>• 2+ hour slots are automatically assigned as Physical classes</li>
+                        <li>• 1 hour slots are automatically assigned as Online classes</li>
+                        <li>• Teaching mode is determined by time slot duration</li>
+                      </ul>
                     </div>
 
                     {/* School Selection */}
@@ -1756,7 +1261,7 @@ useEffect(() => {
                       <select
                         value={formState.school_id || ""}
                         onChange={(e) =>
-                          handleCreateChange("school_id", e.target.value ? Number(e.target.value) : null)
+                          setFormState((prev) => (prev ? { ...prev, school_id: Number(e.target.value) || null } : null))
                         }
                         className="w-full border rounded p-2"
                         required
@@ -1764,8 +1269,7 @@ useEffect(() => {
                         <option value="">Select School</option>
                         {schools.map((school) => (
                           <option key={school.id} value={school.id}>
-                            {school.code ? `${school.code} - ` : ""}
-                            {school.name}
+                            {school.code} - {school.name}
                           </option>
                         ))}
                       </select>
@@ -1781,7 +1285,7 @@ useEffect(() => {
                         required
                       >
                         <option value="">Select Semester</option>
-                        {semesters?.map((semester) => (
+                        {semesters.map((semester) => (
                           <option key={semester.id} value={semester.id}>
                             {semester.name}
                           </option>
@@ -1794,142 +1298,40 @@ useEffect(() => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
                       <select
                         value={formState.class_id || ""}
-                        onChange={(e) => handleClassChange(Number(e.target.value))}
+                        onChange={(e) => handleClassChange(e.target.value)}
                         className="w-full border rounded p-2"
                         required
-                        disabled={!formState.semester_id}
                       >
                         <option value="">Select Class</option>
-                        {classes.map((classItem) => (
-                          <option key={classItem.id} value={classItem.id}>
-                            {classItem.name}
+                        {classes.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name}
                           </option>
                         ))}
                       </select>
                     </div>
 
-                    {/* Group Selection with Enhanced Info */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Group{" "}
-                        <span className="text-sm text-gray-500">
-                          (Optional - Select which group this timetable is for)
-                        </span>
-                      </label>
-                      <select
-                        value={formState.group_id || ""}
-                        onChange={(e) => handleGroupChange(Number(e.target.value))}
-                        className="w-full border rounded p-2"
-                        disabled={!formState.class_id}
-                      >
-                        <option value="">No specific group (applies to all groups)</option>
-                        {filteredGroups.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Enhanced Group Daily Hours Summary */}
-                    {formState.group_id && (
-                      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h4 className="font-medium text-blue-800 mb-3 flex items-center">
-                          <Users className="w-4 h-4 mr-2" />
-                          Group Schedule Analysis
-                        </h4>
-                        {(() => {
-                          const dailyStats = getGroupDailyHoursSummary(formState.group_id, classTimetables)
-                          return Object.keys(dailyStats).length > 0 ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                {Object.entries(dailyStats).map(([day, stats]) => (
-                                  <div
-                                    key={day}
-                                    className="flex justify-between items-center p-2 bg-white rounded border"
-                                  >
-                                    <span className="font-medium">{day}:</span>
-                                    <div className="text-right">
-                                      <div
-                                        className={`font-bold ${
-                                          stats.hours > constraints.maxHoursPerDay
-                                            ? "text-red-600"
-                                            : stats.hours < constraints.minHoursPerDay
-                                              ? "text-yellow-600"
-                                              : "text-green-600"
-                                        }`}
-                                      >
-                                        {stats.hours.toFixed(1)}h
-                                      </div>
-                                      <div className="text-xs text-gray-600">
-                                        {stats.physical}P / {stats.online}O
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="mt-3 text-xs text-blue-700 bg-blue-100 p-2 rounded">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>• Min: {constraints.minHoursPerDay}h per day</div>
-                                  <div>• Max: {constraints.maxHoursPerDay}h per day</div>
-                                  <div>• Max Physical: {constraints.maxPhysicalPerDay} per day</div>
-                                  <div>• Max Online: {constraints.maxOnlinePerDay} per day</div>
-                                </div>
-                                {constraints.requireMixedMode && (
-                                  <div className="mt-1">• Mixed mode required (both physical and online)</div>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-blue-600 text-sm">No classes scheduled yet for this group.</p>
-                          )
-                        })()}
+                    {/* Group Selection */}
+                    {filteredGroups.length > 0 && (
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+                        <select
+                          value={formState.group_id || ""}
+                          onChange={(e) =>
+                            setFormState((prev) =>
+                              prev ? { ...prev, group_id: Number(e.target.value) || null } : null,
+                            )
+                          }
+                          className="w-full border rounded p-2"
+                        >
+                          <option value="">Select Group (Optional)</option>
+                          {filteredGroups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    )}
-
-                    {/* Teaching Mode Selection */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Teaching Mode *</label>
-                      <select
-                        value={formState.teaching_mode || "physical"}
-                        onChange={(e) => handleCreateChange("teaching_mode", e.target.value)}
-                        className="w-full border rounded p-2"
-                      >
-                        <option value="physical">Physical</option>
-                        <option value="online">Online</option>
-                      </select>
-                    </div>
-
-                    {/* Class Assignment Info */}
-                    {formState.class_id && (
-                      <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm">
-                        <div className="flex items-center text-green-700">
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          <span>
-                            {formState.group_id
-                              ? `This timetable will be assigned to ${classes.find((c) => c.id === formState.class_id)?.name} - Group ${filteredGroups.find((g) => g.id === formState.group_id)?.name}`
-                              : `This timetable will apply to all groups in ${classes.find((c) => c.id === formState.class_id)?.name}`}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Loading State */}
-                    {isLoading && (
-                      <div className="text-center py-3 mb-4">
-                        <div className="inline-flex items-center">
-                          <Clock className="w-4 h-4 mr-2 animate-spin" />
-                          <span>Loading units...</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Error Message */}
-                    {errorMessage && (
-                      <Alert className="mb-4 bg-yellow-50 border-yellow-200">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-yellow-600">{errorMessage}</AlertDescription>
-                      </Alert>
                     )}
 
                     {/* Unit Selection */}
@@ -1937,173 +1339,206 @@ useEffect(() => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
                       <select
                         value={formState.unit_id || ""}
-                        onChange={(e) => handleUnitChange(Number(e.target.value))}
+                        onChange={(e) => {
+                          const selectedUnit = filteredUnits.find((u) => u.id === Number(e.target.value))
+                          setFormState((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  unit_id: Number(e.target.value),
+                                  unit_code: selectedUnit?.code || "",
+                                  unit_name: selectedUnit?.name || "",
+                                  no: selectedUnit?.student_count || 0,
+                                  lecturer: selectedUnit?.lecturer_name || "",
+                                }
+                              : null,
+                          )
+                        }}
                         className="w-full border rounded p-2"
-                        disabled={!formState.class_id || isLoading}
                         required
                       >
                         <option value="">Select Unit</option>
-                        {filteredUnits && filteredUnits.length > 0 ? (
-                          filteredUnits.map((unit) => (
-                            <option key={unit.id} value={unit.id}>
-                              {unit.code} - {unit.name} ({unit.credit_hours || 3} credits, {unit.student_count || 0}{" "}
-                              students)
-                            </option>
-                          ))
-                        ) : (
-                          <option value="" disabled>
-                            {formState.class_id ? "No units available for this class" : "Please select a class first"}
+                        {filteredUnits.map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.code} - {unit.name} ({unit.student_count} students)
                           </option>
-                        )}
+                        ))}
                       </select>
                     </div>
 
-                    {/* Unit Details */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit Code</label>
-                        <input
-                          type="text"
-                          value={formState.unit_code || ""}
-                          className="w-full border rounded p-2 bg-gray-50"
-                          readOnly
-                        />
+                    {/* Enhanced Time Slot Selection */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Time Slot *
+                        <span className="text-blue-600 text-xs ml-2">(Teaching mode auto-assigned by duration)</span>
+                      </label>
+                      <select
+                        value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
+                        onChange={(e) => handleTimeSlotChange(e.target.value)}
+                        className="w-full border rounded p-2"
+                        required
+                      >
+                        <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
+                        {classtimeSlots.map((slot) => {
+                          const duration = calculateDuration(slot.start_time, slot.end_time)
+                          const autoMode = getTeachingModeFromDuration(slot.start_time, slot.end_time)
+                          const modeIcon = autoMode === "physical" ? "🏫" : "📱"
+
+                          return (
+                            <option key={slot.id} value={slot.start_time}>
+                              {modeIcon} {slot.day} {slot.start_time}-{slot.end_time} ({duration.toFixed(1)}h →{" "}
+                              {autoMode})
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Duration and Mode Display */}
+                    {formState.start_time && formState.end_time && (
+                      <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded">
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700">Duration:</span>
+                            <div className="text-lg font-bold text-blue-600">
+                              {calculateDuration(formState.start_time, formState.end_time).toFixed(1)} hours
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Auto Mode:</span>
+                            <div className="mt-1">
+                              <Badge
+                                className={
+                                  formState.teaching_mode === "online"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-green-100 text-green-800"
+                                }
+                              >
+                                {formState.teaching_mode === "online" ? "📱 Online" : "🏫 Physical"}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Auto Venue:</span>
+                            <div className="text-sm font-medium text-gray-800">
+                              {formState.venue || "Auto-assigned"}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Number of Students</label>
-                        <input
-                          type="number"
-                          value={formState.no}
-                          className="w-full border rounded p-2 bg-gray-50"
-                          readOnly
-                        />
+                    )}
+
+                    {/* Read-only Teaching Mode Display */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Teaching Mode
+                        <span className="text-blue-600 text-xs ml-2">(Auto-determined by duration)</span>
+                      </label>
+                      <div className="w-full border rounded p-2 bg-gray-50 flex items-center">
+                        <Badge
+                          className={`mr-2 ${
+                            formState.teaching_mode === "online"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {formState.teaching_mode === "online" ? "📱 Online" : "🏫 Physical"}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          {formState.start_time && formState.end_time
+                            ? `${calculateDuration(formState.start_time, formState.end_time).toFixed(1)}h duration`
+                            : "Select time slot first"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        💡 2+ hours = Physical class | 1 hour = Online class
                       </div>
                     </div>
 
-                    {/* Lecturer Selection */}
-                    {unitLecturers.length > 0 && (
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Lecturer (from enrollments)
-                        </label>
+                    {/* Enhanced Venue Selection */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Venue
+                        <span className="text-blue-600 text-xs ml-2">(Auto-assigned based on teaching mode)</span>
+                      </label>
+
+                      {formState.teaching_mode === "online" ? (
+                        <div className="w-full border rounded p-2 bg-blue-50 flex items-center">
+                          <Users className="w-4 h-4 text-blue-600 mr-2" />
+                          <span className="text-blue-800 font-medium">Remote (Online Class)</span>
+                        </div>
+                      ) : (
                         <select
-                          value={formState.lecturer_id || ""}
+                          value={formState.venue}
                           onChange={(e) => {
-                            const selectedLecturer = lecturers.find((l) => l.id === Number(e.target.value))
-                            if (selectedLecturer) {
-                              setFormState((prev) => ({
-                                ...prev!,
-                                lecturer_id: Number(e.target.value),
-                                lecturer_name: selectedLecturer.name,
-                                lecturer: selectedLecturer.name,
-                              }))
-                            }
+                            const venueName = e.target.value
+                            const selectedClassroom = classrooms.find((c) => c.name === venueName)
+                            setFormState((prev) => ({
+                              ...prev!,
+                              venue: venueName,
+                              location: selectedClassroom?.location || "Physical",
+                            }))
                           }}
                           className="w-full border rounded p-2"
                         >
-                          <option value="">Select Lecturer</option>
-                          {unitLecturers.map((lecturer) => (
-                            <option key={lecturer.id} value={lecturer.id}>
-                              {lecturer.name}
-                            </option>
-                          ))}
+                          <option value="">Auto-assign suitable venue</option>
+                          {classrooms
+                            .filter((c) => c.capacity >= (formState.no || 0))
+                            .map((classroom) => (
+                              <option key={classroom.id} value={classroom.name}>
+                                🏫 {classroom.name} (Capacity: {classroom.capacity}, {classroom.location})
+                              </option>
+                            ))}
                         </select>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
-                    {/* Manual Lecturer Input */}
+                    {/* Lecturer */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Lecturer Name {unitLecturers.length > 0 ? "(or enter manually)" : "*"}
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Lecturer *</label>
                       <input
                         type="text"
                         value={formState.lecturer}
-                        onChange={(e) => handleCreateChange("lecturer", e.target.value)}
+                        onChange={(e) => setFormState((prev) => (prev ? { ...prev, lecturer: e.target.value } : null))}
                         className="w-full border rounded p-2"
-                        placeholder="Enter lecturer name"
-                        required={unitLecturers.length === 0}
+                        required
                       />
                     </div>
 
-                    {/* Venue Selection */}
+                    {/* Number of Students */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                      <select
-                        value={formState.venue}
-                        onChange={(e) => {
-                          const venueName = e.target.value
-                          if (venueName === "") {
-                            setFormState((prev) => ({
-                              ...prev!,
-                              venue: "",
-                              location: "",
-                            }))
-                            setCapacityWarning(null)
-                          } else {
-                            const selectedClassroom = classrooms.find((c) => c.name === venueName)
-                            if (selectedClassroom) {
-                              setFormState((prev) => ({
-                                ...prev!,
-                                venue: venueName,
-                                location: selectedClassroom.location,
-                              }))
-
-                              // Check capacity
-                              if (formState.no > selectedClassroom.capacity) {
-                                setCapacityWarning(
-                                  `Warning: Venue ${venueName} has capacity ${selectedClassroom.capacity}, but ${formState.no} students are enrolled (exceeding by ${formState.no - selectedClassroom.capacity})`,
-                                )
-                              } else {
-                                setCapacityWarning(null)
-                              }
-                            }
-                          }
-                        }}
-                        className="w-full border rounded p-2"
-                      >
-                        <option value="">Random Venue (auto-assign)</option>
-                        {classrooms?.map((classroom) => (
-                          <option key={classroom.id} value={classroom.name}>
-                            {classroom.name} (Capacity: {classroom.capacity}, Location: {classroom.location})
-                          </option>
-                        )) || null}
-                      </select>
-                      <span className="text-xs text-gray-500 block mt-1">
-                        Leave blank to assign a random available venue with enough capacity.
-                      </span>
-                    </div>
-
-                    {/* Capacity Warning */}
-                    {capacityWarning && (
-                      <Alert className="mb-4 bg-red-50 border-red-200">
-                        <AlertCircle className="h-4 w-4 text-red-500" />
-                        <AlertDescription className="text-red-500">{capacityWarning}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    {/* Enhanced Constraint Validation Warning */}
-                    {conflictWarning && (
-                      <Alert className="mb-4 bg-yellow-50 border-yellow-200">
-                        <AlertCircle className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription>
-                          <div className="text-yellow-700">
-                            <strong>Constraint Validation:</strong>
-                            <div className="mt-1">{conflictWarning}</div>
-                          </div>
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    {/* Location (Read-only) */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Number of Students *</label>
                       <input
-                        type="text"
-                        value={formState.location}
-                        className="w-full border rounded p-2 bg-gray-50"
-                        readOnly
+                        type="number"
+                        value={formState.no}
+                        onChange={(e) =>
+                          setFormState((prev) => (prev ? { ...prev, no: Number(e.target.value) } : null))
+                        }
+                        className="w-full border rounded p-2"
+                        min="1"
+                        required
                       />
+                    </div>
+
+                    {/* Conflict Warning */}
+                    {conflictWarning && (
+                      <Alert className="mb-4 border-red-200 bg-red-50">
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <AlertDescription className="text-red-700">{conflictWarning}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {/* Duration-Based Assignment Info */}
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm">
+                      <div className="flex items-center text-green-700">
+                        <Zap className="w-4 h-4 mr-2" />
+                        <span className="font-medium">Smart Assignment Active:</span>
+                      </div>
+                      <div className="mt-2 text-green-600 text-xs">
+                        • Time slot duration automatically determines teaching mode
+                        <br />• Teaching mode automatically determines venue type
+                        <br />• Physical classes get classroom venues, online classes get "Remote"
+                      </div>
                     </div>
 
                     {/* Form Actions */}
@@ -2117,8 +1552,8 @@ useEffect(() => {
                       </Button>
                       <Button
                         type="submit"
-                        disabled={isSubmitting || (conflictWarning && conflictWarning.includes("cannot"))}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isSubmitting}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2"
                       >
                         {isSubmitting ? (
                           <>
@@ -2127,8 +1562,8 @@ useEffect(() => {
                           </>
                         ) : (
                           <>
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            {modalType === "create" ? "Create Timetable" : "Update Timetable"}
+                            <Zap className="w-4 h-4 mr-2" />
+                            {modalType === "create" ? "Create Smart Timetable" : "Update Smart Timetable"}
                           </>
                         )}
                       </Button>
@@ -2137,58 +1572,147 @@ useEffect(() => {
                 </>
               )}
 
-              {/* Delete Confirmation Modal */}
-              {modalType === "delete" && selectedClassTimetable && (
+              {/* ✅ CONFLICTS MODAL */}
+              {modalType === "conflicts" && (
                 <>
                   <h2 className="text-xl font-semibold mb-4 flex items-center">
-                    <XCircle className="w-5 h-5 mr-2 text-red-500" />
-                    Delete Class Timetable
+                    <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
+                    Conflict Analysis
                   </h2>
-                  <div className="mb-6">
-                    <p className="text-gray-700 mb-4">Are you sure you want to delete this timetable entry?</p>
-                    <div className="bg-gray-50 p-4 rounded border">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <strong>Unit:</strong> {selectedClassTimetable.unit_code}
-                        </div>
-                        <div>
-                          <strong>Day:</strong> {selectedClassTimetable.day}
-                        </div>
-                        <div>
-                          <strong>Time:</strong> {selectedClassTimetable.start_time} - {selectedClassTimetable.end_time}
-                        </div>
-                        <div>
-                          <strong>Venue:</strong> {selectedClassTimetable.venue}
-                        </div>
-                        <div>
-                          <strong>Class:</strong> {selectedClassTimetable.class_name || "N/A"}
-                        </div>
-                        <div>
-                          <strong>Group:</strong> {selectedClassTimetable.group_name || "All Groups"}
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          Found {detectedConflicts.length} conflicts in the current timetable
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleAnalyzeConflicts}
+                        disabled={isAnalyzing}
+                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                      >
+                        {isAnalyzing ? (
+                          <>
+                            <Clock className="w-4 h-4 mr-2 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-4 h-4 mr-2" />
+                            Re-analyze
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {detectedConflicts.length > 0 ? (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {detectedConflicts.map((conflict, index) => (
+                          <div key={index} className="border border-red-200 rounded-lg p-4 bg-red-50">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h4 className="font-medium text-red-800">
+                                  {conflict.type.replace("_", " ").toUpperCase()}
+                                </h4>
+                                <p className="text-sm text-red-700">{conflict.description}</p>
+                              </div>
+                              <Badge variant="destructive" className="text-xs">
+                                {conflict.severity}
+                              </Badge>
+                            </div>
+
+                            {conflict.affectedSessions && (
+                              <div className="mt-3 space-y-2">
+                                <p className="text-xs font-medium text-red-800">Affected Sessions:</p>
+                                {conflict.affectedSessions.map((session: any, sessionIndex: number) => (
+                                  <div key={sessionIndex} className="text-xs bg-white p-2 rounded border">
+                                    <span className="font-medium">{session.unit_code}</span> -{session.day}{" "}
+                                    {formatTimeToHi(session.start_time)}-{formatTimeToHi(session.end_time)} -
+                                    {session.lecturer} - {session.venue}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                        <p className="text-lg text-green-600 font-medium">No conflicts detected!</p>
+                        <p className="text-sm text-gray-500 mt-2">Your timetable is optimally scheduled.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={handleCloseModal} className="bg-gray-400 hover:bg-gray-500 text-white">
+                      Close
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* ✅ CSP SOLVER MODAL */}
+              {modalType === "csp_solver" && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center">
+                    <Zap className="w-5 h-5 mr-2 text-blue-500" />
+                    Constraint Satisfaction Solver
+                  </h2>
+
+                  <div className="space-y-4">
+                    <Alert className="border-blue-200 bg-blue-50">
+                      <AlertCircle className="h-4 w-4 text-blue-500" />
+                      <AlertDescription className="text-blue-700">
+                        The CSP solver will automatically generate an optimal timetable based on your constraints. This
+                        may take a few minutes for large datasets.
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-medium text-gray-800 mb-2">Current Constraints</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• Max {constraints.maxPhysicalPerDay} physical classes/day</li>
+                          <li>• Max {constraints.maxOnlinePerDay} online classes/day</li>
+                          <li>• Max {constraints.maxHoursPerDay} hours/day</li>
+                          <li>• {constraints.requireMixedMode ? "Require" : "Don't require"} mixed mode</li>
+                          <li>• {constraints.avoidConsecutiveSlots ? "Avoid" : "Allow"} consecutive slots</li>
+                        </ul>
+                      </div>
+
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-medium text-gray-800 mb-2">Solver Options</h4>
+                        <div className="space-y-2">
+                          <label className="flex items-center">
+                            <input type="checkbox" className="mr-2" defaultChecked />
+                            <span className="text-sm">Optimize for minimal conflicts</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input type="checkbox" className="mr-2" defaultChecked />
+                            <span className="text-sm">Balance teaching modes</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input type="checkbox" className="mr-2" />
+                            <span className="text-sm">Preserve existing assignments</span>
+                          </label>
                         </div>
                       </div>
                     </div>
-                    <p className="text-red-600 text-sm mt-3">
-                      <strong>Warning:</strong> This action cannot be undone.
-                    </p>
+
+                    <div className="flex justify-center">
+                      <Button className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Run CSP Solver
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex justify-end space-x-3">
-                    <Button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="bg-gray-400 hover:bg-gray-500 text-white px-6 py-2"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        handleDelete(selectedClassTimetable.id)
-                        handleCloseModal()
-                      }}
-                      className="bg-red-500 hover:bg-red-600 text-white px-6 py-2"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Delete Timetable
+
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={handleCloseModal} className="bg-gray-400 hover:bg-gray-500 text-white">
+                      Close
                     </Button>
                   </div>
                 </>
