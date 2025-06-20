@@ -501,11 +501,11 @@ const EnhancedClassTimetable = () => {
   }, [])
 
   // ✅ ENHANCED: Time slot change handler with proper ID tracking
-  const handleTimeSlotChange = useCallback(
-    (timeSlotValue: string) => {
+  const handleClassTimeSlotChange = useCallback(
+    (classtimeSlotId: number | string) => {
       if (!formState) return
 
-      if (timeSlotValue === "Random Time Slot (auto-assign)") {
+      if (classtimeSlotId === "Random Time Slot (auto-assign)" || classtimeSlotId === "") {
         setFormState((prev) =>
           prev
             ? {
@@ -513,7 +513,7 @@ const EnhancedClassTimetable = () => {
                 start_time: "",
                 end_time: "",
                 day: "",
-                classtimeslot_id: 0, // ✅ Reset time slot ID
+                classtimeslot_id: 0,
                 teaching_mode: "physical",
                 venue: "",
                 location: "",
@@ -523,132 +523,199 @@ const EnhancedClassTimetable = () => {
         return
       }
 
-      const slot = classtimeSlots.find((s) => s.start_time === timeSlotValue)
-      if (slot) {
+      const selectedClassTimeSlot = classtimeSlots.find((ts) => ts.id === Number(classtimeSlotId))
+      if (selectedClassTimeSlot) {
         // ✅ AUTO-ASSIGN: Determine teaching mode based on duration
-        const autoTeachingMode = getTeachingModeFromDuration(slot.start_time, slot.end_time)
+        const autoTeachingMode = getTeachingModeFromDuration(
+          selectedClassTimeSlot.start_time,
+          selectedClassTimeSlot.end_time,
+        )
 
         // ✅ AUTO-ASSIGN: Determine venue based on teaching mode
         const autoVenue = getVenueForTeachingMode(autoTeachingMode, classrooms, formState.no)
         const selectedClassroom = classrooms.find((c) => c.name === autoVenue)
 
-        setFormState((prev) =>
-          prev
-            ? {
-                ...prev,
-                start_time: slot.start_time,
-                end_time: slot.end_time,
-                day: slot.day, // ✅ CRITICAL: This will now be properly sent to backend
-                classtimeslot_id: slot.id, // ✅ CRITICAL: Send the time slot ID
-                teaching_mode: autoTeachingMode,
-                venue: autoVenue,
-                location: autoVenue === "Remote" ? "Online" : selectedClassroom?.location || "Physical",
-              }
-            : null,
-        )
+        setFormState((prev) => ({
+          ...prev!,
+          classtimeslot_id: Number(classtimeSlotId),
+          day: selectedClassTimeSlot.day, // ✅ CRITICAL: This properly updates the day
+          start_time: selectedClassTimeSlot.start_time,
+          end_time: selectedClassTimeSlot.end_time,
+          teaching_mode: autoTeachingMode,
+          venue: autoVenue,
+          location: autoVenue === "Remote" ? "Online" : selectedClassroom?.location || "Physical",
+        }))
 
         // Show user what was auto-assigned
-        const duration = calculateDuration(slot.start_time, slot.end_time)
-        toast.success(`Auto-assigned: ${slot.day} ${duration.toFixed(1)}h → ${autoTeachingMode} class → ${autoVenue}`, {
-          duration: 3000,
-        })
+        const duration = calculateDuration(selectedClassTimeSlot.start_time, selectedClassTimeSlot.end_time)
+        toast.success(
+          `Auto-assigned: ${selectedClassTimeSlot.day} ${duration.toFixed(1)}h → ${autoTeachingMode} class → ${autoVenue}`,
+          {
+            duration: 3000,
+          },
+        )
 
-        setConflictWarning(null)
+        // Check for conflicts if we have the necessary data
+        if (formState.unit_id && autoVenue) {
+          const validation = validateFormWithConstraints({
+            ...formState,
+            day: selectedClassTimeSlot.day,
+            start_time: selectedClassTimeSlot.start_time,
+            end_time: selectedClassTimeSlot.end_time,
+            teaching_mode: autoTeachingMode,
+          })
+
+          if (!validation.isValid) {
+            setConflictWarning(validation.message)
+          } else if (validation.warnings.length > 0) {
+            setConflictWarning(validation.warnings.join("; "))
+          } else {
+            setConflictWarning(null)
+          }
+        }
       }
     },
-    [formState, classtimeSlots, classrooms],
+    [formState, classtimeSlots, classrooms, validateFormWithConstraints],
   )
 
-  // ✅ FIXED: Stable form submission handler with time slot ID
+  // ✅ FIXED: Enhanced form submission handler with better validation and error handling
   const handleSubmitForm = useCallback(
     (data: FormState) => {
+      console.log("🚀 Form submission started with data:", data) // ✅ DEBUG
+
+      // ✅ ENHANCED: More comprehensive validation
       if (!data.class_id) {
         toast.error("Please select a class before submitting.")
         return
       }
 
-      // Validate constraints
-      const validation = validateFormWithConstraints(data)
-      if (!validation.isValid) {
-        toast.error(validation.message)
+      if (!data.semester_id) {
+        toast.error("Please select a semester before submitting.")
         return
+      }
+
+      if (!data.unit_id) {
+        toast.error("Please select a unit before submitting.")
+        return
+      }
+
+      if (!data.day || !data.start_time || !data.end_time) {
+        toast.error("Please select a time slot before submitting.")
+        return
+      }
+
+      if (!data.venue) {
+        toast.error("Please select a venue before submitting.")
+        return
+      }
+
+      if (!data.lecturer) {
+        toast.error("Please enter a lecturer name before submitting.")
+        return
+      }
+
+      // Validate constraints only if we have group_id and teaching_mode
+      if (data.group_id && data.teaching_mode) {
+        const validation = validateFormWithConstraints(data)
+        if (!validation.isValid) {
+          toast.error(validation.message)
+          return
+        }
+
+        if (validation.warnings.length > 0) {
+          validation.warnings.forEach((warning) => toast(warning, { icon: "⚠️" }))
+        }
       }
 
       // ✅ SAFETY: Add timeout to prevent infinite loading
       const timeoutId = setTimeout(() => {
-        console.warn("Form submission timeout - resetting loading state")
+        console.warn("⏰ Form submission timeout - resetting loading state")
         setIsSubmitting(false)
         toast.error("Request timed out. Please try again.")
       }, 30000) // 30 second timeout
 
-      // Clear timeout when submission completes
-      const originalOnFinish = () => {
-        clearTimeout(timeoutId)
-        setIsSubmitting(false)
-      }
-
-      if (validation.warnings.length > 0) {
-        validation.warnings.forEach((warning) => toast(warning, { icon: "⚠️" }))
-      }
-
+      // ✅ ENHANCED: Prepare form data with proper formatting
       const formattedData: any = {
-        ...data,
+        semester_id: Number(data.semester_id),
+        class_id: Number(data.class_id),
+        group_id: data.group_id ? Number(data.group_id) : null,
+        unit_id: Number(data.unit_id),
+        day: data.day,
         start_time: formatTimeToHi(data.start_time),
         end_time: formatTimeToHi(data.end_time),
-        classtimeslot_id: data.classtimeslot_id || null, // ✅ INCLUDE time slot ID
+        venue: data.venue,
+        location: data.location,
+        lecturer: data.lecturer,
+        no: Number(data.no),
+        teaching_mode: data.teaching_mode || "physical",
+        classtimeslot_id: data.classtimeslot_id ? Number(data.classtimeslot_id) : null,
+        school_id: data.school_id ? Number(data.school_id) : null,
       }
 
-      // Clean up form data (but keep classtimeslot_id)
-      delete formattedData.unit_code
-      delete formattedData.unit_name
-      delete formattedData.lecturer_id
-      delete formattedData.lecturer_name
-      delete formattedData.enrollment_id
+      // ✅ CLEAN: Remove undefined values
+      Object.keys(formattedData).forEach((key) => {
+        if (formattedData[key] === undefined || formattedData[key] === "") {
+          delete formattedData[key]
+        }
+      })
 
-      Object.keys(formattedData).forEach((key) =>
-        formattedData[key] === undefined ? delete formattedData[key] : undefined,
-      )
-
-      console.log("Submitting form data:", formattedData) // ✅ DEBUG: Check what's being sent
+      console.log("📤 Submitting formatted data:", formattedData) // ✅ DEBUG
 
       setIsSubmitting(true)
 
-      if (data.id === 0) {
+      if (data.id === 0 || !data.id) {
+        // ✅ CREATE NEW TIMETABLE
+        console.log("🆕 Creating new timetable...")
+
         router.post(`/classtimetables`, formattedData, {
-          onSuccess: () => {
+          onSuccess: (response) => {
+            console.log("✅ Create successful:", response)
             toast.success("Class timetable created successfully.")
             handleCloseModal()
             router.reload({ only: ["classTimetables"] })
           },
           onError: (errors: any) => {
+            console.error("❌ Create failed with errors:", errors)
             let msg = "Failed to create class timetable."
+
             if (errors && typeof errors === "object") {
               if (errors.error) {
                 msg = errors.error
+              } else if (errors.message) {
+                msg = errors.message
               } else {
                 const errorMsgs = Object.values(errors).flat().filter(Boolean).join(" ")
                 if (errorMsgs) msg = errorMsgs
               }
+            } else if (typeof errors === "string") {
+              msg = errors
             }
+
             toast.error(msg)
           },
           onFinish: () => {
+            console.log("🏁 Create request finished")
             clearTimeout(timeoutId)
             setIsSubmitting(false)
           },
+          onBefore: () => {
+            console.log("🚀 Create request starting")
+            return true
+          },
         })
       } else {
-        console.log("Updating timetable with ID:", data.id, "Data:", formattedData) // ✅ DEBUG
+        // ✅ UPDATE EXISTING TIMETABLE
+        console.log("📝 Updating timetable with ID:", data.id)
 
         router.put(`/classtimetables/${data.id}`, formattedData, {
           onSuccess: (response) => {
-            console.log("Update successful:", response) // ✅ DEBUG
+            console.log("✅ Update successful:", response)
             toast.success("Class timetable updated successfully.")
             handleCloseModal()
             router.reload({ only: ["classTimetables"] })
           },
           onError: (errors: any) => {
-            console.error("Update failed with errors:", errors) // ✅ DEBUG
+            console.error("❌ Update failed with errors:", errors)
             let msg = "Failed to update class timetable."
 
             if (errors && typeof errors === "object") {
@@ -665,16 +732,15 @@ const EnhancedClassTimetable = () => {
             }
 
             toast.error(msg)
-            setIsSubmitting(false) // ✅ CRITICAL: Reset loading state on error
           },
           onFinish: () => {
-            console.log("Update request finished") // ✅ DEBUG
+            console.log("🏁 Update request finished")
             clearTimeout(timeoutId)
-            setIsSubmitting(false) // ✅ CRITICAL: Always reset loading state
+            setIsSubmitting(false)
           },
           onBefore: () => {
-            console.log("Update request starting") // ✅ DEBUG
-            return true // Allow the request to proceed
+            console.log("🚀 Update request starting")
+            return true
           },
         })
       }
@@ -1373,19 +1439,19 @@ const EnhancedClassTimetable = () => {
                         <span className="text-blue-600 text-xs ml-2">(Teaching mode auto-assigned by duration)</span>
                       </label>
                       <select
-                        value={formState.start_time === "" ? "Random Time Slot (auto-assign)" : formState.start_time}
-                        onChange={(e) => handleTimeSlotChange(e.target.value)}
+                        value={formState.classtimeslot_id || ""}
+                        onChange={(e) => handleClassTimeSlotChange(e.target.value)}
                         className="w-full border rounded p-2"
                         required
                       >
-                        <option value="Random Time Slot (auto-assign)">Random Time Slot (auto-assign)</option>
+                        <option value="">Select Time Slot</option>
                         {classtimeSlots.map((slot) => {
                           const duration = calculateDuration(slot.start_time, slot.end_time)
                           const autoMode = getTeachingModeFromDuration(slot.start_time, slot.end_time)
                           const modeIcon = autoMode === "physical" ? "🏫" : "📱"
 
                           return (
-                            <option key={slot.id} value={slot.start_time}>
+                            <option key={slot.id} value={slot.id}>
                               {modeIcon} {slot.day} {slot.start_time}-{slot.end_time} ({duration.toFixed(1)}h →{" "}
                               {autoMode})
                             </option>
@@ -1550,10 +1616,26 @@ const EnhancedClassTimetable = () => {
                       >
                         Cancel
                       </Button>
+
+                      {/* ✅ EMERGENCY RESET: If stuck in loading state */}
+                      {isSubmitting && (
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            console.log("🔄 Emergency reset triggered")
+                            setIsSubmitting(false)
+                            toast.info("Loading state reset. Please try again.")
+                          }}
+                          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2"
+                        >
+                          Reset
+                        </Button>
+                      )}
+
                       <Button
                         type="submit"
                         disabled={isSubmitting}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2"
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? (
                           <>
