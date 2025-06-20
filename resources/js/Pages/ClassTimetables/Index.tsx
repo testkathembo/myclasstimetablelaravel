@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle, XCircle, Clock, Users, MapPin, Calendar, Zap } from "lucide-react"
+import { AlertCircle, CheckCircle, XCircle, Clock, Users, MapPin, Calendar, Zap, Brain } from "lucide-react"
 import { toast } from "react-hot-toast"
 import Pagination from "@/Components/Pagination"
 import axios from "axios"
@@ -539,7 +539,9 @@ const EnhancedClassTimetable = () => {
 
   // Enhanced state management
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<"view" | "edit" | "delete" | "create" | "conflicts" | "">("")
+  const [modalType, setModalType] = useState<"view" | "edit" | "delete" | "create" | "conflicts" | "csp_solver" | "">(
+    "",
+  )
   const [selectedClassTimetable, setSelectedClassTimetable] = useState<ClassTimetable | null>(null)
   const [formState, setFormState] = useState<FormState | null>(null)
   const [searchValue, setSearchValue] = useState(search)
@@ -556,6 +558,9 @@ const EnhancedClassTimetable = () => {
   const [detectedConflicts, setDetectedConflicts] = useState<ConflictReport[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [showConflictAnalysis, setShowConflictAnalysis] = useState(false)
+
+  // CSP Solver state
+  const [isCSPSolving, setIsCSPSolving] = useState(false)
 
   // Auto-generate modal state
   const [isAutoGenerateModalOpen, setIsAutoGenerateModalOpen] = useState(false)
@@ -604,6 +609,35 @@ const EnhancedClassTimetable = () => {
     }
   }
 
+  // CSP Solver function
+  const runAdvancedCSPSolver = async (algorithm: string, mode: string) => {
+    setIsCSPSolving(true)
+    try {
+      // Use the correct endpoints that match your routes
+      const endpoint = mode === "optimize" ? "/optimize-schedule" : "/generate-optimal-schedule"
+
+      const response = await axios.post(endpoint, {
+        algorithm,
+        semester_id: null,
+        class_id: null,
+        group_id: null,
+      })
+
+      if (response.data.success) {
+        toast.success(`CSP Solver completed! ${response.data.message}`)
+        router.reload({ only: ["classTimetables"] })
+        handleCloseModal()
+      } else {
+        toast.error(response.data.message || "CSP Solver failed")
+      }
+    } catch (error: any) {
+      console.error("Error running CSP solver:", error)
+      toast.error("Failed to run CSP solver: " + (error.response?.data?.message || error.message))
+    } finally {
+      setIsCSPSolving(false)
+    }
+  }
+
   // Enhanced form validation with constraints
   const validateFormWithConstraints = (data: FormState): { isValid: boolean; message: string; warnings: string[] } => {
     if (!data.group_id || !data.day || !data.start_time || !data.end_time || !data.teaching_mode) {
@@ -624,7 +658,7 @@ const EnhancedClassTimetable = () => {
 
   // Enhanced modal handlers
   const handleOpenModal = (
-    type: "view" | "edit" | "delete" | "create" | "conflicts",
+    type: "view" | "edit" | "delete" | "create" | "conflicts" | "csp_solver",
     classtimetable: ClassTimetable | null,
   ) => {
     setModalType(type)
@@ -637,6 +671,11 @@ const EnhancedClassTimetable = () => {
 
     if (type === "conflicts") {
       setShowConflictAnalysis(true)
+      setIsModalOpen(true)
+      return
+    }
+
+    if (type === "csp_solver") {
       setIsModalOpen(true)
       return
     }
@@ -804,27 +843,42 @@ const EnhancedClassTimetable = () => {
     }
   }
 
-  // Real-time constraint validation as user types
-  useEffect(() => {
-    if (
-      formState &&
-      formState.group_id &&
-      formState.day &&
-      formState.start_time &&
-      formState.end_time &&
-      formState.teaching_mode
-    ) {
-      const validation = validateFormWithConstraints(formState)
+ // ...existing code...
+useEffect(() => {
+  if (
+    formState &&
+    formState.group_id &&
+    formState.day &&
+    formState.start_time &&
+    formState.end_time &&
+    formState.teaching_mode
+  ) {
+    const validation = validateFormWithConstraints(formState);
 
-      if (!validation.isValid) {
-        setConflictWarning(validation.message)
-      } else if (validation.warnings.length > 0) {
-        setConflictWarning(validation.warnings.join("; "))
-      } else {
-        setConflictWarning(null)
-      }
+    if (!validation.isValid) {
+      setConflictWarning(validation.message);
+    } else if (validation.warnings.length > 0) {
+      setConflictWarning(validation.warnings.join("; "));
+    } else {
+      setConflictWarning(null);
     }
-  }, [formState, classTimetables, constraints])
+  }
+  // Only watch the specific fields, not the whole objects
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [
+  formState?.group_id,
+  formState?.day,
+  formState?.start_time,
+  formState?.end_time,
+  formState?.teaching_mode,
+  constraints.maxPhysicalPerDay,
+  constraints.maxOnlinePerDay,
+  constraints.minHoursPerDay,
+  constraints.maxHoursPerDay,
+  constraints.requireMixedMode,
+  constraints.avoidConsecutiveSlots,
+  classTimetables.data // Only watch the data array, not the whole object
+]);
 
   // Keep existing handlers but enhance them
   const findLecturersForUnit = (unitId: number, semesterId: number) => {
@@ -1061,6 +1115,15 @@ const EnhancedClassTimetable = () => {
               {isAnalyzing ? <Clock className="w-4 h-4 mr-2 animate-spin" /> : <AlertCircle className="w-4 h-4 mr-2" />}
               Analyze Conflicts
             </Button>
+
+            {/* <Button
+              onClick={() => handleOpenModal("csp_solver", null)}
+              className="bg-purple-500 hover:bg-purple-600"
+              disabled={isCSPSolving}
+            >
+              {isCSPSolving ? <Clock className="w-4 h-4 mr-2 animate-spin" /> : <Brain className="w-4 h-4 mr-2" />}
+              CSP Solver
+            </Button> */}
 
             {can.download && (
               <Button onClick={handleDownloadClassTimetable} className="bg-indigo-500 hover:bg-indigo-600">
@@ -1333,10 +1396,144 @@ const EnhancedClassTimetable = () => {
           </div>
         )}
 
-        {/* Enhanced Modal for Create/Edit/View/Delete/Conflicts */}
+        {/* Enhanced Modal for Create/Edit/View/Delete/Conflicts/CSP Solver */}
         {isModalOpen && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-[600px] max-h-[90vh] overflow-y-auto">
+              {/* CSP Solver Modal */}
+              {modalType === "csp_solver" && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center">
+                    <Brain className="w-5 h-5 mr-2 text-purple-500" />
+                    Advanced CSP Schedule Optimizer
+                  </h2>
+
+                  <div className="space-y-6">
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h3 className="font-medium text-purple-800 mb-2">What is CSP Solver?</h3>
+                      <p className="text-sm text-purple-700">
+                        The Constraint Satisfaction Problem (CSP) solver uses advanced algorithms to automatically
+                        optimize your timetable by resolving conflicts and improving schedule efficiency while
+                        respecting all constraints.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <CardContent className="p-4">
+          <h4 className="font-medium text-center mb-2">Simulated Annealing</h4>
+          <p className="text-xs text-gray-600 text-center mb-3">
+            Gradually improves schedule quality through iterative optimization
+          </p>
+          <Button
+            onClick={() => runAdvancedCSPSolver("simulated_annealing", "optimize")}
+            disabled={isCSPSolving}
+            className="w-full bg-blue-500 hover:bg-blue-600"
+            size="sm"
+          >
+            {isCSPSolving ? "Running..." : "Optimize Current"}
+          </Button>
+          <Button
+            onClick={() => runAdvancedCSPSolver("simulated_annealing", "generate")}
+            disabled={isCSPSolving}
+            className="w-full bg-blue-600 hover:bg-blue-700 mt-2"
+            size="sm"
+          >
+            {isCSPSolving ? "Running..." : "Generate New"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <CardContent className="p-4">
+          <h4 className="font-medium text-center mb-2">Genetic Algorithm</h4>
+          <p className="text-xs text-gray-600 text-center mb-3">
+            Evolves multiple schedule solutions to find the optimal arrangement
+          </p>
+          <Button
+            onClick={() => runAdvancedCSPSolver("genetic", "optimize")}
+            disabled={isCSPSolving}
+            className="w-full bg-green-500 hover:bg-green-600"
+            size="sm"
+          >
+            {isCSPSolving ? "Running..." : "Optimize Current"}
+          </Button>
+          <Button
+            onClick={() => runAdvancedCSPSolver("genetic", "generate")}
+            disabled={isCSPSolving}
+            className="w-full bg-green-600 hover:bg-green-700 mt-2"
+            size="sm"
+          >
+            {isCSPSolving ? "Running..." : "Generate New"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <CardContent className="p-4">
+          <h4 className="font-medium text-center mb-2">Backtracking Search</h4>
+          <p className="text-xs text-gray-600 text-center mb-3">
+            Systematically explores solutions to guarantee conflict-free schedules
+          </p>
+          <Button
+            onClick={() => runAdvancedCSPSolver("backtracking", "optimize")}
+            disabled={isCSPSolving}
+            className="w-full bg-orange-500 hover:bg-orange-600"
+            size="sm"
+          >
+            {isCSPSolving ? "Running..." : "Optimize Current"}
+          </Button>
+          <Button
+            onClick={() => runAdvancedCSPSolver("backtracking", "generate")}
+            disabled={isCSPSolving}
+            className="w-full bg-orange-600 hover:bg-orange-700 mt-2"
+            size="sm"
+          >
+            {isCSPSolving ? "Running..." : "Generate New"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-800 mb-2">Current Constraints</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                        <div>• Max Physical/Day: {constraints.maxPhysicalPerDay}</div>
+                        <div>• Max Online/Day: {constraints.maxOnlinePerDay}</div>
+                        <div>• Min Hours/Day: {constraints.minHoursPerDay}</div>
+                        <div>• Max Hours/Day: {constraints.maxHoursPerDay}</div>
+                        <div>• Mixed Mode: {constraints.requireMixedMode ? "Required" : "Optional"}</div>
+                        <div>• Consecutive Slots: {constraints.avoidConsecutiveSlots ? "Avoided" : "Allowed"}</div>
+                      </div>
+                    </div>
+
+                    {detectedConflicts.length > 0 && (
+                      <Alert className="border-yellow-200 bg-yellow-50">
+                        <AlertCircle className="h-4 w-4 text-yellow-600" />
+                        <AlertDescription className="text-yellow-700">
+                          <strong>{detectedConflicts.length} conflicts detected</strong> - The CSP solver will
+                          automatically resolve these conflicts during optimization.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {isCSPSolving && (
+                      <div className="text-center py-4">
+                        <Clock className="w-8 h-8 animate-spin mx-auto mb-2 text-purple-500" />
+                        <p className="text-purple-600 font-medium">CSP Solver is running...</p>
+                        <p className="text-sm text-gray-600">This may take a few moments to complete.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={handleCloseModal} className="bg-gray-400 text-white" disabled={isCSPSolving}>
+                      {isCSPSolving ? "Running..." : "Close"}
+                    </Button>
+                  </div>
+                </>
+              )}
+
               {/* Conflicts Analysis Modal */}
               {modalType === "conflicts" && (
                 <>
@@ -1588,7 +1785,7 @@ const EnhancedClassTimetable = () => {
                           <option key={semester.id} value={semester.id}>
                             {semester.name}
                           </option>
-                        )) || null}
+                        ))}
                       </select>
                     </div>
 

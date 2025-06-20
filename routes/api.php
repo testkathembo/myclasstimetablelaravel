@@ -21,3 +21,18 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::get('/exam-timetable', [ApiExamTimetableController::class, 'index']);
 Route::post('/exam-timetable/generate', [ApiExamTimetableController::class, 'generate']);
+
+
+
+
+
+// CSP Solver routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::post('/csp-solver/optimize', [CSPSolverController::class, 'optimize']);
+});
+
+// Alternative route if you're not using Sanctum
+Route::middleware(['web'])->group(function () {
+    Route::post('/csp-solver/optimize', [CSPSolverController::class, 'optimize']);
+});
+

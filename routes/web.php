@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\AutoGenerateTimetableController;
+use App\Http\Controllers\AdvancedCSPSolverController;
+
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\FacultyController;
@@ -57,7 +59,7 @@ foreach ($moduleRoutes as $routeFile) {
 // PUBLIC ROUTES (No Authentication Required)
 // ===================================================================
 
-// Debug routes for development
+// Debug routes for develtment
 Route::get('/test-login', function () {
     return Inertia::render('Auth/Login', [
         'canLogin' => true,
@@ -299,7 +301,14 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('classtimetables', ClassTimetableController::class, ['as' => 'classtimetable']);
         Route::get('/schools/sces/bbit/classtimetable', [ClassTimetableController::class, 'index'])->name('classtimetable.index.alt');
         Route::get('/classtimetable/download', [ClassTimetableController::class, 'downloadTimetable'])->name('classtimetable.download');
-        
+        Route::post('/api/resolve-conflicts', [ClassTimetableController::class, 'resolveConflicts']);
+        Route::put('/classtimetable/{id}', [ClassTimetableController::class, 'update'])->name('classtimetable.update');
+
+        // ✅ ADD CSP SOLVER ROUTES HERE (INSIDE THE MIDDLEWARE GROUP):
+        Route::post('/optimize-schedule', [AdvancedCSPSolverController::class, 'optimize'])->name('csp.optimize-schedule');
+        Route::post('/generate-optimal-schedule', [AdvancedCSPSolverController::class, 'generateOptimalSchedule'])->name('csp.generate-schedule');
+        Route::post('/detect-conflicts', [ClassTimetableController::class, 'detectConflicts'])->name('csp.detect-conflicts');
+        Route::post('/resolve-conflicts', [ClassTimetableController::class, 'resolveConflicts'])->name('csp.resolve-conflicts');
     });
 
     // Exam Timetables
@@ -551,6 +560,8 @@ Route::middleware(['auth', 'role:Admin|Exam office'])->group(function () {
 // ===================================================================
 // CATCH-ALL ROUTE (Must be last)
 // ===================================================================
+
+
 
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');

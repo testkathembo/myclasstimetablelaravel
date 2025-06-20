@@ -16,8 +16,791 @@ use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Barryvdh\DomPDF\Facade\Pdf;
 
+
 class ClassTimetableController extends Controller
 {
+    // Enhanced scheduling constraints
+    private const MAX_PHYSICAL_PER_DAY = 2;
+    private const MAX_ONLINE_PER_DAY = 2;
+    private const MIN_HOURS_PER_DAY = 2;
+    private const MAX_HOURS_PER_DAY = 5;
+    private const REQUIRE_MIXED_MODE = true;
+    private const AVOID_CONSECUTIVE_SLOTS = true;
+
+    /**
+     * ✅ ENHANCED: Assign random time slot with upfront conflict filtering
+     */
+    private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = null, $preferredMode = null, $requiredDuration = 1, $classId = null, $groupId = null, $semesterId = null)
+    {
+        try {
+            \Log::info('Assigning conflict-free time slot', [
+                'lecturer' => $lecturer,
+                'class_id' => $classId,
+                'group_id' => $groupId,
+                'semester_id' => $semesterId,
+                'preferred_mode' => $preferredMode,
+                'required_duration' => $requiredDuration
+            ]);
+
+            // Step 1: Get all time slots that match duration requirements
+            $baseTimeSlots = $this->getTimeSlotsForDuration($requiredDuration, $preferredDay);
+            
+            if ($baseTimeSlots->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No time slots available for {$requiredDuration}-hour sessions."
+                ];
+            }
+
+            // Step 2: Pre-filter slots to remove those with lecturer conflicts
+            $lecturerFreeSlots = $this->filterSlotsForLecturerAvailability($baseTimeSlots, $lecturer, $semesterId);
+            
+            if ($lecturerFreeSlots->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No time slots available without lecturer conflicts for {$lecturer}."
+                ];
+            }
+
+            // Step 3: Pre-filter slots to remove those with class conflicts (if same class)
+            $classFreeSlots = $this->filterSlotsForClassAvailability($lecturerFreeSlots, $classId, $groupId, $semesterId);
+            
+            if ($classFreeSlots->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No time slots available without class/group conflicts."
+                ];
+            }
+
+            // Step 4: Pre-filter slots to remove venue conflicts (if venue specified)
+            $venueFreeSlots = $this->filterSlotsForVenueAvailability($classFreeSlots, $venue);
+            
+            if ($venueFreeSlots->isEmpty() && !empty($venue) && strtolower(trim($venue)) !== 'remote') {
+                return [
+                    'success' => false,
+                    'message' => "No time slots available without venue conflicts for {$venue}."
+                ];
+            }
+
+            // Step 5: Apply constraint-based filtering
+            $constraintCompliantSlots = $this->filterSlotsForConstraints($venueFreeSlots, $groupId, $semesterId, $preferredMode);
+            
+            // Use constraint-compliant slots if available, otherwise fall back to venue-free slots
+            $finalSlots = $constraintCompliantSlots->isNotEmpty() ? $constraintCompliantSlots : $venueFreeSlots;
+
+            // Step 6: Randomly select from the pre-filtered, conflict-free slots
+            $selectedTimeSlot = $finalSlots->random();
+
+            // Calculate actual duration
+            $actualDuration = \Carbon\Carbon::parse($selectedTimeSlot->start_time)
+                ->diffInHours(\Carbon\Carbon::parse($selectedTimeSlot->end_time));
+
+            \Log::info('Conflict-free time slot assigned successfully', [
+                'day' => $selectedTimeSlot->day,
+                'start_time' => $selectedTimeSlot->start_time,
+                'end_time' => $selectedTimeSlot->end_time,
+                'required_duration' => $requiredDuration,
+                'actual_duration' => $actualDuration,
+                'lecturer' => $lecturer,
+                'total_available_slots' => $finalSlots->count(),
+                'filtering_stages' => [
+                    'base_slots' => $baseTimeSlots->count(),
+                    'lecturer_free' => $lecturerFreeSlots->count(),
+                    'class_free' => $classFreeSlots->count(),
+                    'venue_free' => $venueFreeSlots->count(),
+                    'constraint_compliant' => $constraintCompliantSlots->count()
+                ]
+            ]);
+
+            return [
+                'success' => true,
+                'day' => $selectedTimeSlot->day,
+                'start_time' => $selectedTimeSlot->start_time,
+                'end_time' => $selectedTimeSlot->end_time,
+                'duration' => $actualDuration,
+                'message' => "Conflict-free slot assigned: {$selectedTimeSlot->day} {$selectedTimeSlot->start_time}-{$selectedTimeSlot->end_time} ({$actualDuration}h)"
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error('Error in conflict-free time slot assignment: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to assign conflict-free time slot: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * ✅ NEW: Get time slots based on duration requirements
+     */
+    private function getTimeSlotsForDuration($requiredDuration, $preferredDay = null)
+    {
+        $query = DB::table('class_time_slots');
+
+        if ($requiredDuration == 2) {
+            // For 2-hour sessions, prioritize 2-hour slots
+            $query->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) = 2');
+        } else {
+            // For 1-hour sessions, prioritize 1-hour slots but allow any
+            $query->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) >= ?', [$requiredDuration]);
+        }
+
+        if ($preferredDay) {
+            $query->where('day', $preferredDay);
+        }
+
+        $slots = $query->get();
+
+        // If no exact duration matches found and we were looking for 2-hour slots, try any slots
+        if ($slots->isEmpty() && $requiredDuration == 2) {
+            \Log::info('No 2-hour slots found, trying any available slots');
+            $query = DB::table('class_time_slots');
+            if ($preferredDay) {
+                $query->where('day', $preferredDay);
+            }
+            $slots = $query->get();
+        }
+
+        return collect($slots);
+    }
+
+    /**
+     * ✅ NEW: Filter slots to remove lecturer conflicts upfront
+     */
+    private function filterSlotsForLecturerAvailability($timeSlots, $lecturer, $semesterId = null)
+    {
+        return $timeSlots->filter(function ($slot) use ($lecturer, $semesterId) {
+            // Check if lecturer has any conflicting sessions in this time slot
+            $query = ClassTimetable::where('lecturer', $lecturer)
+                ->where('day', $slot->day)
+                ->where(function ($q) use ($slot) {
+                    $q->where(function ($subQ) use ($slot) {
+                        $subQ->where('start_time', '<', $slot->end_time)
+                             ->where('end_time', '>', $slot->start_time);
+                    });
+                });
+
+            if ($semesterId) {
+                $query->where('semester_id', $semesterId);
+            }
+
+            $hasConflict = $query->exists();
+
+            if ($hasConflict) {
+                \Log::debug('Lecturer conflict detected', [
+                    'lecturer' => $lecturer,
+                    'day' => $slot->day,
+                    'time_slot' => "{$slot->start_time}-{$slot->end_time}"
+                ]);
+            }
+
+            return !$hasConflict;
+        });
+    }
+
+    /**
+     * ✅ NEW: Filter slots to remove class/group conflicts upfront
+     */
+    private function filterSlotsForClassAvailability($timeSlots, $classId = null, $groupId = null, $semesterId = null)
+    {
+        return $timeSlots->filter(function ($slot) use ($classId, $groupId, $semesterId) {
+            $hasConflict = false;
+
+            // Check for class conflicts (if class ID provided)
+            if ($classId) {
+                $classConflictQuery = ClassTimetable::where('class_id', $classId)
+                    ->where('day', $slot->day)
+                    ->where(function ($q) use ($slot) {
+                        $q->where(function ($subQ) use ($slot) {
+                            $subQ->where('start_time', '<', $slot->end_time)
+                                 ->where('end_time', '>', $slot->start_time);
+                        });
+                    });
+
+                if ($semesterId) {
+                    $classConflictQuery->where('semester_id', $semesterId);
+                }
+
+                if ($classConflictQuery->exists()) {
+                    $hasConflict = true;
+                    \Log::debug('Class conflict detected', [
+                        'class_id' => $classId,
+                        'day' => $slot->day,
+                        'time_slot' => "{$slot->start_time}-{$slot->end_time}"
+                    ]);
+                }
+            }
+
+            // Check for group conflicts (if group ID provided)
+            if (!$hasConflict && $groupId) {
+                $groupConflictQuery = ClassTimetable::where('group_id', $groupId)
+                    ->where('day', $slot->day)
+                    ->where(function ($q) use ($slot) {
+                        $q->where(function ($subQ) use ($slot) {
+                            $subQ->where('start_time', '<', $slot->end_time)
+                                 ->where('end_time', '>', $slot->start_time);
+                        });
+                    });
+
+                if ($semesterId) {
+                    $groupConflictQuery->where('semester_id', $semesterId);
+                }
+
+                if ($groupConflictQuery->exists()) {
+                    $hasConflict = true;
+                    \Log::debug('Group conflict detected', [
+                        'group_id' => $groupId,
+                        'day' => $slot->day,
+                        'time_slot' => "{$slot->start_time}-{$slot->end_time}"
+                    ]);
+                }
+            }
+
+            return !$hasConflict;
+        });
+    }
+
+    /**
+     * ✅ NEW: Filter slots to remove venue conflicts upfront
+     */
+    private function filterSlotsForVenueAvailability($timeSlots, $venue = '')
+    {
+        // If no venue specified or venue is 'Remote', no filtering needed
+        if (empty($venue) || strtolower(trim($venue)) === 'remote') {
+            return $timeSlots;
+        }
+
+        return $timeSlots->filter(function ($slot) use ($venue) {
+            // Check if venue has any conflicting bookings in this time slot
+            $hasConflict = ClassTimetable::where('venue', $venue)
+                ->where('day', $slot->day)
+                ->where(function ($q) use ($slot) {
+                    $q->where(function ($subQ) use ($slot) {
+                        $subQ->where('start_time', '<', $slot->end_time)
+                             ->where('end_time', '>', $slot->start_time);
+                    });
+                })
+                ->exists();
+
+            if ($hasConflict) {
+                \Log::debug('Venue conflict detected', [
+                    'venue' => $venue,
+                    'day' => $slot->day,
+                    'time_slot' => "{$slot->start_time}-{$slot->end_time}"
+                ]);
+            }
+
+            return !$hasConflict;
+        });
+    }
+
+    /**
+     * ✅ NEW: Filter slots based on scheduling constraints
+     */
+    private function filterSlotsForConstraints($timeSlots, $groupId = null, $semesterId = null, $preferredMode = null)
+    {
+        if (!$groupId || !$semesterId) {
+            return $timeSlots; // No constraint filtering if group/semester not specified
+        }
+
+        return $timeSlots->filter(function ($slot) use ($groupId, $semesterId, $preferredMode) {
+            // Get existing sessions for this group on this day
+            $existingSessions = ClassTimetable::where('group_id', $groupId)
+                ->where('semester_id', $semesterId)
+                ->where('day', $slot->day)
+                ->get();
+
+            $physicalCount = $existingSessions->where('teaching_mode', 'physical')->count();
+            $onlineCount = $existingSessions->where('teaching_mode', 'online')->count();
+            $totalHours = $existingSessions->sum(function ($session) {
+                return \Carbon\Carbon::parse($session->start_time)
+                    ->diffInHours(\Carbon\Carbon::parse($session->end_time));
+            });
+
+            $slotDuration = \Carbon\Carbon::parse($slot->start_time)
+                ->diffInHours(\Carbon\Carbon::parse($slot->end_time));
+
+            // Check constraints based on preferred mode
+            if ($preferredMode === 'physical') {
+                if ($physicalCount >= self::MAX_PHYSICAL_PER_DAY) {
+                    \Log::debug('Physical constraint violation', [
+                        'group_id' => $groupId,
+                        'day' => $slot->day,
+                        'current_physical' => $physicalCount,
+                        'max_allowed' => self::MAX_PHYSICAL_PER_DAY
+                    ]);
+                    return false;
+                }
+            } elseif ($preferredMode === 'online') {
+                if ($onlineCount >= self::MAX_ONLINE_PER_DAY) {
+                    \Log::debug('Online constraint violation', [
+                        'group_id' => $groupId,
+                        'day' => $slot->day,
+                        'current_online' => $onlineCount,
+                        'max_allowed' => self::MAX_ONLINE_PER_DAY
+                    ]);
+                    return false;
+                }
+            }
+
+            // Check total hours constraint
+            if ($totalHours + $slotDuration > self::MAX_HOURS_PER_DAY) {
+                \Log::debug('Hours constraint violation', [
+                    'group_id' => $groupId,
+                    'day' => $slot->day,
+                    'current_hours' => $totalHours,
+                    'slot_duration' => $slotDuration,
+                    'max_allowed' => self::MAX_HOURS_PER_DAY
+                ]);
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * ✅ ENHANCED: Assign random venue with upfront conflict filtering
+     */
+    private function assignRandomVenue($studentCount, $day, $startTime, $endTime, $preferredMode = null, $classId = null, $groupId = null)
+    {
+        try {
+            \Log::info('Assigning conflict-free venue', [
+                'student_count' => $studentCount,
+                'day' => $day,
+                'time' => "{$startTime}-{$endTime}",
+                'preferred_mode' => $preferredMode,
+                'class_id' => $classId,
+                'group_id' => $groupId
+            ]);
+
+            // Step 1: Get all classrooms with sufficient capacity
+            $baseClassrooms = Classroom::where('capacity', '>=', $studentCount)->get();
+
+            if ($baseClassrooms->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No venues available with sufficient capacity for {$studentCount} students."
+                ];
+            }
+
+            // Step 2: Pre-filter by preferred teaching mode
+            $modeFilteredClassrooms = $this->filterVenuesByMode($baseClassrooms, $preferredMode);
+
+            // Step 3: Pre-filter to remove venues with time conflicts
+            $timeConflictFreeVenues = $this->filterVenuesForTimeAvailability($modeFilteredClassrooms, $day, $startTime, $endTime);
+
+            if ($timeConflictFreeVenues->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No venues available without time conflicts for {$day} {$startTime}-{$endTime}."
+                ];
+            }
+
+            // Step 4: Pre-filter to remove venues with class conflicts (if same class)
+            $classConflictFreeVenues = $this->filterVenuesForClassAvailability($timeConflictFreeVenues, $classId, $day, $startTime, $endTime);
+
+            // Use class-conflict-free venues if available, otherwise fall back to time-conflict-free venues
+            $finalVenues = $classConflictFreeVenues->isNotEmpty() ? $classConflictFreeVenues : $timeConflictFreeVenues;
+
+            // Step 5: Randomly select from pre-filtered, conflict-free venues
+            $selectedClassroom = $finalVenues->random();
+            $venueInfo = $this->determineTeachingModeAndLocation($selectedClassroom->name);
+
+            \Log::info('Conflict-free venue assigned successfully', [
+                'venue' => $selectedClassroom->name,
+                'capacity' => $selectedClassroom->capacity,
+                'student_count' => $studentCount,
+                'teaching_mode' => $venueInfo['teaching_mode'],
+                'location' => $venueInfo['location'],
+                'day' => $day,
+                'time' => "{$startTime}-{$endTime}",
+                'total_available_venues' => $finalVenues->count(),
+                'filtering_stages' => [
+                    'base_venues' => $baseClassrooms->count(),
+                    'mode_filtered' => $modeFilteredClassrooms->count(),
+                    'time_conflict_free' => $timeConflictFreeVenues->count(),
+                    'class_conflict_free' => $classConflictFreeVenues->count()
+                ]
+            ]);
+
+            return [
+                'success' => true,
+                'venue' => $selectedClassroom->name,
+                'location' => $venueInfo['location'],
+                'teaching_mode' => $venueInfo['teaching_mode'],
+                'message' => "Conflict-free {$venueInfo['teaching_mode']} venue '{$selectedClassroom->name}' assigned successfully."
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error('Error in conflict-free venue assignment: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to assign conflict-free venue: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * ✅ NEW: Filter venues by teaching mode preference
+     */
+    private function filterVenuesByMode($classrooms, $preferredMode = null)
+    {
+        if (!$preferredMode) {
+            return $classrooms; // No mode filtering if no preference specified
+        }
+
+        $filtered = $classrooms->filter(function ($classroom) use ($preferredMode) {
+            $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
+            return $venueInfo['teaching_mode'] === $preferredMode;
+        });
+
+        // If no venues match the preferred mode, fall back to all venues
+        return $filtered->isNotEmpty() ? $filtered : $classrooms;
+    }
+
+    /**
+     * ✅ NEW: Filter venues to remove time conflicts upfront
+     */
+    private function filterVenuesForTimeAvailability($classrooms, $day, $startTime, $endTime)
+    {
+        return $classrooms->filter(function ($classroom) use ($day, $startTime, $endTime) {
+            $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
+
+            // Online venues (Remote) can handle multiple sessions simultaneously
+            if ($venueInfo['teaching_mode'] === 'online') {
+                return true;
+            }
+
+            // Physical venues need conflict checking
+            $hasConflict = ClassTimetable::where('venue', $classroom->name)
+                ->where('day', $day)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    });
+                })
+                ->exists();
+
+            if ($hasConflict) {
+                \Log::debug('Venue time conflict detected', [
+                    'venue' => $classroom->name,
+                    'day' => $day,
+                    'time_slot' => "{$startTime}-{$endTime}"
+                ]);
+            }
+
+            return !$hasConflict;
+        });
+    }
+
+    /**
+     * ✅ NEW: Filter venues to remove class conflicts upfront
+     */
+    private function filterVenuesForClassAvailability($classrooms, $classId = null, $day, $startTime, $endTime)
+    {
+        if (!$classId) {
+            return $classrooms; // No class filtering if no class ID specified
+        }
+
+        return $classrooms->filter(function ($classroom) use ($classId, $day, $startTime, $endTime) {
+            $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
+
+            // Online venues can handle multiple classes
+            if ($venueInfo['teaching_mode'] === 'online') {
+                return true;
+            }
+
+            // Check if this venue is already booked by the same class at this time
+            $hasClassConflict = ClassTimetable::where('venue', $classroom->name)
+                ->where('class_id', $classId)
+                ->where('day', $day)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    });
+                })
+                ->exists();
+
+            if ($hasClassConflict) {
+                \Log::debug('Venue class conflict detected', [
+                    'venue' => $classroom->name,
+                    'class_id' => $classId,
+                    'day' => $day,
+                    'time_slot' => "{$startTime}-{$endTime}"
+                ]);
+            }
+
+            return !$hasClassConflict;
+        });
+    }
+
+    /**
+     * ✅ ENHANCED: Create session timetable with upfront conflict checking
+     */
+    private function createSessionTimetable(Request $request, Unit $unit, array $session, int $sessionNumber, $programId, $schoolId)
+    {
+        $sessionType = $session['type'];
+        $requiredDuration = $session['duration'];
+        
+        \Log::info("Creating conflict-free session {$sessionNumber}", [
+            'unit_code' => $unit->code,
+            'session_type' => $sessionType,
+            'required_duration' => $requiredDuration,
+            'class_id' => $request->class_id,
+            'group_id' => $request->group_id,
+            'semester_id' => $request->semester_id
+        ]);
+        
+        // Get conflict-free time slot with enhanced filtering
+        $timeSlotResult = $this->assignRandomTimeSlot(
+            $request->lecturer, 
+            '', 
+            null, 
+            $sessionType, 
+            $requiredDuration,
+            $request->class_id,
+            $request->group_id,
+            $request->semester_id
+        );
+        
+        if (!$timeSlotResult['success']) {
+            return [
+                'success' => false,
+                'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): " . $timeSlotResult['message']
+            ];
+        }
+
+        $day = $timeSlotResult['day'];
+        $startTime = $timeSlotResult['start_time'];
+        $endTime = $timeSlotResult['end_time'];
+        $actualDuration = $timeSlotResult['duration'] ?? $requiredDuration;
+
+        // Get conflict-free venue with enhanced filtering
+        $venueResult = $this->assignRandomVenue(
+            $request->no, 
+            $day, 
+            $startTime, 
+            $endTime, 
+            $sessionType,
+            $request->class_id,
+            $request->group_id
+        );
+        
+        if (!$venueResult['success']) {
+            return [
+                'success' => false,
+                'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): " . $venueResult['message']
+            ];
+        }
+
+        $venue = $venueResult['venue'];
+        $location = $venueResult['location'];
+        $teachingMode = $venueResult['teaching_mode'];
+
+        // Final safety check (should not be needed due to upfront filtering)
+        $finalConflictCheck = $this->performFinalConflictCheck($request, $day, $startTime, $endTime, $venue);
+        
+        if (!$finalConflictCheck['safe']) {
+            \Log::warning('Final conflict check failed despite upfront filtering', [
+                'session_number' => $sessionNumber,
+                'conflicts' => $finalConflictCheck['conflicts']
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => "Session {$sessionNumber}: Final conflict check failed - " . implode(', ', $finalConflictCheck['conflicts'])
+            ];
+        }
+
+        // Create the timetable entry
+        $classTimetable = ClassTimetable::create([
+            'day' => $day,
+            'unit_id' => $unit->id,
+            'semester_id' => $request->semester_id,
+            'class_id' => $request->class_id,
+            'group_id' => $request->group_id ?: null,
+            'venue' => $venue,
+            'location' => $location,
+            'no' => $request->no,
+            'lecturer' => $request->lecturer,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'teaching_mode' => $teachingMode,
+            'program_id' => $programId,
+            'school_id' => $schoolId,
+        ]);
+
+        \Log::info("Conflict-free session {$sessionNumber} created successfully", [
+            'timetable_id' => $classTimetable->id,
+            'unit_code' => $unit->code,
+            'session_type' => $sessionType,
+            'day' => $day,
+            'time' => "{$startTime}-{$endTime}",
+            'duration' => $actualDuration,
+            'venue' => $venue,
+            'teaching_mode' => $teachingMode
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Session {$sessionNumber} ({$sessionType}, {$actualDuration}h) created successfully without conflicts",
+            'timetable' => $classTimetable,
+            'duration' => $actualDuration
+        ];
+    }
+
+    /**
+     * ✅ NEW: Perform final conflict check as safety measure
+     */
+    private function performFinalConflictCheck(Request $request, $day, $startTime, $endTime, $venue)
+    {
+        $conflicts = [];
+
+        // Check lecturer conflicts
+        $lecturerConflict = ClassTimetable::where('lecturer', $request->lecturer)
+            ->where('day', $day)
+            ->where('semester_id', $request->semester_id)
+            ->where(function ($query) use ($startTime, $endTime) {
+                $query->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
+                });
+            })
+            ->exists();
+
+        if ($lecturerConflict) {
+            $conflicts[] = "Lecturer conflict for {$request->lecturer}";
+        }
+
+        // Check venue conflicts (skip for online venues)
+        if ($venue && strtolower(trim($venue)) !== 'remote') {
+            $venueConflict = ClassTimetable::where('venue', $venue)
+                ->where('day', $day)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    });
+                })
+                ->exists();
+
+            if ($venueConflict) {
+                $conflicts[] = "Venue conflict for {$venue}";
+            }
+        }
+
+        // Check group conflicts
+        if ($request->group_id) {
+            $groupConflict = ClassTimetable::where('group_id', $request->group_id)
+                ->where('day', $day)
+                ->where('semester_id', $request->semester_id)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    });
+                })
+                ->exists();
+
+            if ($groupConflict) {
+                $conflicts[] = "Group conflict";
+            }
+        }
+
+        return [
+            'safe' => empty($conflicts),
+            'conflicts' => $conflicts
+        ];
+    }
+
+    /**
+     * Determine teaching mode and location based on venue
+     */
+    private function determineTeachingModeAndLocation($venue)
+    {
+        if (strtolower(trim($venue)) === 'remote') {
+            return [
+                'teaching_mode' => 'online',
+                'location' => 'online'
+            ];
+        }
+        
+        $classroom = Classroom::where('name', $venue)->first();
+        $location = $classroom ? $classroom->location : 'Physical';
+        return [
+            'teaching_mode' => 'physical',
+            'location' => $location
+        ];
+    }
+
+    // ✅ Include all other methods from the original controller
+    // (All the existing methods from the original controller would be included here)
+    // For brevity, I'm showing the key enhanced methods above
+    
+    /**
+     * Store a newly created resource in storage with enhanced conflict checking
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'day' => 'nullable|string',
+            'unit_id' => 'required|exists:units,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'class_id' => 'required|exists:classes,id',
+            'group_id' => 'nullable|exists:groups,id',
+            'venue' => 'nullable|string',
+            'location' => 'nullable|string',
+            'no' => 'required|integer|min:1',
+            'lecturer' => 'required|string',
+            'start_time' => 'nullable|string',
+            'end_time' => 'nullable|string',
+            'teaching_mode' => 'nullable|in:physical,online',
+            'program_id' => 'nullable|exists:programs,id',
+            'school_id' => 'nullable|exists:schools,id',
+        ]);
+
+        try {
+            \Log::info('Creating enhanced conflict-free class timetable with data:', $request->all());
+
+            $unit = Unit::findOrFail($request->unit_id);
+            $class = ClassModel::find($request->class_id);
+            $programId = $request->program_id ?: ($class ? $class->program_id : null);
+            $schoolId = $request->school_id ?: ($class ? $class->school_id : null);
+
+            $isRandomTimeSlot = empty($request->day) || empty($request->start_time) || 
+                              empty($request->end_time) || $request->start_time === 'Random Time Slot (auto-assign)';
+
+            if ($isRandomTimeSlot) {
+                return $this->createCreditBasedTimetable($request, $unit, $programId, $schoolId);
+            } else {
+                return $this->createSingleTimetable($request, $unit, $programId, $schoolId);
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to create enhanced class timetable: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'exception' => $e->getTraceAsString()
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create class timetable: ' . $e->getMessage(),
+                    'errors' => ['error' => $e->getMessage()]
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
+                ->withInput();
+        }
+    }
+
+
+
     /**
      * Display a listing of the resource.
      */
@@ -199,70 +982,7 @@ class ClassTimetableController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'day' => 'nullable|string',
-            'unit_id' => 'required|exists:units,id',
-            'semester_id' => 'required|exists:semesters,id',
-            'class_id' => 'required|exists:classes,id',
-            'group_id' => 'nullable|exists:groups,id',
-            'venue' => 'nullable|string',
-            'location' => 'nullable|string',
-            'no' => 'required|integer|min:1',
-            'lecturer' => 'required|string',
-            'start_time' => 'nullable|string',
-            'end_time' => 'nullable|string',
-            'classtimeslot_id' => 'nullable|exists:class_time_slots,id',
-            'program_id' => 'nullable|exists:programs,id',
-            'school_id' => 'nullable|exists:schools,id',
-        ]);
-
-        try {
-            \Log::info('Creating class timetable with data:', $request->all());
-
-            // Get the unit to check credit hours
-            $unit = Unit::findOrFail($request->unit_id);
-            $creditHours = $unit->credit_hours;
-
-            $class = ClassModel::find($request->class_id);
-            $programId = $request->program_id ?: ($class ? $class->program_id : null);
-            $schoolId = $request->school_id ?: ($class ? $class->school_id : null);
-
-            // Check if random time slot assignment is requested
-            $isRandomTimeSlot = empty($request->day) || empty($request->start_time) || empty($request->end_time) || $request->start_time === 'Random Time Slot (auto-assign)';
-
-            if ($isRandomTimeSlot) {
-                // Use credit-based assignment
-                return $this->createCreditBasedTimetable($request, $unit, $programId, $schoolId);
-            } else {
-                // Use single time slot assignment (existing functionality)
-                return $this->createSingleTimetable($request, $unit, $programId, $schoolId);
-            }
-
-        } catch (\Exception $e) {
-            \Log::error('Failed to create class timetable: ' . $e->getMessage(), [
-                'request_data' => $request->all(),
-                'exception' => $e->getTraceAsString()
-            ]);
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to create class timetable: ' . $e->getMessage(),
-                    'errors' => ['error' => $e->getMessage()]
-                ], 500);
-            }
-
-            return redirect()->back()
-                ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
-                ->withInput();
-        }
-    }
-
+   
     private function createSingleTimetable(Request $request, Unit $unit, $programId, $schoolId)
 {
     // You may want to add more validation or logic here as needed
@@ -571,382 +1291,6 @@ private function getSessionsForCredits($creditHours)
     return $sessions;
 }
 
-    /**
-     * Create a single session timetable
-     */
-    /**
- * ✅ UPDATED: Create a single session timetable with proper duration handling
- */
-private function createSessionTimetable(Request $request, Unit $unit, array $session, int $sessionNumber, $programId, $schoolId)
-{
-    $sessionType = $session['type'];
-    $requiredDuration = $session['duration']; // 1 or 2 hours
-    
-    \Log::info("Creating session {$sessionNumber}", [
-        'unit_code' => $unit->code,
-        'session_type' => $sessionType,
-        'required_duration' => $requiredDuration
-    ]);
-    
-    // Get appropriate time slot for this session with the required duration
-    $timeSlotResult = $this->assignRandomTimeSlot($request->lecturer, '', null, $sessionType, $requiredDuration);
-    
-    if (!$timeSlotResult['success']) {
-        return [
-            'success' => false,
-            'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): " . $timeSlotResult['message']
-        ];
-    }
-
-    $day = $timeSlotResult['day'];
-    $startTime = $timeSlotResult['start_time'];
-    $endTime = $timeSlotResult['end_time'];
-    $actualDuration = $timeSlotResult['duration'] ?? $requiredDuration;
-
-    // Get appropriate venue for this session
-    $venueResult = $this->assignRandomVenue($request->no, $day, $startTime, $endTime, $sessionType);
-    
-    if (!$venueResult['success']) {
-        return [
-            'success' => false,
-            'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): " . $venueResult['message']
-        ];
-    }
-
-    $venue = $venueResult['venue'];
-    $location = $venueResult['location'];
-    $teachingMode = $venueResult['teaching_mode'];
-
-    // Double-check for conflicts
-    $lecturerConflict = ClassTimetable::where('day', $day)
-        ->where('lecturer', $request->lecturer)
-        ->where(function ($query) use ($startTime, $endTime) {
-            $query->where(function ($q) use ($startTime, $endTime) {
-                $q->where('start_time', '<', $endTime)
-                  ->where('end_time', '>', $startTime);
-            });
-        })
-        ->exists();
-
-    if ($lecturerConflict) {
-        return [
-            'success' => false,
-            'message' => "Session {$sessionNumber} ({$sessionType}, {$requiredDuration}h): Lecturer conflict detected for {$day} {$startTime}-{$endTime}"
-        ];
-    }
-
-    // Create the timetable entry
-    $classTimetable = ClassTimetable::create([
-        'day' => $day,
-        'unit_id' => $unit->id,
-        'semester_id' => $request->semester_id,
-        'class_id' => $request->class_id,
-        'group_id' => $request->group_id ?: null,
-        'venue' => $venue,
-        'location' => $location,
-        'no' => $request->no,
-        'lecturer' => $request->lecturer,
-        'start_time' => $startTime,
-        'end_time' => $endTime,
-        'teaching_mode' => $teachingMode,
-        'program_id' => $programId,
-        'school_id' => $schoolId,
-    ]);
-
-    \Log::info("Session {$sessionNumber} created successfully", [
-        'timetable_id' => $classTimetable->id,
-        'unit_code' => $unit->code,
-        'session_type' => $sessionType,
-        'day' => $day,
-        'time' => "{$startTime}-{$endTime}",
-        'duration' => $actualDuration,
-        'venue' => $venue,
-        'teaching_mode' => $teachingMode
-    ]);
-
-    return [
-        'success' => true,
-        'message' => "Session {$sessionNumber} ({$sessionType}, {$actualDuration}h) created successfully",
-        'timetable' => $classTimetable,
-        'duration' => $actualDuration
-    ];
-}
-    /**
-     * ✅ UPDATED: Assign a random time slot with optional teaching mode preference
-     */
-    
-/**
- * ✅ UPDATED: Assign a random time slot with specific duration requirements
- */
-private function assignRandomTimeSlot($lecturer, $venue = '', $preferredDay = null, $preferredMode = null, $requiredDuration = 1)
-{
-    try {
-        \Log::info('Assigning time slot', [
-            'lecturer' => $lecturer,
-            'preferred_mode' => $preferredMode,
-            'required_duration' => $requiredDuration
-        ]);
-
-        // Get time slots based on required duration
-        $availableTimeSlots = collect();
-        
-        if ($requiredDuration == 2) {
-            // For 2-hour sessions, look for 2-hour time slots
-            $twoHourSlots = DB::table('class_time_slots')
-                ->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) = 2')
-                ->when($preferredDay, function ($query) use ($preferredDay) {
-                    $query->where('day', $preferredDay);
-                })
-                ->get();
-                
-            $availableTimeSlots = $twoHourSlots;
-            
-            // If no 2-hour slots available, try to find any slots and we'll adjust
-            if ($availableTimeSlots->isEmpty()) {
-                \Log::warning('No 2-hour slots found, trying any available slots');
-                $availableTimeSlots = DB::table('class_time_slots')
-                    ->when($preferredDay, function ($query) use ($preferredDay) {
-                        $query->where('day', $preferredDay);
-                    })
-                    ->get();
-            }
-        } else {
-            // For 1-hour sessions, prefer 1-hour slots but allow any
-            $oneHourSlots = DB::table('class_time_slots')
-                ->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) = 1')
-                ->when($preferredDay, function ($query) use ($preferredDay) {
-                    $query->where('day', $preferredDay);
-                })
-                ->get();
-                
-            if ($oneHourSlots->isNotEmpty()) {
-                $availableTimeSlots = $oneHourSlots;
-            } else {
-                // Fallback to any available slots
-                $availableTimeSlots = DB::table('class_time_slots')
-                    ->when($preferredDay, function ($query) use ($preferredDay) {
-                        $query->where('day', $preferredDay);
-                    })
-                    ->get();
-            }
-        }
-
-        if ($availableTimeSlots->isEmpty()) {
-            return [
-                'success' => false,
-                'message' => "No time slots available for {$requiredDuration}-hour sessions."
-            ];
-        }
-
-        // Filter out slots with conflicts
-        $conflictFreeTimeSlots = $availableTimeSlots->filter(function ($slot) use ($lecturer, $venue) {
-            // Check for lecturer conflicts
-            $lecturerConflict = ClassTimetable::where('day', $slot->day)
-                ->where('lecturer', $lecturer)
-                ->where(function ($query) use ($slot) {
-                    $query->where(function ($q) use ($slot) {
-                        $q->where('start_time', '<', $slot->end_time)
-                          ->where('end_time', '>', $slot->start_time);
-                    });
-                })
-                ->exists();
-
-            if ($lecturerConflict) {
-                return false;
-            }
-
-            // Check for venue conflicts (if venue is specified and not online)
-            if (!empty($venue) && strtolower(trim($venue)) !== 'remote') {
-                $venueConflict = ClassTimetable::where('day', $slot->day)
-                    ->where('venue', $venue)
-                    ->where(function ($query) use ($slot) {
-                        $query->where(function ($q) use ($slot) {
-                            $q->where('start_time', '<', $slot->end_time)
-                              ->where('end_time', '>', $slot->start_time);
-                        });
-                    })
-                    ->exists();
-
-                if ($venueConflict) {
-                    return false;
-                }
-            }
-
-            return true;
-        });
-
-        if ($conflictFreeTimeSlots->isEmpty()) {
-            return [
-                'success' => false,
-                'message' => "No available {$requiredDuration}-hour time slots without conflicts for lecturer {$lecturer}."
-            ];
-        }
-
-        // Randomly select from available conflict-free time slots
-        $selectedTimeSlot = $conflictFreeTimeSlots->random();
-
-        // Calculate actual duration
-        $actualDuration = \Carbon\Carbon::parse($selectedTimeSlot->start_time)
-            ->diffInHours(\Carbon\Carbon::parse($selectedTimeSlot->end_time));
-
-        \Log::info('Time slot assigned successfully', [
-            'day' => $selectedTimeSlot->day,
-            'start_time' => $selectedTimeSlot->start_time,
-            'end_time' => $selectedTimeSlot->end_time,
-            'required_duration' => $requiredDuration,
-            'actual_duration' => $actualDuration,
-            'lecturer' => $lecturer,
-            'preferred_mode' => $preferredMode
-        ]);
-
-        return [
-            'success' => true,
-            'day' => $selectedTimeSlot->day,
-            'start_time' => $selectedTimeSlot->start_time,
-            'end_time' => $selectedTimeSlot->end_time,
-            'duration' => $actualDuration,
-            'message' => "Assigned: {$selectedTimeSlot->day} {$selectedTimeSlot->start_time}-{$selectedTimeSlot->end_time} ({$actualDuration}h)"
-        ];
-    } catch (\Exception $e) {
-        \Log::error('Error in random time slot assignment: ' . $e->getMessage());
-        return [
-            'success' => false,
-            'message' => 'Failed to assign random time slot: ' . $e->getMessage()
-        ];
-    }
-}
-    /**
-     * ✅ UPDATED: Assign a random venue with teaching mode preference
-     */
-    private function assignRandomVenue($studentCount, $day, $startTime, $endTime, $preferredMode = null)
-    {
-        try {
-            // Get all classrooms with sufficient capacity
-            $availableClassrooms = Classroom::where('capacity', '>=', $studentCount)->get();
-
-            if ($availableClassrooms->isEmpty()) {
-                return [
-                    'success' => false,
-                    'message' => "No venues available with sufficient capacity for {$studentCount} students."
-                ];
-            }
-
-            // Filter classrooms based on preferred teaching mode if specified
-            if ($preferredMode) {
-                $availableClassrooms = $availableClassrooms->filter(function ($classroom) use ($preferredMode) {
-                    $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
-                    
-                    if ($preferredMode === 'online') {
-                        // For online sessions, prefer 'Remote' venues or allow any if no Remote available
-                        return $venueInfo['teaching_mode'] === 'online';
-                    } else {
-                        // For physical sessions, prefer physical venues
-                        return $venueInfo['teaching_mode'] === 'physical';
-                    }
-                });
-
-                // If no venues match the preferred mode, fall back to any available venue
-                if ($availableClassrooms->isEmpty()) {
-                    $availableClassrooms = Classroom::where('capacity', '>=', $studentCount)->get();
-                    
-                    if ($availableClassrooms->isEmpty()) {
-                        return [
-                            'success' => false,
-                            'message' => "No venues available with sufficient capacity for {$studentCount} students."
-                        ];
-                    }
-                }
-            }
-
-            // Filter out classrooms that have conflicts at the specified time
-            // Note: Remote venues can have multiple classes at the same time
-            $conflictFreeClassrooms = $availableClassrooms->filter(function ($classroom) use ($day, $startTime, $endTime) {
-                $venueInfo = $this->determineTeachingModeAndLocation($classroom->name);
-
-                // If classroom is 'Remote', allow multiple classes at the same time
-                if ($venueInfo['teaching_mode'] === 'online') {
-                    return true;
-                }
-
-                // Physical venues need conflict checking
-                $hasConflict = ClassTimetable::where('day', $day)
-                    ->where('venue', $classroom->name)
-                    ->where(function ($query) use ($startTime, $endTime) {
-                        $query->where(function ($q) use ($startTime, $endTime) {
-                            $q->where('start_time', '<', $endTime)
-                              ->where('end_time', '>', $startTime);
-                        })
-                        ->orWhere(function ($q) use ($startTime, $endTime) {
-                            $q->where('end_time', $startTime)
-                              ->orWhere('start_time', $endTime);
-                        });
-                    })
-                    ->exists();
-
-                return !$hasConflict;
-            });
-
-            if ($conflictFreeClassrooms->isEmpty()) {
-                return [
-                    'success' => false,
-                    'message' => "No venues available without scheduling conflicts for the specified time slot."
-                ];
-            }
-
-            // Randomly select from available conflict-free classrooms
-            $selectedClassroom = $conflictFreeClassrooms->random();
-            $venueInfo = $this->determineTeachingModeAndLocation($selectedClassroom->name);
-
-            // Set location based on venue type
-            $location = $venueInfo['location'];
-
-            \Log::info('Random venue assigned', [
-                'venue' => $selectedClassroom->name,
-                'capacity' => $selectedClassroom->capacity,
-                'student_count' => $studentCount,
-                'teaching_mode' => $venueInfo['teaching_mode'],
-                'location' => $location,
-                'day' => $day,
-                'time' => "{$startTime} - {$endTime}",
-                'preferred_mode' => $preferredMode
-            ]);
-
-            return [
-                'success' => true,
-                'venue' => $selectedClassroom->name,
-                'location' => $location,
-                'teaching_mode' => $venueInfo['teaching_mode'],
-                'message' => "Random {$venueInfo['teaching_mode']} venue '{$selectedClassroom->name}' assigned successfully."
-            ];
-        } catch (\Exception $e) {
-            \Log::error('Error in random venue assignment: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => 'Failed to assign random venue: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Determine teaching mode and location based on venue
-     */
-    private function determineTeachingModeAndLocation($venue)
-    {
-        // Only treat 'Remote' (case-insensitive, trimmed) as online
-        if (strtolower(trim($venue)) === 'remote') {
-            return [
-                'teaching_mode' => 'online',
-                'location' => 'online'
-            ];
-        }
-        // All other venues are physical
-        $classroom = Classroom::where('name', $venue)->first();
-        $location = $classroom ? $classroom->location : 'Physical';
-        return [
-            'teaching_mode' => 'physical',
-            'location' => $location
-        ];
-    }
   
     /**
      * Assign a random venue with sufficient capacity and no conflicts
