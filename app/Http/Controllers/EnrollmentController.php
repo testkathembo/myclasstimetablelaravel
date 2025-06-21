@@ -35,9 +35,6 @@ class EnrollmentController extends Controller
         $allData = $request->all();
         Log::info('All request data keys and values:', $allData);
 
-        // lecturer pagination
-        // ...existing code...
-        
         // Check for both possible field names
         $studentCode = null;
         if ($request->has('student_code')) {
@@ -113,6 +110,42 @@ class EnrollmentController extends Controller
             'student_code' => $targetStudent->code
         ]);
         
+        // CAPACITY CHECK - Get the group and verify capacity
+        $group = Group::findOrFail($request->get('group_id') ?? $validated['group_id']);
+        
+        // Check current enrollment count for this group
+        $currentEnrollmentCount = Enrollment::where('group_id', $group->id)
+            ->distinct('student_code')
+            ->count('student_code');
+        
+        Log::info('Group capacity check', [
+            'group_id' => $group->id,
+            'group_name' => $group->name ?? 'N/A',
+            'group_capacity' => $group->capacity,
+            'current_enrollment_count' => $currentEnrollmentCount,
+            'target_student' => $targetStudentCode
+        ]);
+        
+        // Check if adding this student would exceed capacity
+        $studentAlreadyInGroup = Enrollment::where('group_id', $group->id)
+            ->where('student_code', $targetStudentCode)
+            ->exists();
+        
+        if (!$studentAlreadyInGroup && $currentEnrollmentCount >= $group->capacity) {
+            Log::warning('Group capacity exceeded - Admin enrollment blocked', [
+                'group_id' => $group->id,
+                'group_name' => $group->name ?? 'N/A',
+                'capacity' => $group->capacity,
+                'current_count' => $currentEnrollmentCount,
+                'attempted_student' => $targetStudentCode,
+                'admin_user' => $adminCode
+            ]);
+            
+            return redirect()->back()->withErrors([
+                'group_id' => "This group is already full. Capacity: {$group->capacity}, Current enrollments: {$currentEnrollmentCount}. Cannot enroll student {$targetStudentCode}.",
+            ])->withInput();
+        }
+        
         try {
             $enrollmentCount = 0;
             $unitIds = $request->has('unit_ids') ? $request->get('unit_ids') : 
@@ -157,7 +190,8 @@ class EnrollmentController extends Controller
                     'stored_student_code' => $enrollment->student_code,
                     'target_was' => $targetStudentCode,
                     'admin_was' => $adminCode,
-                    'unit_name' => $unit->name
+                    'unit_name' => $unit->name,
+                    'group_capacity_after' => $currentEnrollmentCount + 1
                 ]);
             }
             
@@ -206,10 +240,6 @@ class EnrollmentController extends Controller
         ]);
     }
     
-    
-    
-    
-    
     // STUDENT: Only enroll (not manage)
     public function showEnrollmentForm()
     {
@@ -253,11 +283,19 @@ class EnrollmentController extends Controller
             return redirect()->back()->withErrors(['group_id' => 'Selected group does not belong to a valid class.']);
         }
 
+        // CAPACITY CHECK FOR STUDENT ENROLLMENT
         $currentEnrollmentCount = Enrollment::where('group_id', $group->id)
             ->distinct('student_code')
             ->count('student_code');
 
         if ($currentEnrollmentCount >= $group->capacity) {
+            Log::info('Student enrollment blocked - group full', [
+                'student_code' => $studentCode,
+                'group_id' => $group->id,
+                'capacity' => $group->capacity,
+                'current_count' => $currentEnrollmentCount
+            ]);
+            
             return redirect()->back()->withErrors([
                 'group_id' => "This group is already full. Capacity: {$group->capacity}",
             ]);
@@ -300,7 +338,7 @@ class EnrollmentController extends Controller
         }
     }
 
-public function index(Request $request)
+    public function index(Request $request)
     {
         try {
             // Get enrollments with relationships
@@ -380,8 +418,6 @@ public function index(Request $request)
         }
     }
 
-    
-
     // FIXED: Method to assign units to lecturers
     public function assignUnitToLecturer(Request $request)
     {
@@ -423,9 +459,6 @@ public function index(Request $request)
         }
     }
 
-
-    
-
     public function create()
     {
         // Get all students (with role Student if your User model has roles)
@@ -461,7 +494,6 @@ public function index(Request $request)
             'units' => $units
         ]);
     }
-
     
     public function edit(Enrollment $enrollment)
     {
@@ -500,10 +532,43 @@ public function index(Request $request)
             'student_code' => 'required|exists:users,code',
         ]);
         
+        // CAPACITY CHECK FOR UPDATE
+        $group = Group::findOrFail($validated['group_id']);
+        
+        // Only check capacity if we're changing to a different group
+        if ($enrollment->group_id != $validated['group_id']) {
+            $currentEnrollmentCount = Enrollment::where('group_id', $group->id)
+                ->distinct('student_code')
+                ->count('student_code');
+            
+            // Check if the student is already in the new group
+            $studentAlreadyInNewGroup = Enrollment::where('group_id', $group->id)
+                ->where('student_code', $validated['student_code'])
+                ->where('id', '!=', $enrollment->id) // Exclude current enrollment
+                ->exists();
+            
+            if (!$studentAlreadyInNewGroup && $currentEnrollmentCount >= $group->capacity) {
+                Log::warning('Group capacity exceeded during update', [
+                    'enrollment_id' => $enrollment->id,
+                    'old_group_id' => $enrollment->group_id,
+                    'new_group_id' => $group->id,
+                    'capacity' => $group->capacity,
+                    'current_count' => $currentEnrollmentCount,
+                    'student_code' => $validated['student_code']
+                ]);
+                
+                return redirect()->back()->withErrors([
+                    'group_id' => "Cannot move to this group - it's already full. Capacity: {$group->capacity}, Current: {$currentEnrollmentCount}",
+                ])->withInput();
+            }
+        }
+        
         Log::info('Updating enrollment', [
             'enrollment_id' => $enrollment->id,
             'old_student_code' => $enrollment->student_code,
             'new_student_code' => $validated['student_code'],
+            'old_group_id' => $enrollment->group_id,
+            'new_group_id' => $validated['group_id'],
             'updated_by' => Auth::user()->code
         ]);
         
@@ -517,6 +582,7 @@ public function index(Request $request)
         Log::info('Deleting enrollment', [
             'enrollment_id' => $enrollment->id,
             'student_code' => $enrollment->student_code,
+            'group_id' => $enrollment->group_id,
             'deleted_by' => Auth::user()->code
         ]);
         
@@ -524,7 +590,7 @@ public function index(Request $request)
         return redirect()->route('enrollments.index')->with('success', 'Enrollment deleted.');
     }
 
-    // --- Keep all existing helper methods unchanged ---
+    // --- Helper Methods ---
 
     public function getEnrollmentsByStudent(Request $request, $studentCode)
     {
@@ -666,6 +732,13 @@ public function index(Request $request)
     public function bulkDelete(Request $request)
     {
         $ids = $request->input('enrollment_ids', []);
+        
+        Log::info('Bulk deleting enrollments', [
+            'enrollment_ids' => $ids,
+            'count' => count($ids),
+            'deleted_by' => Auth::user()->code
+        ]);
+        
         \App\Models\Enrollment::whereIn('id', $ids)->delete();
         return back()->with('success', 'Selected enrollments deleted.');
     }

@@ -1378,27 +1378,35 @@ const EnhancedClassTimetable = () => {
                     </div>
 
                     {/* Group Selection */}
-                    {filteredGroups.length > 0 && (
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
-                        <select
-                          value={formState.group_id || ""}
-                          onChange={(e) =>
-                            setFormState((prev) =>
-                              prev ? { ...prev, group_id: Number(e.target.value) || null } : null,
-                            )
-                          }
-                          className="w-full border rounded p-2"
-                        >
-                          <option value="">Select Group (Optional)</option>
-                          {filteredGroups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+{filteredGroups.length > 0 && (
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+    <select
+      value={formState.group_id || ""}
+      onChange={(e) => {
+        const selectedGroupId = Number(e.target.value) || null
+        const selectedGroup = filteredGroups.find((g) => g.id === selectedGroupId)
+        setFormState((prev) =>
+          prev
+            ? {
+                ...prev,
+                group_id: selectedGroupId,
+                no: selectedGroup ? selectedGroup.student_count || 0 : prev.no, // set group student count
+              }
+            : null,
+        )
+      }}
+      className="w-full border rounded p-2"
+    >
+      <option value="">Select Group (Optional)</option>
+      {filteredGroups.map((group) => (
+        <option key={group.id} value={group.id}>
+          {group.name} ({group.student_count || 0} students)
+        </option>
+      ))}
+    </select>
+  </div>
+)}
 
                     {/* Unit Selection */}
                     <div className="mb-4">

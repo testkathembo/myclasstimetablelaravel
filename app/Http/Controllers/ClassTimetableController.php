@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Http\Controllers;
+
 use App\Models\ClassTimetable;
 use App\Models\Unit;
 use App\Models\User;
@@ -16,7 +18,6 @@ use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Barryvdh\DomPDF\Facade\Pdf;
 
-
 class ClassTimetableController extends Controller
 {
     // Enhanced scheduling constraints
@@ -27,8 +28,551 @@ class ClassTimetableController extends Controller
     private const REQUIRE_MIXED_MODE = true;
     private const AVOID_CONSECUTIVE_SLOTS = true;
 
+    /**
+     * ✅ REAL DATA: Display a listing of the resource with real group student counts
+     */
+    public function index(Request $request)
+    {
+        $user = auth()->user();
 
-/**
+        // Log user access
+        \Log::info('Accessing /classtimetable', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+
+        if (!$user->can('manage-classtimetables')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $perPage = $request->input('per_page', 10);
+        $search = $request->input('search', '');
+
+        // Fetch class timetables with all DB columns and related display fields
+        $classTimetables = ClassTimetable::query()
+            ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
+            ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+            ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
+            ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+            ->leftJoin('programs', 'class_timetable.program_id', '=', 'programs.id')
+            ->leftJoin('schools', 'class_timetable.school_id', '=', 'schools.id')
+            ->leftJoin('class_time_slots', function ($join) {
+                $join->on('class_timetable.day', '=', 'class_time_slots.day')
+                    ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
+                    ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
+            })
+            ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
+            ->select(
+                'class_timetable.id',
+                'class_timetable.semester_id',
+                'class_timetable.unit_id',
+                'class_timetable.class_id',
+                'class_timetable.group_id',
+                'class_timetable.day',
+                'class_timetable.start_time',
+                'class_timetable.end_time',
+                'class_timetable.teaching_mode',
+                'class_timetable.venue',
+                'class_timetable.location',
+                'class_timetable.no',
+                DB::raw("IF(users.id IS NOT NULL, CONCAT(users.first_name, ' ', users.last_name), class_timetable.lecturer) as lecturer"),
+                'class_timetable.program_id',
+                'class_timetable.school_id',
+                'class_timetable.created_at',
+                'class_timetable.updated_at',
+                'units.code as unit_code',
+                'units.name as unit_name',
+                'semesters.name as semester_name',
+                'classes.name as class_name',
+                'groups.name as group_name',
+                'programs.code as program_code',
+                'programs.name as program_name',
+                'schools.code as school_code',
+                'schools.name as school_name',
+                'class_time_slots.status'
+            )
+            ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('class_timetable.day', 'like', "%{$search}%")
+                      ->orWhere('units.code', 'like', "%{$search}%")
+                      ->orWhere('units.name', 'like', "%{$search}%")
+                      ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
+                      ->orWhere('class_timetable.venue', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('class_timetable.day')
+            ->orderBy('class_timetable.start_time')
+            ->paginate($perPage);
+
+        // Fetch other necessary data
+        $lecturers = User::role('Lecturer')
+            ->select('id', 'code', DB::raw("CONCAT(first_name, ' ', last_name) as name"))
+            ->get();
+
+        $semesters = Semester::all();
+        $classrooms = Classroom::all();
+        $classtimeSlots = ClassTimeSlot::all();
+        $allUnits = Unit::select('id', 'code', 'name', 'semester_id', 'credit_hours')->get();
+        $allEnrollments = Enrollment::select('id', 'student_code', 'unit_id', 'semester_id', 'lecturer_code')->get();
+
+        $enrollmentsByUnitAndSemester = [];
+        foreach ($allEnrollments as $enrollment) {
+            $key = $enrollment->unit_id . '_' . $enrollment->semester_id;
+            $enrollmentsByUnitAndSemester[$key][] = $enrollment;
+        }
+
+        $unitsBySemester = [];
+        foreach ($semesters as $semester) {
+            $unitIdsInSemester = Enrollment::where('semester_id', $semester->id)
+                ->distinct('unit_id')
+                ->pluck('unit_id')
+                ->toArray();
+
+            $unitsInSemester = Unit::whereIn('id', $unitIdsInSemester)
+                ->select('id', 'code', 'name', 'credit_hours')
+                ->get()
+                ->map(function ($unit) use ($semester, $enrollmentsByUnitAndSemester) {
+                    $unit->semester_id = $semester->id;
+                    $key = $unit->id . '_' . $semester->id;
+                    $unitEnrollments = $enrollmentsByUnitAndSemester[$key] ?? [];
+                    $unit->student_count = count($unitEnrollments);
+
+                    $lecturerCode = null;
+                    foreach ($unitEnrollments as $enrollment) {
+                        if ($enrollment->lecturer_code) {
+                            $lecturerCode = $enrollment->lecturer_code;
+                            break;
+                        }
+                    }
+
+                    if ($lecturerCode) {
+                        $lecturer = User::where('code', $lecturerCode)->first();
+                        if ($lecturer) {
+                            $unit->lecturer_code = $lecturerCode;
+                            $unit->lecturer_name = $lecturer->first_name . ' ' . $lecturer->last_name;
+                        }
+                    }
+                    return $unit;
+                });
+
+            $unitsBySemester[$semester->id] = $unitsInSemester;
+        }
+
+        $unitsWithSemesters = collect();
+        foreach ($unitsBySemester as $semesterId => $units) {
+            $unitsWithSemesters = $unitsWithSemesters->concat($units);
+        }
+
+        // ✅ REAL DATA: Fetch groups with actual student counts from enrollments table
+        $groups = Group::select('id', 'name', 'class_id')
+            ->get()
+            ->map(function ($group) {
+                // Count actual enrollments for this group
+                $actualStudentCount = DB::table('enrollments')
+                    ->where('group_id', $group->id)
+                    ->count();
+
+                return [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'class_id' => $group->class_id,
+                    'student_count' => $actualStudentCount // ✅ REAL DATA from database
+                ];
+            });
+
+        $classes = ClassModel::select('id', 'name')->get();
+
+        $programs = DB::table('programs')
+            ->select('id', 'code', 'name')
+            ->get();
+
+        $schools = DB::table('schools')
+            ->select('id', 'name', 'code')
+            ->get();
+
+        return Inertia::render('ClassTimetables/Index', [
+            'classTimetables' => $classTimetables,
+            'lecturers' => $lecturers,
+            'perPage' => $perPage,
+            'search' => $search,
+            'semesters' => $semesters,
+            'classrooms' => $classrooms,
+            'classtimeSlots' => $classtimeSlots,
+            'units' => $unitsWithSemesters,
+            'enrollments' => $allEnrollments,
+            'classes' => $classes,
+            'groups' => $groups, // ✅ Groups with real student counts
+            'programs' => $programs,
+            'schools' => $schools,
+            'can' => [
+                'create' => $user->can('create-classtimetables'),
+                'edit' => $user->can('update-classtimetables'),
+                'delete' => $user->can('delete-classtimetables'),
+                'process' => $user->can('process-classtimetables'),
+                'solve_conflicts' => $user->can('solve-class-conflicts'),
+                'download' => $user->can('download-classtimetables'),
+            ],
+        ]);
+    }
+
+    /**
+     * ✅ REAL DATA: Get groups by class with ACTUAL student counts from database
+     */
+    public function getGroupsByClassWithCounts(Request $request)
+    {
+        try {
+            $classId = $request->input('class_id');
+            $semesterId = $request->input('semester_id');
+            $unitId = $request->input('unit_id');
+
+            if (!$classId) {
+                return response()->json(['error' => 'Class ID is required.'], 400);
+            }
+
+            \Log::info('Fetching groups with REAL student counts from database', [
+                'class_id' => $classId,
+                'semester_id' => $semesterId,
+                'unit_id' => $unitId
+            ]);
+
+            $groups = Group::where('class_id', $classId)
+                ->select('id', 'name', 'class_id')
+                ->get()
+                ->map(function ($group) use ($semesterId, $unitId) {
+                    // ✅ REAL DATA: Calculate actual student count from enrollments table
+                    $enrollmentQuery = DB::table('enrollments')
+                        ->where('group_id', $group->id);
+
+                    // Add filters based on context
+                    if ($unitId && $semesterId) {
+                        // Most specific: count for this specific unit and semester
+                        $enrollmentQuery->where('unit_id', $unitId)
+                                      ->where('semester_id', $semesterId);
+                        $context = "unit {$unitId} in semester {$semesterId}";
+                    } elseif ($semesterId) {
+                        // Semester specific: count for this semester only
+                        $enrollmentQuery->where('semester_id', $semesterId);
+                        $context = "semester {$semesterId}";
+                    } else {
+                        // General: total count for this group across all semesters
+                        $context = "all semesters";
+                    }
+
+                    $actualStudentCount = $enrollmentQuery->count();
+
+                    // ✅ DEBUG: Log the actual query and result
+                    \Log::info('Real student count calculated', [
+                        'group_id' => $group->id,
+                        'group_name' => $group->name,
+                        'context' => $context,
+                        'actual_count' => $actualStudentCount,
+                        'query_conditions' => [
+                            'group_id' => $group->id,
+                            'unit_id' => $unitId,
+                            'semester_id' => $semesterId
+                        ]
+                    ]);
+
+                    return [
+                        'id' => $group->id,
+                        'name' => $group->name,
+                        'class_id' => $group->class_id,
+                        'student_count' => $actualStudentCount, // ✅ REAL DATA from database
+                        'context' => $context // For debugging
+                    ];
+                });
+
+            \Log::info('Groups with REAL student counts retrieved', [
+                'class_id' => $classId,
+                'groups_count' => $groups->count(),
+                'groups_data' => $groups->toArray()
+            ]);
+
+            return response()->json($groups);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching groups with real student counts: ' . $e->getMessage(), [
+                'class_id' => $request->input('class_id'),
+                'semester_id' => $request->input('semester_id'),
+                'unit_id' => $request->input('unit_id'),
+                'exception' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json(['error' => 'Failed to fetch groups with real student counts.'], 500);
+        }
+    }
+
+    /**
+     * ✅ NEW: Debug endpoint to verify enrollment data
+     */
+    public function debugGroupEnrollments(Request $request)
+    {
+        try {
+            $groupId = $request->input('group_id');
+            $semesterId = $request->input('semester_id');
+            $unitId = $request->input('unit_id');
+
+            if (!$groupId) {
+                return response()->json(['error' => 'Group ID is required.'], 400);
+            }
+
+            $group = Group::findOrFail($groupId);
+
+            // Get detailed enrollment data
+            $enrollmentQuery = DB::table('enrollments')
+                ->leftJoin('users', 'enrollments.student_code', '=', 'users.code')
+                ->leftJoin('units', 'enrollments.unit_id', '=', 'units.id')
+                ->leftJoin('semesters', 'enrollments.semester_id', '=', 'semesters.id')
+                ->where('enrollments.group_id', $groupId)
+                ->select(
+                    'enrollments.id',
+                    'enrollments.student_code',
+                    'users.first_name',
+                    'users.last_name',
+                    'units.code as unit_code',
+                    'units.name as unit_name',
+                    'semesters.name as semester_name',
+                    'enrollments.unit_id',
+                    'enrollments.semester_id'
+                );
+
+            if ($semesterId) {
+                $enrollmentQuery->where('enrollments.semester_id', $semesterId);
+            }
+
+            if ($unitId) {
+                $enrollmentQuery->where('enrollments.unit_id', $unitId);
+            }
+
+            $enrollments = $enrollmentQuery->get();
+
+            return response()->json([
+                'group' => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'class_id' => $group->class_id
+                ],
+                'filters' => [
+                    'semester_id' => $semesterId,
+                    'unit_id' => $unitId
+                ],
+                'total_enrollments' => $enrollments->count(),
+                'enrollments' => $enrollments,
+                'summary' => [
+                    'unique_students' => $enrollments->unique('student_code')->count(),
+                    'units_involved' => $enrollments->unique('unit_id')->count(),
+                    'semesters_involved' => $enrollments->unique('semester_id')->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in debug group enrollments: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch debug data.'], 500);
+        }
+    }
+
+    /**
+     * Store a newly created resource in storage with enhanced conflict checking
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'day' => 'nullable|string',
+            'unit_id' => 'required|exists:units,id',
+            'semester_id' => 'required|exists:semesters,id',
+            'class_id' => 'required|exists:classes,id',
+            'group_id' => 'nullable|exists:groups,id',
+            'venue' => 'nullable|string',
+            'location' => 'nullable|string',
+            'no' => 'required|integer|min:1',
+            'lecturer' => 'required|string',
+            'start_time' => 'nullable|string',
+            'end_time' => 'nullable|string',
+            'teaching_mode' => 'nullable|in:physical,online',
+            'program_id' => 'nullable|exists:programs,id',
+            'school_id' => 'nullable|exists:schools,id',
+            'classtimeslot_id' => 'nullable|integer',
+        ]);
+
+        try {
+            \Log::info('Creating enhanced conflict-free class timetable with data:', $request->all());
+
+            $unit = Unit::findOrFail($request->unit_id);
+            $class = ClassModel::find($request->class_id);
+            $programId = $request->program_id ?: ($class ? $class->program_id : null);
+            $schoolId = $request->school_id ?: ($class ? $class->school_id : null);
+
+            $isRandomTimeSlot = empty($request->day) || empty($request->start_time) || 
+                              empty($request->end_time) || $request->start_time === 'Random Time Slot (auto-assign)';
+
+            if ($isRandomTimeSlot) {
+                return $this->createCreditBasedTimetable($request, $unit, $programId, $schoolId);
+            } else {
+                return $this->createSingleTimetable($request, $unit, $programId, $schoolId);
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to create enhanced class timetable: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'exception' => $e->getTraceAsString()
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create class timetable: ' . $e->getMessage(),
+                    'errors' => ['error' => $e->getMessage()]
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
+                ->withInput();
+        }
+    }
+
+    /**
+     * Create a single timetable entry
+     */
+    private function createSingleTimetable(Request $request, Unit $unit, $programId, $schoolId)
+    {
+        // ✅ ENHANCED: Implement duration-based teaching mode assignment
+        $teachingMode = $this->determineDurationBasedTeachingMode($request->start_time, $request->end_time, $request->teaching_mode);
+
+        // ✅ ENHANCED: Auto-assign venue based on teaching mode
+        $venueData = $this->determineVenueBasedOnMode($request->venue, $teachingMode, $request->no);
+
+        // ✅ NEW: Check for conflicts before creating
+        $conflictCheck = $this->checkCreateConflicts($request->day, $request->start_time, $request->end_time, $request->lecturer, $venueData['venue'], $teachingMode);
+    
+        if (!$conflictCheck['success']) {
+            \Log::warning('Creation blocked due to conflicts', [
+                'conflicts' => $conflictCheck['conflicts']
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Creation blocked due to conflicts: ' . $conflictCheck['message'],
+                    'conflicts' => $conflictCheck['conflicts']
+                ], 422);
+            }
+
+            return redirect()->back()
+                ->withErrors(['conflict' => 'Creation blocked due to conflicts: ' . $conflictCheck['message']])
+                ->withInput();
+        }
+
+        $classTimetable = ClassTimetable::create([
+            'day' => $request->day,
+            'unit_id' => $unit->id,
+            'semester_id' => $request->semester_id,
+            'class_id' => $request->class_id,
+            'group_id' => $request->group_id ?: null,
+            'venue' => $venueData['venue'],
+            'location' => $venueData['location'],
+            'no' => $request->no,
+            'lecturer' => $request->lecturer,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+            'teaching_mode' => $teachingMode,
+            'program_id' => $programId,
+            'school_id' => $schoolId,
+        ]);
+
+        \Log::info('Single timetable entry created', [
+            'timetable_id' => $classTimetable->id,
+            'unit_code' => $unit->code,
+            'day' => $request->day,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+            'venue' => $venueData['venue'],
+            'teaching_mode' => $teachingMode,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Class timetable created successfully with duration-based teaching mode.',
+                'data' => $classTimetable->fresh()
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Class timetable created successfully with duration-based teaching mode.');
+    }
+
+    /**
+     * Create multiple timetable entries based on credit hours
+     */
+    private function createCreditBasedTimetable(Request $request, Unit $unit, $programId, $schoolId)
+    {
+        $creditHours = $unit->credit_hours;
+        $sessions = $this->getSessionsForCredits($creditHours);
+        
+        \Log::info('Creating credit-based timetable', [
+            'unit_code' => $unit->code,
+            'credit_hours' => $creditHours,
+            'sessions' => $sessions
+        ]);
+
+        $createdTimetables = [];
+        $errors = [];
+
+        foreach ($sessions as $sessionIndex => $session) {
+            try {
+                $sessionResult = $this->createSessionTimetable($request, $unit, $session, $sessionIndex + 1, $programId, $schoolId);
+                
+                if ($sessionResult['success']) {
+                    $createdTimetables[] = $sessionResult['timetable'];
+                } else {
+                    $errors[] = $sessionResult['message'];
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Session " . ($sessionIndex + 1) . ": " . $e->getMessage();
+                \Log::error('Failed to create session timetable', [
+                    'session' => $session,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        if (count($createdTimetables) === 0) {
+            $errorMessage = 'Failed to create any timetable sessions. Errors: ' . implode('; ', $errors);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage,
+                    'errors' => ['scheduling' => $errorMessage]
+                ], 422);
+            }
+
+            return redirect()->back()
+                ->withErrors(['scheduling' => $errorMessage])
+                ->withInput();
+        }
+
+        $successMessage = count($createdTimetables) . " timetable sessions created successfully for {$unit->code} ({$creditHours} credit hours).";
+        
+        if (count($errors) > 0) {
+            $successMessage .= " Note: " . count($errors) . " sessions had issues.";
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $successMessage,
+                'data' => $createdTimetables,
+                'errors' => $errors
+            ]);
+        }
+
+        return redirect()->back()->with('success', $successMessage);
+    }
+
+    /**
      * ✅ UPDATED: Create a single session timetable with group teaching mode balancing
      */
     private function createSessionTimetable(Request $request, Unit $unit, array $session, int $sessionNumber, $programId, $schoolId)
@@ -145,6 +689,30 @@ class ClassTimetableController extends Controller
             'timetable' => $classTimetable,
             'duration' => $actualDuration
         ];
+    }
+
+    /**
+     * Get session configuration based on credit hours
+     */
+    private function getSessionsForCredits($creditHours)
+    {
+        $sessions = [];
+
+        // Assign 1 physical session of 2 hours if possible
+        if ($creditHours >= 2) {
+            $sessions[] = ['type' => 'physical', 'duration' => 2];
+            $remaining = $creditHours - 2;
+        } else {
+            $remaining = $creditHours;
+        }
+
+        // Assign the remaining hours as 1-hour online sessions
+        while ($remaining > 0) {
+            $sessions[] = ['type' => 'online', 'duration' => 1];
+            $remaining--;
+        }
+
+        return $sessions;
     }
 
     /**
@@ -518,522 +1086,6 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Update the specified resource in storage with enhanced conflict checking
-     */
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'day' => 'nullable|string',
-            'unit_id' => 'required|exists:units,id',
-            'semester_id' => 'required|exists:semesters,id',
-            'class_id' => 'required|exists:classes,id',
-            'group_id' => 'nullable|exists:groups,id',
-            'venue' => 'nullable|string',
-            'location' => 'nullable|string',
-            'no' => 'required|integer|min:1',
-            'lecturer' => 'required|string',
-            'start_time' => 'nullable|string',
-            'end_time' => 'nullable|string',
-            'teaching_mode' => 'nullable|in:physical,online',
-            'program_id' => 'nullable|exists:programs,id',
-            'school_id' => 'nullable|exists:schools,id',
-            'classtimeslot_id' => 'nullable|integer', // ✅ NEW: Accept time slot ID for proper day handling
-        ]);
-
-        try {
-            $timetable = ClassTimetable::findOrFail($id);
-            
-            \Log::info('Updating class timetable with enhanced time slot handling', [
-                'id' => $id,
-                'old_day' => $timetable->day,
-                'new_day' => $request->day,
-                'old_time' => $timetable->start_time . '-' . $timetable->end_time,
-                'new_time' => $request->start_time . '-' . $request->end_time,
-                'classtimeslot_id' => $request->classtimeslot_id,
-                'data' => $request->all()
-            ]);
-
-            $unit = Unit::findOrFail($request->unit_id);
-            $class = ClassModel::find($request->class_id);
-            $programId = $request->program_id ?: ($class ? $class->program_id : null);
-            $schoolId = $request->school_id ?: ($class ? $class->school_id : null);
-
-            // ✅ ENHANCED: Handle time slot changes properly
-            $day = $request->day;
-            $startTime = $request->start_time;
-            $endTime = $request->end_time;
-
-            // If a specific time slot ID is provided, get the correct day and times from it
-            if ($request->classtimeslot_id) {
-                $timeSlot = DB::table('class_time_slots')->find($request->classtimeslot_id);
-                if ($timeSlot) {
-                    $day = $timeSlot->day;
-                    $startTime = $timeSlot->start_time;
-                    $endTime = $timeSlot->end_time;
-                    
-                    \Log::info('Using time slot data for update', [
-                        'slot_id' => $request->classtimeslot_id,
-                        'slot_day' => $timeSlot->day,
-                        'slot_time' => $timeSlot->start_time . '-' . $timeSlot->end_time,
-                        'request_day' => $request->day,
-                        'final_day' => $day
-                    ]);
-                }
-            }
-
-            // ✅ ENHANCED: Implement duration-based teaching mode assignment
-            $teachingMode = $this->determineDurationBasedTeachingMode($startTime, $endTime, $request->teaching_mode);
-
-            // ✅ ENHANCED: Auto-assign venue based on teaching mode
-            $venueData = $this->determineVenueBasedOnMode($request->venue, $teachingMode, $request->no);
-
-            // ✅ NEW: Check for conflicts before updating
-            $conflictCheck = $this->checkUpdateConflicts($id, $day, $startTime, $endTime, $request->lecturer, $venueData['venue'], $teachingMode);
-        
-            if (!$conflictCheck['success']) {
-                \Log::warning('Update blocked due to conflicts', [
-                    'timetable_id' => $id,
-                    'conflicts' => $conflictCheck['conflicts']
-                ]);
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Update blocked due to conflicts: ' . $conflictCheck['message'],
-                        'conflicts' => $conflictCheck['conflicts']
-                    ], 422);
-                }
-
-                return redirect()->back()
-                    ->withErrors(['conflict' => 'Update blocked due to conflicts: ' . $conflictCheck['message']])
-                    ->withInput();
-            }
-
-            // Perform the update
-            $timetable->update([
-                'day' => $day, // ✅ FIXED: Use the correct day (from time slot if provided)
-                'unit_id' => $unit->id,
-                'semester_id' => $request->semester_id,
-                'class_id' => $request->class_id,
-                'group_id' => $request->group_id ?: null,
-                'venue' => $venueData['venue'],
-                'location' => $venueData['location'],
-                'no' => $request->no,
-                'lecturer' => $request->lecturer,
-                'start_time' => $startTime, // ✅ FIXED: Use the correct start time
-                'end_time' => $endTime, // ✅ FIXED: Use the correct end time
-                'teaching_mode' => $teachingMode,
-                'program_id' => $programId,
-                'school_id' => $schoolId,
-            ]);
-
-            \Log::info('Class timetable updated successfully', [
-                'id' => $id,
-                'unit_code' => $unit->code,
-                'final_day' => $day,
-                'final_time' => $startTime . '-' . $endTime,
-                'teaching_mode' => $teachingMode,
-                'venue' => $venueData['venue'],
-                'day_changed' => $timetable->getOriginal('day') !== $day,
-                'time_changed' => ($timetable->getOriginal('start_time') !== $startTime || $timetable->getOriginal('end_time') !== $endTime)
-            ]);
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Class timetable updated successfully with duration-based teaching mode.',
-                    'data' => $timetable->fresh(),
-                    'changes' => [
-                        'day_changed' => $timetable->getOriginal('day') !== $day,
-                        'time_changed' => ($timetable->getOriginal('start_time') !== $startTime || $timetable->getOriginal('end_time') !== $endTime),
-                        'old_day' => $timetable->getOriginal('day'),
-                        'new_day' => $day,
-                        'old_time' => $timetable->getOriginal('start_time') . '-' . $timetable->getOriginal('end_time'),
-                        'new_time' => $startTime . '-' . $endTime
-                    ]
-                ]);
-            }
-
-            return redirect()->back()->with('success', 'Class timetable updated successfully with duration-based teaching mode.');
-
-        } catch (\Exception $e) {
-            \Log::error('Failed to update class timetable: ' . $e->getMessage(), [
-                'id' => $id,
-                'request_data' => $request->all(),
-                'exception' => $e->getTraceAsString()
-            ]);
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to update class timetable: ' . $e->getMessage(),
-                    'errors' => ['error' => $e->getMessage()]
-                ], 500);
-            }
-
-            return redirect()->back()
-                ->withErrors(['error' => 'Failed to update class timetable: ' . $e->getMessage()])
-                ->withInput();
-        }
-    }
-
-    /**
-     * ✅ NEW: Check for conflicts when updating a timetable entry
-     */
-    private function checkUpdateConflicts($timetableId, $day, $startTime, $endTime, $lecturer, $venue, $teachingMode)
-    {
-        $conflicts = [];
-    
-        // Check lecturer conflicts (excluding the current timetable being updated)
-        $lecturerConflict = ClassTimetable::where('day', $day)
-            ->where('lecturer', $lecturer)
-            ->where('id', '!=', $timetableId)
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->where(function ($q) use ($startTime, $endTime) {
-                    $q->where('start_time', '<', $endTime)
-                      ->where('end_time', '>', $startTime);
-                });
-            })
-            ->exists();
-
-        if ($lecturerConflict) {
-            $conflicts[] = "Lecturer '{$lecturer}' has a conflicting class on {$day} during {$startTime}-{$endTime}";
-        }
-
-        // Check venue conflicts for physical classes only (excluding the current timetable being updated)
-        if ($teachingMode === 'physical' && $venue && strtolower(trim($venue)) !== 'remote') {
-            $venueConflict = ClassTimetable::where('day', $day)
-                ->where('venue', $venue)
-                ->where('teaching_mode', 'physical')
-                ->where('id', '!=', $timetableId)
-                ->where(function ($query) use ($startTime, $endTime) {
-                    $query->where(function ($q) use ($startTime, $endTime) {
-                        $q->where('start_time', '<', $endTime)
-                          ->where('end_time', '>', $startTime);
-                    });
-                })
-                ->exists();
-
-            if ($venueConflict) {
-                $conflicts[] = "Venue '{$venue}' is already booked on {$day} during {$startTime}-{$endTime}";
-            }
-        }
-
-        return [
-            'success' => empty($conflicts),
-            'conflicts' => $conflicts,
-            'message' => implode('; ', $conflicts)
-        ];
-    }
-
-    /**
-     * ✅ NEW: Determine teaching mode based on duration (2+ hours = physical, 1 hour = online)
-     */
-    private function determineDurationBasedTeachingMode($startTime, $endTime, $requestedMode = null)
-    {
-        if (!$startTime || !$endTime) {
-            return $requestedMode ?: 'physical'; // Default fallback
-        }
-
-        try {
-            $duration = \Carbon\Carbon::parse($startTime)->diffInHours(\Carbon\Carbon::parse($endTime));
-            
-            // Apply duration-based rules
-            if ($duration >= 2) {
-                $autoMode = 'physical';
-            } else {
-                $autoMode = 'online';
-            }
-
-            \Log::info('Duration-based teaching mode assignment', [
-                'start_time' => $startTime,
-                'end_time' => $endTime,
-                'duration' => $duration,
-                'auto_assigned_mode' => $autoMode,
-                'requested_mode' => $requestedMode
-            ]);
-
-            return $autoMode;
-            
-        } catch (\Exception $e) {
-            \Log::error('Error determining duration-based teaching mode: ' . $e->getMessage());
-            return $requestedMode ?: 'physical';
-        }
-    }
-
-    /**
-     * ✅ NEW: Determine venue based on teaching mode
-     */
-    private function determineVenueBasedOnMode($requestedVenue, $teachingMode, $studentCount = 0)
-    {
-        // If venue is explicitly requested, use it
-        if (!empty($requestedVenue)) {
-            $classroom = Classroom::where('name', $requestedVenue)->first();
-            return [
-                'venue' => $requestedVenue,
-                'location' => $classroom ? $classroom->location : 'Physical'
-            ];
-        }
-
-        // Auto-assign based on teaching mode
-        if ($teachingMode === 'online') {
-            return [
-                'venue' => 'Remote',
-                'location' => 'Online'
-            ];
-        } else {
-            // Find a suitable physical venue
-            $suitableClassroom = Classroom::where('capacity', '>=', $studentCount)
-                ->orderBy('capacity', 'asc')
-                ->first();
-
-            if ($suitableClassroom) {
-                return [
-                    'venue' => $suitableClassroom->name,
-                    'location' => $suitableClassroom->location
-                ];
-            } else {
-                // Fallback to any available classroom
-                $anyClassroom = Classroom::first();
-            return [
-                'venue' => $anyClassroom ? $anyClassroom->name : 'TBD',
-                'location' => $anyClassroom ? $anyClassroom->location : 'Physical'
-            ];
-        }
-    }
-}
-
-
-    /**
-     * ✅ NEW: Get time slots based on duration requirements
-     */
-    private function getTimeSlotsForDuration($requiredDuration, $preferredDay = null)
-    {
-        $query = DB::table('class_time_slots');
-
-        if ($requiredDuration == 2) {
-            // For 2-hour sessions, prioritize 2-hour slots
-            $query->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) = 2');
-        } else {
-            // For 1-hour sessions, prioritize 1-hour slots but allow any
-            $query->whereRaw('TIMESTAMPDIFF(HOUR, start_time, end_time) >= ?', [$requiredDuration]);
-        }
-
-        if ($preferredDay) {
-            $query->where('day', $preferredDay);
-        }
-
-        $slots = $query->get();
-
-        // If no exact duration matches found and we were looking for 2-hour slots, try any slots
-        if ($slots->isEmpty() && $requiredDuration == 2) {
-            \Log::info('No 2-hour slots found, trying any available slots');
-            $query = DB::table('class_time_slots');
-            if ($preferredDay) {
-                $query->where('day', $preferredDay);
-            }
-            $slots = $query->get();
-        }
-
-        return collect($slots);
-    }
-
-    /**
-     * ✅ NEW: Filter slots to remove lecturer conflicts upfront
-     */
-    private function filterSlotsForLecturerAvailability($timeSlots, $lecturer, $semesterId = null)
-    {
-        return $timeSlots->filter(function ($slot) use ($lecturer, $semesterId) {
-            // Check if lecturer has any conflicting sessions in this time slot
-            $query = ClassTimetable::where('lecturer', $lecturer)
-                ->where('day', $slot->day)
-                ->where(function ($q) use ($slot) {
-                    $q->where(function ($subQ) use ($slot) {
-                        $subQ->where('start_time', '<', $slot->end_time)
-                             ->where('end_time', '>', $slot->start_time);
-                    });
-                });
-
-            if ($semesterId) {
-                $query->where('semester_id', $semesterId);
-            }
-
-            $hasConflict = $query->exists();
-
-            if ($hasConflict) {
-                \Log::debug('Lecturer conflict detected', [
-                    'lecturer' => $lecturer,
-                    'day' => $slot->day,
-                    'time_slot' => "{$slot->start_time}-{$slot->end_time}"
-                ]);
-            }
-
-            return !$hasConflict;
-        });
-    }
-
-    /**
-     * ✅ NEW: Filter slots to remove class/group conflicts upfront
-     */
-    private function filterSlotsForClassAvailability($timeSlots, $classId = null, $groupId = null, $semesterId = null)
-    {
-        return $timeSlots->filter(function ($slot) use ($classId, $groupId, $semesterId) {
-            $hasConflict = false;
-
-            // Check for class conflicts (if class ID provided)
-            if ($classId) {
-                $classConflictQuery = ClassTimetable::where('class_id', $classId)
-                    ->where('day', $slot->day)
-                    ->where(function ($q) use ($slot) {
-                        $q->where(function ($subQ) use ($slot) {
-                            $subQ->where('start_time', '<', $slot->end_time)
-                                 ->where('end_time', '>', $slot->start_time);
-                        });
-                    });
-
-                if ($semesterId) {
-                    $classConflictQuery->where('semester_id', $semesterId);
-                }
-
-                if ($classConflictQuery->exists()) {
-                    $hasConflict = true;
-                    \Log::debug('Class conflict detected', [
-                        'class_id' => $classId,
-                        'day' => $slot->day,
-                        'time_slot' => "{$slot->start_time}-{$slot->end_time}"
-                    ]);
-                }
-            }
-
-            // Check for group conflicts (if group ID provided)
-            if (!$hasConflict && $groupId) {
-                $groupConflictQuery = ClassTimetable::where('group_id', $groupId)
-                    ->where('day', $slot->day)
-                    ->where(function ($q) use ($slot) {
-                        $q->where(function ($subQ) use ($slot) {
-                            $subQ->where('start_time', '<', $slot->end_time)
-                                 ->where('end_time', '>', $slot->start_time);
-                        });
-                    });
-
-                if ($semesterId) {
-                    $groupConflictQuery->where('semester_id', $semesterId);
-                }
-
-                if ($groupConflictQuery->exists()) {
-                    $hasConflict = true;
-                    \Log::debug('Group conflict detected', [
-                        'group_id' => $groupId,
-                        'day' => $slot->day,
-                        'time_slot' => "{$slot->start_time}-{$slot->end_time}"
-                    ]);
-                }
-            }
-
-            return !$hasConflict;
-        });
-    }
-
-    /**
-     * ✅ NEW: Filter slots to remove venue conflicts upfront
-     */
-    private function filterSlotsForVenueAvailability($timeSlots, $venue = '')
-    {
-        // If no venue specified or venue is 'Remote', no filtering needed
-        if (empty($venue) || strtolower(trim($venue)) === 'remote') {
-            return $timeSlots;
-        }
-
-        return $timeSlots->filter(function ($slot) use ($venue) {
-            // Check if venue has any conflicting bookings in this time slot
-            $hasConflict = ClassTimetable::where('venue', $venue)
-                ->where('day', $slot->day)
-                ->where(function ($q) use ($slot) {
-                    $q->where(function ($subQ) use ($slot) {
-                        $subQ->where('start_time', '<', $slot->end_time)
-                             ->where('end_time', '>', $slot->start_time);
-                    });
-                })
-                ->exists();
-
-            if ($hasConflict) {
-                \Log::debug('Venue conflict detected', [
-                    'venue' => $venue,
-                    'day' => $slot->day,
-                    'time_slot' => "{$slot->start_time}-{$slot->end_time}"
-                ]);
-            }
-
-            return !$hasConflict;
-        });
-    }
-
-    /**
-     * ✅ NEW: Filter slots based on scheduling constraints
-     */
-    private function filterSlotsForConstraints($timeSlots, $groupId = null, $semesterId = null, $preferredMode = null)
-    {
-        if (!$groupId || !$semesterId) {
-            return $timeSlots; // No constraint filtering if group/semester not specified
-        }
-
-        return $timeSlots->filter(function ($slot) use ($groupId, $semesterId, $preferredMode) {
-            // Get existing sessions for this group on this day
-            $existingSessions = ClassTimetable::where('group_id', $groupId)
-                ->where('semester_id', $semesterId)
-                ->where('day', $slot->day)
-                ->get();
-
-            $physicalCount = $existingSessions->where('teaching_mode', 'physical')->count();
-            $onlineCount = $existingSessions->where('teaching_mode', 'online')->count();
-            $totalHours = $existingSessions->sum(function ($session) {
-                return \Carbon\Carbon::parse($session->start_time)
-                    ->diffInHours(\Carbon\Carbon::parse($session->end_time));
-            });
-
-            $slotDuration = \Carbon\Carbon::parse($slot->start_time)
-                ->diffInHours(\Carbon\Carbon::parse($slot->end_time));
-
-            // Check constraints based on preferred mode
-            if ($preferredMode === 'physical') {
-                if ($physicalCount >= self::MAX_PHYSICAL_PER_DAY) {
-                    \Log::debug('Physical constraint violation', [
-                        'group_id' => $groupId,
-                        'day' => $slot->day,
-                        'current_physical' => $physicalCount,
-                        'max_allowed' => self::MAX_PHYSICAL_PER_DAY
-                    ]);
-                    return false;
-                }
-            } elseif ($preferredMode === 'online') {
-                if ($onlineCount >= self::MAX_ONLINE_PER_DAY) {
-                    \Log::debug('Online constraint violation', [
-                        'group_id' => $groupId,
-                        'day' => $slot->day,
-                        'current_online' => $onlineCount,
-                        'max_allowed' => self::MAX_ONLINE_PER_DAY
-                    ]);
-                    return false;
-                }
-            }
-
-            // Check total hours constraint
-            if ($totalHours + $slotDuration > self::MAX_HOURS_PER_DAY) {
-                \Log::debug('Hours constraint violation', [
-                    'group_id' => $groupId,
-                    'day' => $slot->day,
-                    'current_hours' => $totalHours,
-                    'slot_duration' => $slotDuration,
-                    'max_allowed' => self::MAX_HOURS_PER_DAY
-                ]);
-                return false;
-            }
-
-            return true;
-        });
-    }
-
-    /**
      * ✅ ENHANCED: Assign random venue with upfront conflict filtering
      */
     private function assignRandomVenue($studentCount, $day, $startTime, $endTime, $preferredMode = null, $classId = null, $groupId = null)
@@ -1211,75 +1263,6 @@ class ClassTimetableController extends Controller
         });
     }
 
-   
- 
-  
-   
-   
-    /**
-     * ✅ NEW: Perform final conflict check as safety measure
-     */
-    private function performFinalConflictCheck(Request $request, $day, $startTime, $endTime, $venue)
-    {
-        $conflicts = [];
-
-        // Check lecturer conflicts
-        $lecturerConflict = ClassTimetable::where('lecturer', $request->lecturer)
-            ->where('day', $day)
-            ->where('semester_id', $request->semester_id)
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->where(function ($q) use ($startTime, $endTime) {
-                    $q->where('start_time', '<', $endTime)
-                      ->where('end_time', '>', $startTime);
-                });
-            })
-            ->exists();
-
-        if ($lecturerConflict) {
-            $conflicts[] = "Lecturer conflict for {$request->lecturer}";
-        }
-
-        // Check venue conflicts (skip for online venues)
-        if ($venue && strtolower(trim($venue)) !== 'remote') {
-            $venueConflict = ClassTimetable::where('venue', $venue)
-                ->where('day', $day)
-                ->where(function ($query) use ($startTime, $endTime) {
-                    $query->where(function ($q) use ($startTime, $endTime) {
-                        $q->where('start_time', '<', $endTime)
-                          ->where('end_time', '>', $startTime);
-                    });
-                })
-                ->exists();
-
-            if ($venueConflict) {
-                $conflicts[] = "Venue conflict for {$venue}";
-            }
-        }
-
-        // Check group conflicts
-        if ($request->group_id) {
-            $groupConflict = ClassTimetable::where('group_id', $request->group_id)
-                ->where('day', $day)
-                ->where('semester_id', $request->semester_id)
-                ->where(function ($query) use ($startTime, $endTime) {
-                    $query->where(function ($q) use ($startTime, $endTime) {
-                        $q->where('start_time', '<', $endTime)
-                          ->where('end_time', '>', $startTime);
-                    });
-                })
-                ->exists();
-
-            if ($groupConflict) {
-                $conflicts[] = "Group conflict";
-            }
-        }
-
-        return [
-            'safe' => empty($conflicts),
-            'conflicts' => $conflicts
-        ];
-    }
-
     /**
      * Determine teaching mode and location based on venue
      */
@@ -1300,14 +1283,134 @@ class ClassTimetableController extends Controller
         ];
     }
 
-    // ✅ Include all other methods from the original controller
-    // (All the existing methods from the original controller would be included here)
-    // For brevity, I'm showing the key enhanced methods above
-    
     /**
-     * Store a newly created resource in storage with enhanced conflict checking
+     * ✅ NEW: Determine teaching mode based on duration (2+ hours = physical, 1 hour = online)
      */
-    public function store(Request $request)
+    private function determineDurationBasedTeachingMode($startTime, $endTime, $requestedMode = null)
+    {
+        if (!$startTime || !$endTime) {
+            return $requestedMode ?: 'physical'; // Default fallback
+        }
+
+        try {
+            $duration = \Carbon\Carbon::parse($startTime)->diffInHours(\Carbon\Carbon::parse($endTime));
+            
+            // Apply duration-based rules
+            if ($duration >= 2) {
+                $autoMode = 'physical';
+            } else {
+                $autoMode = 'online';
+            }
+
+            \Log::info('Duration-based teaching mode assignment', [
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'duration' => $duration,
+                'auto_assigned_mode' => $autoMode,
+                'requested_mode' => $requestedMode
+            ]);
+
+            return $autoMode;
+            
+        } catch (\Exception $e) {
+            \Log::error('Error determining duration-based teaching mode: ' . $e->getMessage());
+            return $requestedMode ?: 'physical';
+        }
+    }
+
+    /**
+     * ✅ NEW: Determine venue based on teaching mode
+     */
+    private function determineVenueBasedOnMode($requestedVenue, $teachingMode, $studentCount = 0)
+    {
+        // If venue is explicitly requested, use it
+        if (!empty($requestedVenue)) {
+            $classroom = Classroom::where('name', $requestedVenue)->first();
+            return [
+                'venue' => $requestedVenue,
+                'location' => $classroom ? $classroom->location : 'Physical'
+            ];
+        }
+
+        // Auto-assign based on teaching mode
+        if ($teachingMode === 'online') {
+            return [
+                'venue' => 'Remote',
+                'location' => 'Online'
+            ];
+        } else {
+            // Find a suitable physical venue
+            $suitableClassroom = Classroom::where('capacity', '>=', $studentCount)
+                ->orderBy('capacity', 'asc')
+                ->first();
+
+            if ($suitableClassroom) {
+                return [
+                    'venue' => $suitableClassroom->name,
+                    'location' => $suitableClassroom->location
+                ];
+            } else {
+                // Fallback to any available classroom
+                $anyClassroom = Classroom::first();
+                return [
+                    'venue' => $anyClassroom ? $anyClassroom->name : 'TBD',
+                    'location' => $anyClassroom ? $anyClassroom->location : 'Physical'
+                ];
+            }
+        }
+    }
+
+    /**
+     * ✅ NEW: Check for conflicts when creating a timetable entry
+     */
+    private function checkCreateConflicts($day, $startTime, $endTime, $lecturer, $venue, $teachingMode)
+    {
+        $conflicts = [];
+    
+        // Check lecturer conflicts
+        $lecturerConflict = ClassTimetable::where('day', $day)
+            ->where('lecturer', $lecturer)
+            ->where(function ($query) use ($startTime, $endTime) {
+                $query->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
+                });
+            })
+            ->exists();
+
+        if ($lecturerConflict) {
+            $conflicts[] = "Lecturer '{$lecturer}' has a conflicting class on {$day} during {$startTime}-{$endTime}";
+        }
+
+        // Check venue conflicts for physical classes only
+        if ($teachingMode === 'physical' && $venue && strtolower(trim($venue)) !== 'remote') {
+            $venueConflict = ClassTimetable::where('day', $day)
+                ->where('venue', $venue)
+                ->where('teaching_mode', 'physical')
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    });
+                })
+                ->exists();
+
+            if ($venueConflict) {
+                $conflicts[] = "Venue '{$venue}' is already booked on {$day} during {$startTime}-{$endTime}";
+            }
+        }
+
+        return [
+            'success' => empty($conflicts),
+            'conflicts' => $conflicts,
+            'message' => implode('; ', $conflicts)
+        ];
+    }
+
+    /**
+     * Update the specified resource in storage with enhanced conflict checking
+     */
+    public function update(Request $request, $id)
     {
         $request->validate([
             'day' => 'nullable|string',
@@ -1324,27 +1427,128 @@ class ClassTimetableController extends Controller
             'teaching_mode' => 'nullable|in:physical,online',
             'program_id' => 'nullable|exists:programs,id',
             'school_id' => 'nullable|exists:schools,id',
+            'classtimeslot_id' => 'nullable|integer', // ✅ NEW: Accept time slot ID for proper day handling
         ]);
 
         try {
-            \Log::info('Creating enhanced conflict-free class timetable with data:', $request->all());
+            $timetable = ClassTimetable::findOrFail($id);
+            
+            \Log::info('Updating class timetable with enhanced time slot handling', [
+                'id' => $id,
+                'old_day' => $timetable->day,
+                'new_day' => $request->day,
+                'old_time' => $timetable->start_time . '-' . $timetable->end_time,
+                'new_time' => $request->start_time . '-' . $request->end_time,
+                'classtimeslot_id' => $request->classtimeslot_id,
+                'data' => $request->all()
+            ]);
 
             $unit = Unit::findOrFail($request->unit_id);
             $class = ClassModel::find($request->class_id);
             $programId = $request->program_id ?: ($class ? $class->program_id : null);
             $schoolId = $request->school_id ?: ($class ? $class->school_id : null);
 
-            $isRandomTimeSlot = empty($request->day) || empty($request->start_time) || 
-                              empty($request->end_time) || $request->start_time === 'Random Time Slot (auto-assign)';
+            // ✅ ENHANCED: Handle time slot changes properly
+            $day = $request->day;
+            $startTime = $request->start_time;
+            $endTime = $request->end_time;
 
-            if ($isRandomTimeSlot) {
-                return $this->createCreditBasedTimetable($request, $unit, $programId, $schoolId);
-            } else {
-                return $this->createSingleTimetable($request, $unit, $programId, $schoolId);
+            // If a specific time slot ID is provided, get the correct day and times from it
+            if ($request->classtimeslot_id) {
+                $timeSlot = DB::table('class_time_slots')->find($request->classtimeslot_id);
+                if ($timeSlot) {
+                    $day = $timeSlot->day;
+                    $startTime = $timeSlot->start_time;
+                    $endTime = $timeSlot->end_time;
+                    
+                    \Log::info('Using time slot data for update', [
+                        'slot_id' => $request->classtimeslot_id,
+                        'slot_day' => $timeSlot->day,
+                        'slot_time' => $timeSlot->start_time . '-' . $timeSlot->end_time,
+                        'request_day' => $request->day,
+                        'final_day' => $day
+                    ]);
+                }
             }
 
+            // ✅ ENHANCED: Implement duration-based teaching mode assignment
+            $teachingMode = $this->determineDurationBasedTeachingMode($startTime, $endTime, $request->teaching_mode);
+
+            // ✅ ENHANCED: Auto-assign venue based on teaching mode
+            $venueData = $this->determineVenueBasedOnMode($request->venue, $teachingMode, $request->no);
+
+            // ✅ NEW: Check for conflicts before updating
+            $conflictCheck = $this->checkUpdateConflicts($id, $day, $startTime, $endTime, $request->lecturer, $venueData['venue'], $teaching, $startTime, $endTime, $request->lecturer, $venueData['venue'], $teachingMode);
+        
+            if (!$conflictCheck['success']) {
+                \Log::warning('Update blocked due to conflicts', [
+                    'timetable_id' => $id,
+                    'conflicts' => $conflictCheck['conflicts']
+                ]);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Update blocked due to conflicts: ' . $conflictCheck['message'],
+                        'conflicts' => $conflictCheck['conflicts']
+                    ], 422);
+                }
+
+                return redirect()->back()
+                    ->withErrors(['conflict' => 'Update blocked due to conflicts: ' . $conflictCheck['message']])
+                    ->withInput();
+            }
+
+            // Perform the update
+            $timetable->update([
+                'day' => $day, // ✅ FIXED: Use the correct day (from time slot if provided)
+                'unit_id' => $unit->id,
+                'semester_id' => $request->semester_id,
+                'class_id' => $request->class_id,
+                'group_id' => $request->group_id ?: null,
+                'venue' => $venueData['venue'],
+                'location' => $venueData['location'],
+                'no' => $request->no,
+                'lecturer' => $request->lecturer,
+                'start_time' => $startTime, // ✅ FIXED: Use the correct start time
+                'end_time' => $endTime, // ✅ FIXED: Use the correct end time
+                'teaching_mode' => $teachingMode,
+                'program_id' => $programId,
+                'school_id' => $schoolId,
+            ]);
+
+            \Log::info('Class timetable updated successfully', [
+                'id' => $id,
+                'unit_code' => $unit->code,
+                'final_day' => $day,
+                'final_time' => $startTime . '-' . $endTime,
+                'teaching_mode' => $teachingMode,
+                'venue' => $venueData['venue'],
+                'day_changed' => $timetable->getOriginal('day') !== $day,
+                'time_changed' => ($timetable->getOriginal('start_time') !== $startTime || $timetable->getOriginal('end_time') !== $endTime)
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Class timetable updated successfully with duration-based teaching mode.',
+                    'data' => $timetable->fresh(),
+                    'changes' => [
+                        'day_changed' => $timetable->getOriginal('day') !== $day,
+                        'time_changed' => ($timetable->getOriginal('start_time') !== $startTime || $timetable->getOriginal('end_time') !== $endTime),
+                        'old_day' => $timetable->getOriginal('day'),
+                        'new_day' => $day,
+                        'old_time' => $timetable->getOriginal('start_time') . '-' . $timetable->getOriginal('end_time'),
+                        'new_time' => $startTime . '-' . $endTime
+                    ]
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Class timetable updated successfully with duration-based teaching mode.');
+
         } catch (\Exception $e) {
-            \Log::error('Failed to create enhanced class timetable: ' . $e->getMessage(), [
+            \Log::error('Failed to update class timetable: ' . $e->getMessage(), [
+                'id' => $id,
                 'request_data' => $request->all(),
                 'exception' => $e->getTraceAsString()
             ]);
@@ -1352,233 +1556,65 @@ class ClassTimetableController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to create class timetable: ' . $e->getMessage(),
+                    'message' => 'Failed to update class timetable: ' . $e->getMessage(),
                     'errors' => ['error' => $e->getMessage()]
                 ], 500);
             }
 
             return redirect()->back()
-                ->withErrors(['error' => 'Failed to create class timetable: ' . $e->getMessage()])
+                ->withErrors(['error' => 'Failed to update class timetable: ' . $e->getMessage()])
                 ->withInput();
         }
     }
 
-
-
     /**
-     * Display a listing of the resource.
+     * ✅ NEW: Check for conflicts when updating a timetable entry
      */
-    public function index(Request $request)
+    private function checkUpdateConflicts($timetableId, $day, $startTime, $endTime, $lecturer, $venue, $teachingMode)
     {
-        $user = auth()->user();
-
-        // Log user access
-        \Log::info('Accessing /classtimetable', [
-            'user_id' => $user->id,
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
-
-        if (!$user->can('manage-classtimetables')) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        $perPage = $request->input('per_page', 10);
-        $search = $request->input('search', '');
-
-        // Fetch class timetables with all DB columns and related display fields
-        $classTimetables = ClassTimetable::query()
-            ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
-            ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
-            ->leftJoin('classes', 'class_timetable.class_id', '=', 'classes.id')
-            ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
-            ->leftJoin('programs', 'class_timetable.program_id', '=', 'programs.id')
-            ->leftJoin('schools', 'class_timetable.school_id', '=', 'schools.id')
-            ->leftJoin('class_time_slots', function ($join) {
-                $join->on('class_timetable.day', '=', 'class_time_slots.day')
-                    ->on('class_timetable.start_time', '=', 'class_time_slots.start_time')
-                    ->on('class_timetable.end_time', '=', 'class_time_slots.end_time');
-            })
-            ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
-            ->select(
-                'class_timetable.id',
-                'class_timetable.semester_id',
-                'class_timetable.unit_id',
-                'class_timetable.class_id',
-                'class_timetable.group_id',
-                'class_timetable.day',
-                'class_timetable.start_time',
-                'class_timetable.end_time',
-                'class_timetable.teaching_mode',
-                'class_timetable.venue',
-                'class_timetable.location',
-                'class_timetable.no',
-                DB::raw("IF(users.id IS NOT NULL, CONCAT(users.first_name, ' ', users.last_name), class_timetable.lecturer) as lecturer"),
-                'class_timetable.program_id',
-                'class_timetable.school_id',
-                'class_timetable.created_at',
-                'class_timetable.updated_at',
-                // Display fields from joins
-                'units.code as unit_code',
-                'units.name as unit_name',
-                'semesters.name as semester_name',
-                'classes.name as class_name',
-                'groups.name as group_name',
-                'programs.code as program_code',
-                'programs.name as program_name',
-                'schools.code as school_code',
-                'schools.name as school_name',
-                'class_time_slots.status'
-            )
-            ->when($request->has('search') && $request->search !== '', function ($query) use ($request) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('class_timetable.day', 'like', "%{$search}%")
-                      ->orWhere('units.code', 'like', "%{$search}%")
-                      ->orWhere('units.name', 'like', "%{$search}%")
-                      ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
-                      ->orWhere('class_timetable.venue', 'like', "%{$search}%");
+        $conflicts = [];
+    
+        // Check lecturer conflicts (excluding the current timetable being updated)
+        $lecturerConflict = ClassTimetable::where('day', $day)
+            ->where('lecturer', $lecturer)
+            ->where('id', '!=', $timetableId)
+            ->where(function ($query) use ($startTime, $endTime) {
+                $query->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
                 });
             })
-            ->orderBy('class_timetable.day')
-            ->orderBy('class_timetable.start_time')
-            ->paginate($request->get('per_page', 10));
+            ->exists();
 
-        // Get all necessary data for the form
-        $lecturers = User::role('Lecturer')
-            ->select('id', 'code', DB::raw("CONCAT(first_name, ' ', last_name) as name"))
-            ->get();
+        if ($lecturerConflict) {
+            $conflicts[] = "Lecturer '{$lecturer}' has a conflicting class on {$day} during {$startTime}-{$endTime}";
+        }
 
-        $semesters = Semester::all();
-        $classrooms = Classroom::all();
-        $classtimeSlots = ClassTimeSlot::all();
-        $allUnits = Unit::select('id', 'code', 'name', 'semester_id', 'credit_hours')->get();
-        $allEnrollments = Enrollment::select('id', 'student_code', 'unit_id', 'semester_id', 'lecturer_code')->get();
+        // Check venue conflicts for physical classes only (excluding the current timetable being updated)
+        if ($teachingMode === 'physical' && $venue && strtolower(trim($venue)) !== 'remote') {
+            $venueConflict = ClassTimetable::where('day', $day)
+                ->where('venue', $venue)
+                ->where('teaching_mode', 'physical')
+                ->where('id', '!=', $timetableId)
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where(function ($q) use ($startTime, $endTime) {
+                        $q->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                    });
+                })
+                ->exists();
 
-        // Group enrollments by unit_id and semester_id for easy access
-        $enrollmentsByUnitAndSemester = [];
-        foreach ($allEnrollments as $enrollment) {
-            $key = $enrollment->unit_id . '_' . $enrollment->semester_id;
-            if (!isset($enrollmentsByUnitAndSemester[$key])) {
-                $enrollmentsByUnitAndSemester[$key] = [];
+            if ($venueConflict) {
+                $conflicts[] = "Venue '{$venue}' is already booked on {$day} during {$startTime}-{$endTime}";
             }
-            $enrollmentsByUnitAndSemester[$key][] = $enrollment;
         }
 
-        // Get units with their associated semesters through enrollments
-        $unitsBySemester = [];
-        foreach ($semesters as $semester) {
-            $unitIdsInSemester = Enrollment::where('semester_id', $semester->id)
-                ->distinct('unit_id')
-                ->pluck('unit_id')
-                ->toArray();
-
-            $unitsInSemester = Unit::whereIn('id', $unitIdsInSemester)
-                ->select('id', 'code', 'name', 'credit_hours')
-                ->get()
-                ->map(function ($unit) use ($semester, $enrollmentsByUnitAndSemester) {
-                    $unit->semester_id = $semester->id;
-                    $key = $unit->id . '_' . $semester->id;
-                    $unitEnrollments = $enrollmentsByUnitAndSemester[$key] ?? [];
-                    $unit->student_count = count($unitEnrollments);
-
-                    $lecturerCode = null;
-                    foreach ($unitEnrollments as $enrollment) {
-                        if ($enrollment->lecturer_code) {
-                            $lecturerCode = $enrollment->lecturer_code;
-                            break;
-                        }
-                    }
-
-                    if ($lecturerCode) {
-                        $lecturer = User::where('code', $lecturerCode)->first();
-                        if ($lecturer) {
-                            $unit->lecturer_code = $lecturerCode;
-                            $unit->lecturer_name = $lecturer->first_name . ' ' . $lecturer->last_name;
-                        }
-                    }
-                    return $unit;
-                });
-
-            $unitsBySemester[$semester->id] = $unitsInSemester;
-        }
-
-        $unitsWithSemesters = collect();
-        foreach ($unitsBySemester as $semesterId => $units) {
-            $unitsWithSemesters = $unitsWithSemesters->concat($units);
-        }
-
-        // Fetch classes and groups from the database
-        $classes = ClassModel::select('id', 'name')->get();
-        $groups = Group::select('id', 'name', 'class_id')->get();
-
-        // Fetch programs from the programs table
-        $programs = DB::table('programs')
-            ->select('id', 'code', 'name')
-            ->get();
-
-         $schools = DB::table('schools')
-            ->select('id', 'name', 'code')
-            ->get();
-
-        return Inertia::render('ClassTimetables/Index', [
-            'classTimetables' => $classTimetables,
-            'lecturers' => $lecturers,
-            'perPage' => $perPage,
-            'search' => $search,
-            'semesters' => $semesters,
-            'classrooms' => $classrooms,
-            'classtimeSlots' => $classtimeSlots,
-            'units' => $unitsWithSemesters,
-            'enrollments' => $allEnrollments,
-            'classes' => $classes,
-            'groups' => $groups,
-            'programs' => $programs,
-            'schools' => $schools,
-            'can' => [
-                'create' => $user->can('create-classtimetables'),
-                'edit' => $user->can('update-classtimetables'),
-                'delete' => $user->can('delete-classtimetables'),
-                'process' => $user->can('process-classtimetables'),
-                'solve_conflicts' => $user->can('solve-class-conflicts'),
-                'download' => $user->can('download-classtimetables'),
-            ],
-        ]);
+        return [
+            'success' => empty($conflicts),
+            'conflicts' => $conflicts,
+            'message' => implode('; ', $conflicts)
+        ];
     }
-
-   
-    private function createSingleTimetable(Request $request, Unit $unit, $programId, $schoolId)
-{
-    // You may want to add more validation or logic here as needed
-    $classTimetable = ClassTimetable::create([
-        'day' => $request->day,
-        'unit_id' => $unit->id,
-        'semester_id' => $request->semester_id,
-        'class_id' => $request->class_id,
-        'group_id' => $request->group_id ?: null,
-        'venue' => $request->venue,
-        'location' => $request->location,
-        'no' => $request->no,
-        'lecturer' => $request->lecturer,
-        'start_time' => $request->start_time,
-        'end_time' => $request->end_time,
-        'teaching_mode' => $request->teaching_mode ?? 'physical',
-        'program_id' => $programId,
-        'school_id' => $schoolId,
-    ]);
-
-    \Log::info('Single timetable entry created', [
-        'timetable_id' => $classTimetable->id,
-        'unit_code' => $unit->code,
-        'day' => $request->day,
-        'start_time' => $request->start_time,
-        'end_time' => $request->end_time,
-        'venue' => $request->venue,
-    ]);
-
-    return redirect()->back()->with('success', 'Class timetable created successfully.');
-}
-
 
     /**
      * ✅ FIXED: API endpoint to get units by class and semester
@@ -1711,11 +1747,11 @@ class ClassTimetableController extends Controller
                 return response()->json([]);
             }
 
-            // Enhance units with enrollment information
+            // ✅ REAL DATA: Enhance units with real enrollment information
             $enhancedUnits = collect($units)->map(function ($unit) use ($semesterId, $classId) {
                 $unitArray = is_object($unit) ? (array) $unit : $unit;
                 
-                // Get enrollment count for this unit in this semester
+                // Get real enrollment count for this unit in this semester
                 $enrollmentQuery = Enrollment::where('unit_id', $unitArray['id'])
                     ->where('semester_id', $semesterId);
 
@@ -1726,7 +1762,7 @@ class ClassTimetableController extends Controller
                 }
 
                 $enrollments = $enrollmentQuery->get();
-                $studentCount = $enrollments->count();
+                $realStudentCount = $enrollments->count(); // ✅ REAL DATA
 
                 // Get lecturer information
                 $lecturerName = '';
@@ -1743,7 +1779,7 @@ class ClassTimetableController extends Controller
                     'code' => $unitArray['code'],
                     'name' => $unitArray['name'],
                     'credit_hours' => $unitArray['credit_hours'] ?? 3,
-                    'student_count' => $studentCount,
+                    'student_count' => $realStudentCount, // ✅ REAL DATA from enrollments
                     'lecturer_name' => $lecturerName,
                 ];
             });
@@ -1762,106 +1798,6 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * Create multiple timetable entries based on credit hours
-     */
-    private function createCreditBasedTimetable(Request $request, Unit $unit, $programId, $schoolId)
-    {
-        $creditHours = $unit->credit_hours;
-        $sessions = $this->getSessionsForCredits($creditHours);
-        
-        \Log::info('Creating credit-based timetable', [
-            'unit_code' => $unit->code,
-            'credit_hours' => $creditHours,
-            'sessions' => $sessions
-        ]);
-
-        $createdTimetables = [];
-        $errors = [];
-
-        foreach ($sessions as $sessionIndex => $session) {
-            try {
-                $sessionResult = $this->createSessionTimetable($request, $unit, $session, $sessionIndex + 1, $programId, $schoolId);
-                
-                if ($sessionResult['success']) {
-                    $createdTimetables[] = $sessionResult['timetable'];
-                } else {
-                    $errors[] = $sessionResult['message'];
-                }
-            } catch (\Exception $e) {
-                $errors[] = "Session " . ($sessionIndex + 1) . ": " . $e->getMessage();
-                \Log::error('Failed to create session timetable', [
-                    'session' => $session,
-                    'error' => $e->getMessage()
-                ]);
-            }
-        }
-
-        if (count($createdTimetables) === 0) {
-            $errorMessage = 'Failed to create any timetable sessions. Errors: ' . implode('; ', $errors);
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $errorMessage,
-                    'errors' => ['scheduling' => $errorMessage]
-                ], 422);
-            }
-
-            return redirect()->back()
-                ->withErrors(['scheduling' => $errorMessage])
-                ->withInput();
-        }
-
-        $successMessage = count($createdTimetables) . " timetable sessions created successfully for {$unit->code} ({$creditHours} credit hours).";
-        
-        if (count($errors) > 0) {
-            $successMessage .= " Note: " . count($errors) . " sessions had issues.";
-        }
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => $successMessage,
-                'data' => $createdTimetables,
-                'errors' => $errors
-            ]);
-        }
-
-        return redirect()->back()->with('success', $successMessage);
-    }
-
-    /**
-     * Get session configuration based on credit hours
-     */
-
-private function getSessionsForCredits($creditHours)
-{
-    $sessions = [];
-
-    // Assign 1 physical session of 2 hours if possible
-    if ($creditHours >= 2) {
-        $sessions[] = ['type' => 'physical', 'duration' => 2];
-        $remaining = $creditHours - 2;
-    } else {
-        $remaining = $creditHours;
-    }
-
-    // Assign the remaining hours as 1-hour online sessions
-    while ($remaining > 0) {
-        $sessions[] = ['type' => 'online', 'duration' => 1];
-        $remaining--;
-    }
-
-    return $sessions;
-}
-
-  
-    /**
-     * Assign a random venue with sufficient capacity and no conflicts
-     */
-   
-
-    /**
      * ✅ NEW: Get groups by class ID (for modal functionality)
      */
     public function getGroupsByClass($classId)
@@ -1869,7 +1805,20 @@ private function getSessionsForCredits($creditHours)
         try {
             $groups = Group::where('class_id', $classId)
                 ->select('id', 'name', 'class_id')
-                ->get();
+                ->get()
+                ->map(function ($group) {
+                    // ✅ REAL DATA: Add actual student count
+                    $actualStudentCount = DB::table('enrollments')
+                        ->where('group_id', $group->id)
+                        ->count();
+
+                    return [
+                        'id' => $group->id,
+                        'name' => $group->name,
+                        'class_id' => $group->class_id,
+                        'student_count' => $actualStudentCount // ✅ REAL DATA
+                    ];
+                });
 
             return response()->json($groups);
         } catch (\Exception $e) {
@@ -1900,8 +1849,8 @@ private function getSessionsForCredits($creditHours)
                 return response()->json(['success' => false, 'message' => 'Lecturer not found.']);
             }
 
-            // Count students enrolled in this unit
-            $studentCount = Enrollment::where('unit_id', $unitId)
+            // ✅ REAL DATA: Count students enrolled in this unit
+            $realStudentCount = Enrollment::where('unit_id', $unitId)
                 ->where('semester_id', $semesterId)
                 ->count();
 
@@ -1912,7 +1861,7 @@ private function getSessionsForCredits($creditHours)
                     'code' => $lecturer->code,
                     'name' => $lecturer->first_name . ' ' . $lecturer->last_name,
                 ],
-                'studentCount' => $studentCount
+                'studentCount' => $realStudentCount // ✅ REAL DATA
             ]);
         } catch (\Exception $e) {
             \Log::error('Failed to get lecturer for unit: ' . $e->getMessage());
@@ -1921,111 +1870,306 @@ private function getSessionsForCredits($creditHours)
     }
 
     /**
-     * ✅ NEW: Process the class timetable to optimize and resolve conflicts
+     * Remove the specified resource from storage.
      */
-    public function process(Request $request)
+    public function destroy($id)
     {
-        $request->validate([
-            'semester_id' => 'required|exists:semesters,id',
-            'program_id' => 'required|exists:programs,id',
-            'class_id' => 'required|exists:classes,id',
-            'group_id' => 'nullable|exists:groups,id',
-        ]);
-
         try {
-            $semesterId = $request->semester_id;
-            $programId = $request->program_id;
-            $classId = $request->class_id;
-            $groupId = $request->group_id;
+            $timetable = ClassTimetable::findOrFail($id);
+            $timetable->delete();
 
-            \Log::info('Processing class timetable', [
-                'semester_id' => $semesterId,
-                'program_id' => $programId,
-                'class_id' => $classId,
-                'group_id' => $groupId,
-            ]);
+            \Log::info('Class timetable deleted successfully', ['id' => $id]);
 
-            // Fetch units for the class and semester
-            $units = DB::table('class_unit')
-                ->join('units', 'class_unit.unit_id', '=', 'units.id')
-                ->where('class_unit.class_id', $classId)
-                ->where('class_unit.semester_id', $semesterId)
-                ->select('units.id', 'units.name', 'units.code')
-                ->get();
-
-            if ($units->isEmpty()) {
-                \Log::warning('No units found for the specified class and semester', [
-                    'semester_id' => $semesterId,
-                    'class_id' => $classId,
-                ]);
-                return response()->json(['message' => 'No units found for the specified class and semester.'], 422);
-            }
-
-            // Fetch available time slots
-            $timeSlots = DB::table('class_time_slots')->get();
-
-            if ($timeSlots->isEmpty()) {
-                \Log::warning('No time slots available');
-                return response()->json(['message' => 'No time slots available.'], 422);
-            }
-
-            // Fetch classrooms
-            $classrooms = DB::table('classrooms')->get();
-
-            if ($classrooms->isEmpty()) {
-                \Log::warning('No classrooms available');
-                return response()->json(['message' => 'No classrooms available.'], 422);
-            }
-
-            // Randomly assign units to time slots and classrooms
-            foreach ($units as $unit) {
-                $randomTimeSlot = $timeSlots->random();
-                $randomClassroom = $classrooms->random();
-
-                ClassTimetable::create([
-                    'day' => $randomTimeSlot->day,
-                    'start_time' => $randomTimeSlot->start_time,
-                    'end_time' => $randomTimeSlot->end_time,
-                    'unit_id' => $unit->id,
-                    'semester_id' => $semesterId,
-                    'class_id' => $classId,
-                    'group_id' => $groupId,
-                    'venue' => $randomClassroom->name,
-                    'location' => $randomClassroom->location,
-                    'no' => Enrollment::where('unit_id', $unit->id)->where('semester_id', $semesterId)->count(),
-                    'lecturer' => Enrollment::where('unit_id', $unit->id)->where('semester_id', $semesterId)->value('lecturer_code'),
-                ]);
-            }
-
-            return response()->json(['success' => true, 'message' => 'Class timetable processed successfully.']);
+            return redirect()->back()->with('success', 'Class timetable deleted successfully.');
         } catch (\Exception $e) {
-            \Log::error('Failed to process class timetable: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Failed to process class timetable.'], 500);
+            \Log::error('Failed to delete class timetable: ' . $e->getMessage(), ['id' => $id]);
+            return response()->json(['success' => false, 'message' => 'Failed to delete class timetable.'], 500);
         }
     }
 
     /**
-     * ✅ NEW: Solve conflicts in the class timetable
+     * Display the specified resource.
      */
-    public function solveConflicts(Request $request)
+    public function show($id)
     {
         try {
-            \Log::info('Solving class timetable conflicts');
-
-            $conflicts = $this->detectAndResolveConflicts();
-
-            return redirect()->back()->with('success', 'Class conflicts resolved successfully.');
+            $timetable = ClassTimetable::findOrFail($id);
+            return response()->json($timetable);
         } catch (\Exception $e) {
-            \Log::error('Failed to solve class conflicts: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to solve class conflicts: ' . $e->getMessage());
+            \Log::error('Failed to fetch class timetable: ' . $e->getMessage(), ['id' => $id]);
+            return response()->json(['success' => false, 'message' => 'Failed to fetch class timetable.'], 500);
+        }
+    }
+
+    /**
+     * ✅ REAL DATA: Display student's timetable page with real group filtering
+     */
+    public function studentTimetable(Request $request)
+    {
+        try {
+            // Fetch the authenticated student
+            $user = auth()->user();
+
+            if (!$user) {
+                return redirect()->route('login')->with('error', 'Please log in to view your timetable.');
+            }
+
+            \Log::info('Student accessing timetable', [
+                'user_id' => $user->id,
+                'user_code' => $user->code ?? 'No code'
+            ]);
+
+            // Fetch the current semester with error handling
+            $currentSemester = Semester::where('is_active', true)->first();
+            
+            // If no active semester, get the latest one
+            if (!$currentSemester) {
+                $currentSemester = Semester::orderByDesc('id')->first();
+            }
+
+            if (!$currentSemester) {
+                \Log::warning('No semester found for student timetable');
+                return Inertia::render('Student/Timetable', [
+                    'classTimetables' => [],
+                    'currentSemester' => null,
+                    'downloadUrl' => route('student.timetable.download'),
+                    'student' => [
+                        'id' => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name' => $user->last_name,
+                        'code' => $user->code,
+                    ],
+                    'filters' => [
+                        'per_page' => $request->get('per_page', 10),
+                        'search' => $request->get('search', ''),
+                    ],
+                    'error' => 'No semester data available.'
+                ]);
+            }
+
+            // Check if user has a code (required for enrollments)
+            if (!$user->code) {
+                \Log::error('User has no code for enrollment lookup', ['user_id' => $user->id]);
+                return Inertia::render('Student/Timetable', [
+                    'classTimetables' => [],
+                    'currentSemester' => $currentSemester,
+                    'downloadUrl' => route('student.timetable.download'),
+                    'student' => [
+                        'id' => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name' => $user->last_name,
+                        'code' => $user->code,
+                    ],
+                    'filters' => [
+                        'per_page' => $request->get('per_page', 10),
+                        'search' => $request->get('search', ''),
+                    ],
+                    'error' => 'Student code not found. Please contact administration.'
+                ]);
+            }
+
+            // ✅ REAL DATA: Fetch enrollments for this student with proper error handling
+            $enrollments = collect();
+            try {
+                $enrollments = Enrollment::where('student_code', $user->code)
+                    ->where('semester_id', $currentSemester->id)
+                    ->with(['unit', 'semester', 'group'])
+                    ->get();
+
+                \Log::info('Real enrollments found', [
+                    'student_code' => $user->code,
+                    'semester_id' => $currentSemester->id,
+                    'count' => $enrollments->count()
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('Error fetching enrollments: ' . $e->getMessage());
+                $enrollments = collect();
+            }
+
+            // ✅ REAL DATA: Get the student's enrolled unit IDs AND group IDs
+            $enrolledUnitIds = [];
+            $studentGroupIds = [];
+            
+            if ($enrollments->isNotEmpty()) {
+                $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
+                $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
+            }
+
+            \Log::info('Student group filtering for web view', [
+                'unit_ids' => $enrolledUnitIds,
+                'group_ids' => $studentGroupIds
+            ]);
+
+            // Get pagination parameters
+            $perPage = $request->get('per_page', 10);
+            $search = $request->get('search', '');
+
+            // ✅ REAL DATA: Fetch actual class timetable entries for the student's units AND groups with pagination
+            $classTimetables = collect();
+            
+            if (!empty($enrolledUnitIds)) {
+                try {
+                    $query = DB::table('class_timetable')
+                        ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
+                        ->where('class_timetable.semester_id', $currentSemester->id);
+
+                    // ✅ CRITICAL FIX: Filter by student's group(s) using REAL data
+                    if (!empty($studentGroupIds)) {
+                        $query->whereIn('class_timetable.group_id', $studentGroupIds);
+                    } else {
+                        // If no specific group assigned, check if there are enrollments with null group_id
+                        $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
+                        if ($hasNullGroup) {
+                            $query->whereNull('class_timetable.group_id');
+                        }
+                    }
+
+                    // Add search functionality
+                    if (!empty($search)) {
+                        $query->where(function ($q) use ($search) {
+                            $q->where('units.code', 'like', "%{$search}%")
+                              ->orWhere('units.name', 'like', "%{$search}%")
+                              ->orWhere('class_timetable.venue', 'like', "%{$search}%")
+                              ->orWhere('class_timetable.day', 'like', "%{$search}%")
+                              ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
+                              ->orWhere('class_timetable.lecturer', 'like', "%{$search}%");
+                        });
+                    }
+
+                    $classTimetables = $query
+                        ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
+                        ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
+                        ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+                        ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+                        ->select(
+                            'class_timetable.id',
+                            'class_timetable.day',
+                            'class_timetable.start_time',
+                            'class_timetable.end_time',
+                            'class_timetable.venue',
+                            'class_timetable.location',
+                            'class_timetable.teaching_mode',
+                            'class_timetable.lecturer',
+                            'units.code as unit_code',
+                            'units.name as unit_name',
+                            DB::raw("CASE 
+                                WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
+                                ELSE class_timetable.lecturer 
+                                END as lecturer"),
+                            'groups.name as group_name',
+                            'semesters.name as semester_name'
+                        )
+                        ->orderBy('class_timetable.day')
+                        ->orderBy('class_timetable.start_time')
+                        ->paginate($perPage)
+                        ->withQueryString(); // This preserves search and other query parameters
+
+                    \Log::info('Paginated class timetables found with REAL data', [
+                        'total' => $classTimetables->total(),
+                        'per_page' => $classTimetables->perPage(),
+                        'current_page' => $classTimetables->currentPage(),
+                        'student_code' => $user->code,
+                        'groups_filtered' => $studentGroupIds,
+                        'search_term' => $search
+                    ]);
+
+                } catch (\Exception $e) {
+                    \Log::error('Error fetching class timetables: ' . $e->getMessage(), [
+                        'student_code' => $user->code,
+                        'semester_id' => $currentSemester->id,
+                        'unit_ids' => $enrolledUnitIds,
+                        'group_ids' => $studentGroupIds
+                    ]);
+                    
+                    // Return empty paginated result in case of error
+                    $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
+                        collect([]), // Empty collection
+                        0, // Total items
+                        $perPage, // Items per page
+                        1, // Current page
+                        [
+                            'path' => request()->url(),
+                            'pageName' => 'page',
+                        ]
+                    );
+                }
+            } else {
+                \Log::info('No enrolled units found for student', [
+                    'student_code' => $user->code,
+                    'semester_id' => $currentSemester->id
+                ]);
+                
+                // Return empty paginated result when no enrolled units
+                $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
+                    collect([]), // Empty collection
+                    0, // Total items
+                    $perPage, // Items per page
+                    1, // Current page
+                    [
+                        'path' => request()->url(),
+                        'pageName' => 'page',
+                    ]
+                );
+            }
+
+            return Inertia::render('Student/Timetable', [
+                'classTimetables' => $classTimetables, // This is now a paginated result with REAL data
+                'currentSemester' => $currentSemester ? [
+                    'id' => $currentSemester->id,
+                    'name' => $currentSemester->name
+                ] : null,
+                'downloadUrl' => route('student.timetable.download'),
+                'student' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'code' => $user->code,
+                    'groups' => $studentGroupIds // Pass student groups for debugging
+                ],
+                'filters' => [
+                    'per_page' => (int) $perPage,
+                    'search' => $search,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Critical error in studentTimetable method: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+                'user_id' => auth()->id()
+            ]);
+
+            return Inertia::render('Student/Timetable', [
+                'classTimetables' => new \Illuminate\Pagination\LengthAwarePaginator(
+                    collect([]), // Empty collection
+                    0, // Total items
+                    $request->get('per_page', 10), // Items per page
+                    1, // Current page
+                    [
+                        'path' => request()->url(),
+                        'pageName' => 'page',
+                    ]
+                ),
+                'currentSemester' => null,
+                'downloadUrl' => route('student.timetable.download'),
+                'student' => [
+                    'id' => auth()->id(),
+                    'first_name' => auth()->user()->first_name ?? '',
+                    'last_name' => auth()->user()->last_name ?? '',
+                    'code' => auth()->user()->code ?? '',
+                    'groups' => []
+                ],
+                'filters' => [
+                    'per_page' => $request->get('per_page', 10),
+                    'search' => $request->get('search', ''),
+                ],
+                'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
+            ]);
         }
     }
 
     /**
      * Download the class timetable as a PDF.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\Response
      */
     public function downloadPDF(Request $request)
     {
@@ -2104,7 +2248,7 @@ private function getSessionsForCredits($creditHours)
         }
     }
 
- /**
+    /**
      * Helper method to detect conflicts in the timetable
      */
     private function detectConflicts()
@@ -2144,382 +2288,4 @@ private function getSessionsForCredits($creditHours)
 
         return ['conflicts_resolved' => $resolved];
     }
-
-    /**
-     * ✅ NEW: Smart school_id determination
-     */
-    private function determineSchoolId($request, $class)
-    {
-        // Priority: Request > Class > Program > Default
-        if ($request->school_id) {
-            return $request->school_id;
-        }
-
-        if ($class && $class->school_id) {
-            return $class->school_id;
-        }
-
-        if ($class && $class->program_id) {
-            $program = Program::find($class->program_id);
-            if ($program && $program->school_id) {
-                return $program->school_id;
-            }
-        }
-
-        // Fallback to first school if none found
-        $defaultSchool = DB::table('schools')->first();
-        return $defaultSchool ? $defaultSchool->id : null;
-    }
-
-    /**
-     * ✅ NEW: Smart program_id determination
-     */
-    private function determineProgramId($request, $class)
-    {
-        // Priority: Request > Class > Default
-        if ($request->program_id) {
-            return $request->program_id;
-        }
-
-        if ($class && $class->program_id) {
-            return $class->program_id;
-        }
-
-        return null;
-    }
-
-    /**
-     * ✅ NEW: API endpoint to get programs by school
-     */
-    public function getProgramsBySchool($schoolId)
-    {
-        try {
-            $programs = Program::where('school_id', $schoolId)
-                ->select('id', 'name', 'code')
-                ->get();
-
-            return response()->json($programs);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching programs for school: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to fetch programs.'], 500);
-        }
-    }
-
-    /**
-     * ✅ NEW: API endpoint to get classes by program
-     */
-    public function getClassesByProgram($programId)
-    {
-        try {
-            $classes = ClassModel::where('program_id', $programId)
-                ->select('id', 'name')
-                ->get();
-
-            return response()->json($classes);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching classes for program: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to fetch classes.'], 500);
-        }
-    }
-
-    public function destroy($id)
-    {
-        try {
-            $timetable = ClassTimetable::findOrFail($id);
-            $timetable->delete();
-
-            \Log::info('Class timetable deleted successfully', ['id' => $id]);
-
-            return redirect()->back()->with('success', 'Class timetable deleted successfully.');
-        } catch (\Exception $e) {
-            \Log::error('Failed to delete class timetable: ' . $e->getMessage(), ['id' => $id]);
-            return response()->json(['success' => false, 'message' => 'Failed to delete class timetable.'], 500);
-        }
-    }
-    public function show($id)
-    {
-        try {
-            $timetable = ClassTimetable::findOrFail($id);
-            return response()->json($timetable);
-        } catch (\Exception $e) {
-            \Log::error('Failed to fetch class timetable: ' . $e->getMessage(), ['id' => $id]);
-            return response()->json(['success' => false, 'message' => 'Failed to fetch class timetable.'], 500);
-        }
-    }
-
-/**
- * Display student's timetable page
- */
-/**
- * Display student's timetable page - FIXED VERSION
- */
-/**
- * ✅ FIXED: Display student's timetable page with group filtering
- */
-/**
- * ✅ UPDATED: Display student's timetable page with pagination and search
- */
-public function studentTimetable(Request $request)
-{
-    try {
-        // Fetch the authenticated student
-        $user = auth()->user();
-
-        if (!$user) {
-            return redirect()->route('login')->with('error', 'Please log in to view your timetable.');
-        }
-
-        \Log::info('Student accessing timetable', [
-            'user_id' => $user->id,
-            'user_code' => $user->code ?? 'No code'
-        ]);
-
-        // Fetch the current semester with error handling
-        $currentSemester = Semester::where('is_active', true)->first();
-        
-        // If no active semester, get the latest one
-        if (!$currentSemester) {
-            $currentSemester = Semester::orderByDesc('id')->first();
-        }
-
-        if (!$currentSemester) {
-            \Log::warning('No semester found for student timetable');
-            return Inertia::render('Student/Timetable', [
-                'classTimetables' => [],
-                'currentSemester' => null,
-                'downloadUrl' => route('student.timetable.download'),
-                'student' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'code' => $user->code,
-                ],
-                'filters' => [
-                    'per_page' => $request->get('per_page', 10),
-                    'search' => $request->get('search', ''),
-                ],
-                'error' => 'No semester data available.'
-            ]);
-        }
-
-        // Check if user has a code (required for enrollments)
-        if (!$user->code) {
-            \Log::error('User has no code for enrollment lookup', ['user_id' => $user->id]);
-            return Inertia::render('Student/Timetable', [
-                'classTimetables' => [],
-                'currentSemester' => $currentSemester,
-                'downloadUrl' => route('student.timetable.download'),
-                'student' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'code' => $user->code,
-                ],
-                'filters' => [
-                    'per_page' => $request->get('per_page', 10),
-                    'search' => $request->get('search', ''),
-                ],
-                'error' => 'Student code not found. Please contact administration.'
-            ]);
-        }
-
-        // Fetch enrollments for this student with proper error handling
-        $enrollments = collect();
-        try {
-            $enrollments = Enrollment::where('student_code', $user->code)
-                ->where('semester_id', $currentSemester->id)
-                ->with(['unit', 'semester', 'group'])
-                ->get();
-
-            \Log::info('Enrollments found', [
-                'student_code' => $user->code,
-                'semester_id' => $currentSemester->id,
-                'count' => $enrollments->count()
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching enrollments: ' . $e->getMessage());
-            $enrollments = collect();
-        }
-
-        // Get the student's enrolled unit IDs AND group IDs
-        $enrolledUnitIds = [];
-        $studentGroupIds = [];
-        
-        if ($enrollments->isNotEmpty()) {
-            $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
-            $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
-        }
-
-        \Log::info('Student group filtering for web view', [
-            'unit_ids' => $enrolledUnitIds,
-            'group_ids' => $studentGroupIds
-        ]);
-
-        // Get pagination parameters
-        $perPage = $request->get('per_page', 10);
-        $search = $request->get('search', '');
-
-        // Fetch actual class timetable entries for the student's units AND groups with pagination
-        $classTimetables = collect();
-        
-        if (!empty($enrolledUnitIds)) {
-            try {
-                $query = DB::table('class_timetable')
-                    ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
-                    ->where('class_timetable.semester_id', $currentSemester->id);
-
-                // ✅ CRITICAL FIX: Filter by student's group(s)
-                if (!empty($studentGroupIds)) {
-                    $query->whereIn('class_timetable.group_id', $studentGroupIds);
-                } else {
-                    // If no specific group assigned, check if there are enrollments with null group_id
-                    $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
-                    if ($hasNullGroup) {
-                        $query->whereNull('class_timetable.group_id');
-                    }
-                }
-
-                // Add search functionality
-                if (!empty($search)) {
-                    $query->where(function ($q) use ($search) {
-                        $q->where('units.code', 'like', "%{$search}%")
-                          ->orWhere('units.name', 'like', "%{$search}%")
-                          ->orWhere('class_timetable.venue', 'like', "%{$search}%")
-                          ->orWhere('class_timetable.day', 'like', "%{$search}%")
-                          ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
-                          ->orWhere('class_timetable.lecturer', 'like', "%{$search}%");
-                    });
-                }
-
-                $classTimetables = $query
-                    ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
-                    ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
-                    ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
-                    ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
-                    ->select(
-                        'class_timetable.id',
-                        'class_timetable.day',
-                        'class_timetable.start_time',
-                        'class_timetable.end_time',
-                        'class_timetable.venue',
-                        'class_timetable.location',
-                        'class_timetable.teaching_mode',
-                        'class_timetable.lecturer',
-                        'units.code as unit_code',
-                        'units.name as unit_name',
-                        DB::raw("CASE 
-                            WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
-                            ELSE class_timetable.lecturer 
-                            END as lecturer"),
-                        'groups.name as group_name',
-                        'semesters.name as semester_name'
-                    )
-                    ->orderBy('class_timetable.day')
-                    ->orderBy('class_timetable.start_time')
-                    ->paginate($perPage)
-                    ->withQueryString(); // This preserves search and other query parameters
-
-                \Log::info('Paginated class timetables found', [
-                    'total' => $classTimetables->total(),
-                    'per_page' => $classTimetables->perPage(),
-                    'current_page' => $classTimetables->currentPage(),
-                    'student_code' => $user->code,
-                    'groups_filtered' => $studentGroupIds,
-                    'search_term' => $search
-                ]);
-
-            } catch (\Exception $e) {
-                \Log::error('Error fetching class timetables: ' . $e->getMessage(), [
-                    'student_code' => $user->code,
-                    'semester_id' => $currentSemester->id,
-                    'unit_ids' => $enrolledUnitIds,
-                    'group_ids' => $studentGroupIds
-                ]);
-                
-                // Return empty paginated result in case of error
-                $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
-                    collect([]), // Empty collection
-                    0, // Total items
-                    $perPage, // Items per page
-                    1, // Current page
-                    [
-                        'path' => request()->url(),
-                        'pageName' => 'page',
-                    ]
-                );
-            }
-        } else {
-            \Log::info('No enrolled units found for student', [
-                'student_code' => $user->code,
-                'semester_id' => $currentSemester->id
-            ]);
-            
-            // Return empty paginated result when no enrolled units
-            $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
-                collect([]), // Empty collection
-                0, // Total items
-                $perPage, // Items per page
-                1, // Current page
-                [
-                    'path' => request()->url(),
-                    'pageName' => 'page',
-                ]
-            );
-        }
-
-        return Inertia::render('Student/Timetable', [
-            'classTimetables' => $classTimetables, // This is now a paginated result
-            'currentSemester' => $currentSemester ? [
-                'id' => $currentSemester->id,
-                'name' => $currentSemester->name
-            ] : null,
-            'downloadUrl' => route('student.timetable.download'),
-            'student' => [
-                'id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'code' => $user->code,
-                'groups' => $studentGroupIds // Pass student groups for debugging
-            ],
-            'filters' => [
-                'per_page' => (int) $perPage,
-                'search' => $search,
-            ]
-        ]);
-
-    } catch (\Exception $e) {
-        \Log::error('Critical error in studentTimetable method: ' . $e->getMessage(), [
-            'exception' => $e,
-            'trace' => $e->getTraceAsString(),
-            'user_id' => auth()->id()
-        ]);
-
-        return Inertia::render('Student/Timetable', [
-            'classTimetables' => new \Illuminate\Pagination\LengthAwarePaginator(
-                collect([]), // Empty collection
-                0, // Total items
-                $request->get('per_page', 10), // Items per page
-                1, // Current page
-                [
-                    'path' => request()->url(),
-                    'pageName' => 'page',
-                ]
-            ),
-            'currentSemester' => null,
-            'downloadUrl' => route('student.timetable.download'),
-            'student' => [
-                'id' => auth()->id(),
-                'first_name' => auth()->user()->first_name ?? '',
-                'last_name' => auth()->user()->last_name ?? '',
-                'code' => auth()->user()->code ?? '',
-                'groups' => []
-            ],
-            'filters' => [
-                'per_page' => $request->get('per_page', 10),
-                'search' => $request->get('search', ''),
-            ],
-            'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
-        ]);
-    }
-}
 }
