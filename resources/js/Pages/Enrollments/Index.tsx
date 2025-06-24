@@ -387,15 +387,51 @@ const Enrollments: React.FC = () => {
     }
   }
 
-  // Effects
-  useEffect(() => {
-    if (pageErrors && Object.keys(pageErrors).length > 0) {
-      const errorMessage = Object.values(pageErrors).join(", ")
-      setError(errorMessage)
-    }
-  }, [pageErrors])
+  // Lecturer assignment handlers Delete, edit, show actions
 
-  return (
+const [selectedAssignment, setSelectedAssignment] = useState<LecturerAssignment | null>(null)
+const [modalType, setModalType] = useState<"" | "show" | "edit" | "delete">("")
+
+// Handler functions
+const handleShowAssignment = (assignment: LecturerAssignment) => {
+  setSelectedAssignment(assignment)
+  setModalType("show")
+}
+
+const handleEditAssignment = (assignment: LecturerAssignment) => {
+  setSelectedAssignment(assignment)
+  setModalType("edit")
+  setAssignData({
+    unit_id: assignment.unit_id,
+    lecturer_code: assignment.lecturer_code,
+  })
+  setIsAssignModalOpen(true)
+}
+
+const handleDeleteAssignment = (assignment: LecturerAssignment) => {
+  if (confirm("Are you sure you want to delete this lecturer assignment?")) {
+    router.delete(`/lecturer-assignments/${assignment.unit_id}`, {
+      onSuccess: () => {
+        toast.success("Lecturer assignment deleted successfully!")
+        setModalType("")
+        setSelectedAssignment(null)
+      },
+      onError: () => {
+        toast.error("Failed to delete lecturer assignment.")
+      },
+    })
+  }
+}
+
+// Effects
+useEffect(() => {
+  if (pageErrors && Object.keys(pageErrors).length > 0) {
+    const errorMessage = Object.values(pageErrors).join(", ")
+    setError(errorMessage)
+  }
+}, [pageErrors])
+
+return (
     <AuthenticatedLayout>
       <Head title="Enrollments" />
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 py-8">
@@ -691,6 +727,9 @@ const Enrollments: React.FC = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                       Lecturer Name
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -718,6 +757,28 @@ const Enrollments: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-slate-900">{assignment.lecturer_name || "Unknown"}</div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleShowAssignment(assignment)}
+              className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+            >
+              Show
+            </button>
+            <button
+              onClick={() => handleEditAssignment(assignment)}
+              className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs"
+            >
+              Edit
+            </button>
+            {/* <button
+              onClick={() => handleDeleteAssignment(assignment)}
+              className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs"
+            >
+              Delete
+            </button> */}
+          </div>
+        </td>
                       </tr>
                     ))
                   ) : (
@@ -744,6 +805,24 @@ const Enrollments: React.FC = () => {
                     </tr>
                   )}
                 </tbody>
+                {/* Modal for showing assignment details */}
+{modalType === "show" && selectedAssignment && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+    <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full">
+      <h2 className="text-lg font-bold mb-4">Lecturer Assignment Details</h2>
+      <div className="mb-2"><b>Unit:</b> {selectedAssignment.unit_name}</div>
+      <div className="mb-2"><b>Unit Code:</b> {selectedAssignment.unit_code}</div>
+      <div className="mb-2"><b>Lecturer Code:</b> {selectedAssignment.lecturer_code}</div>
+      <div className="mb-2"><b>Lecturer Name:</b> {selectedAssignment.lecturer_name}</div>
+      <button
+        onClick={() => { setModalType(""); setSelectedAssignment(null); }}
+        className="mt-4 px-4 py-2 bg-gray-200 rounded"
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
               </table>
             </div>
 
@@ -769,6 +848,7 @@ const Enrollments: React.FC = () => {
           </div>
         </div>
       </div>
+      
 
       {/* Enrollment Modal */}
       {isModalOpen && (

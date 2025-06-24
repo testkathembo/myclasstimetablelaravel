@@ -30,11 +30,19 @@ class ClassTimetableController extends Controller
 
     
     /**
-     * ✅ WORKING: Index method with correct group data
+     * ✅ REAL DATA: Display a listing of the resource with real group student counts
      */
     public function index(Request $request)
     {
         $user = auth()->user();
+
+        // Log user access
+        \Log::info('Accessing /classtimetable', [
+            'user_id' => $user->id,
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+            'all_params' => $request->all()
+        ]);
 
         if (!$user->can('manage-classtimetables')) {
             abort(403, 'Unauthorized action.');
@@ -43,7 +51,7 @@ class ClassTimetableController extends Controller
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search', '');
 
-        // Fetch class timetables with proper joins
+        // Fetch class timetables with all DB columns and related display fields
         $classTimetables = ClassTimetable::query()
             ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
             ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
@@ -73,7 +81,7 @@ class ClassTimetableController extends Controller
             ->orderBy('class_timetable.start_time')
             ->paginate($perPage);
 
-        // Get other data
+        // Fetch other necessary data
         $lecturers = User::role('Lecturer')
             ->select('id', 'code', DB::raw("CONCAT(first_name, ' ', last_name) as name"))
             ->get();
@@ -84,11 +92,11 @@ class ClassTimetableController extends Controller
         $allUnits = Unit::select('id', 'code', 'name', 'semester_id', 'credit_hours')->get();
         $classes = ClassModel::select('id', 'name')->get();
 
-        // ✅ WORKING: Get groups with CORRECT student counts
+        // ✅ REAL DATA: Fetch groups with actual student counts from enrollments table
         $groups = Group::select('id', 'name', 'class_id', 'capacity')
             ->get()
             ->map(function ($group) {
-                // Count DISTINCT students to avoid duplicates
+                // Count actual enrollments for this group
                 $actualStudentCount = DB::table('enrollments')
                     ->where('group_id', $group->id)
                     ->distinct('student_code')
@@ -98,7 +106,7 @@ class ClassTimetableController extends Controller
                     'id' => $group->id,
                     'name' => $group->name,
                     'class_id' => $group->class_id,
-                    'student_count' => $actualStudentCount,
+                    'student_count' => $actualStudentCount, // ✅ REAL DATA from database
                     'capacity' => $group->capacity
                 ];
             });
@@ -117,7 +125,7 @@ class ClassTimetableController extends Controller
             'units' => $allUnits,
             'enrollments' => [],
             'classes' => $classes,
-            'groups' => $groups,
+            'groups' => $groups, // ✅ Groups with real student counts
             'programs' => $programs,
             'schools' => $schools,
             'can' => [
@@ -242,8 +250,7 @@ class ClassTimetableController extends Controller
             ], 500);
         }
     }
-    
-       /**
+      /**
      * ✅ FIXED: API endpoint to get units by class and semester
      */
     public function getUnitsByClass(Request $request)
@@ -426,6 +433,8 @@ class ClassTimetableController extends Controller
 
 
 
+
+
     public function getGroupsByClassWithCounts(Request $request)
     {
         try {
@@ -511,71 +520,48 @@ class ClassTimetableController extends Controller
     }
 
     /**
-     * ✅ NEW: Debug endpoint to verify enrollment data
+     * ✅ NEW: Debug endpoint to check data relationships
      */
-    public function debugGroupEnrollments(Request $request)
+    public function debugClassData(Request $request)
     {
         try {
-            $groupId = $request->input('group_id');
-            $semesterId = $request->input('semester_id');
-            $unitId = $request->input('unit_id');
+            $classId = $request->input('class_id', 1); // Default to class 1 for testing
 
-            if (!$groupId) {
-                return response()->json(['error' => 'Group ID is required.'], 400);
-            }
-
-            $group = Group::findOrFail($groupId);
-
-            // Get detailed enrollment data
-            $enrollmentQuery = DB::table('enrollments')
-                ->leftJoin('users', 'enrollments.student_code', '=', 'users.code')
-                ->leftJoin('units', 'enrollments.unit_id', '=', 'units.id')
-                ->leftJoin('semesters', 'enrollments.semester_id', '=', 'semesters.id')
-                ->where('enrollments.group_id', $groupId)
-                ->select(
-                    'enrollments.id',
-                    'enrollments.student_code',
-                    'users.first_name',
-                    'users.last_name',
-                    'units.code as unit_code',
-                    'units.name as unit_name',
-                    'semesters.name as semester_name',
-                    'enrollments.unit_id',
-                    'enrollments.semester_id'
-                );
-
-            if ($semesterId) {
-                $enrollmentQuery->where('enrollments.semester_id', $semesterId);
-            }
-
-            if ($unitId) {
-                $enrollmentQuery->where('enrollments.unit_id', $unitId);
-            }
-
-            $enrollments = $enrollmentQuery->get();
-
-            return response()->json([
-                'group' => [
-                    'id' => $group->id,
-                    'name' => $group->name,
-                    'class_id' => $group->class_id
-                ],
-                'filters' => [
-                    'semester_id' => $semesterId,
-                    'unit_id' => $unitId
-                ],
-                'total_enrollments' => $enrollments->count(),
-                'enrollments' => $enrollments,
-                'summary' => [
-                    'unique_students' => $enrollments->unique('student_code')->count(),
-                    'units_involved' => $enrollments->unique('unit_id')->count(),
-                    'semesters_involved' => $enrollments->unique('semester_id')->count()
+            $debug = [
+                'class_id' => $classId,
+                'groups_for_class' => Group::where('class_id', $classId)->get()->toArray(),
+                'all_groups_sample' => Group::take(10)->get()->toArray(),
+                'enrollments_sample' => DB::table('enrollments')
+                    ->leftJoin('groups', 'enrollments.group_id', '=', 'groups.id')
+                    ->where('groups.class_id', $classId)
+                    ->select('enrollments.*', 'groups.name as group_name', 'groups.class_id')
+                    ->take(10)
+                    ->get()
+                    ->toArray(),
+                'enrollment_counts_by_group' => DB::table('enrollments')
+                    ->leftJoin('groups', 'enrollments.group_id', '=', 'groups.id')
+                    ->where('groups.class_id', $classId)
+                    ->select(
+                        'enrollments.group_id',
+                        'groups.name as group_name',
+                        'groups.class_id',
+                        DB::raw('COUNT(DISTINCT enrollments.student_code) as student_count')
+                    )
+                    ->groupBy('enrollments.group_id', 'groups.name', 'groups.class_id')
+                    ->get()
+                    ->toArray(),
+                'database_info' => [
+                    'total_groups' => Group::count(),
+                    'total_enrollments' => DB::table('enrollments')->count(),
+                    'groups_with_class_1' => Group::where('class_id', 1)->count(),
+                    'groups_with_class_2' => Group::where('class_id', 2)->count(),
                 ]
-            ]);
+            ];
+
+            return response()->json($debug);
 
         } catch (\Exception $e) {
-            \Log::error('Error in debug group enrollments: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to fetch debug data.'], 500);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
@@ -1884,8 +1870,8 @@ class ClassTimetableController extends Controller
         }
     }
 
-    
-/**
+
+    /**
      * Remove the specified resource from storage.
      */
     public function destroy($id)
@@ -1916,7 +1902,6 @@ class ClassTimetableController extends Controller
             return response()->json(['success' => false, 'message' => 'Failed to fetch class timetable.'], 500);
         }
     }
-
 
     /**
      * ✅ REAL DATA: Display student's timetable page with real group filtering
