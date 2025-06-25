@@ -25,7 +25,7 @@ import {
   Search,
 } from "lucide-react"
 import { toast } from "react-hot-toast"
-import Pagination from "@/Components/Pagination"
+// import Pagination from "@/Components/Pagination"
 import axios from "axios"
 
 // Keep all existing interfaces...
@@ -95,6 +95,9 @@ interface SchedulingConstraints {
   requireMixedMode: boolean
   avoidConsecutiveSlots: boolean
 }
+
+// ✅ ADDED: Day ordering constant
+const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 // Helper functions
 const formatTimeToHi = (time: string) => {
@@ -268,6 +271,7 @@ const EnhancedClassTimetable = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [showConflictAnalysis, setShowConflictAnalysis] = useState(false)
 
+  // ✅ ENHANCED: Added day ordering to organizedTimetables
   const organizedTimetables = useMemo(() => {
     const organized: { [day: string]: ClassTimetable[] } = {}
 
@@ -286,7 +290,17 @@ const EnhancedClassTimetable = () => {
       })
     })
 
-    return organized
+    // ✅ NEW: Create ordered object with days in correct chronological sequence
+    const orderedTimetables: { [day: string]: ClassTimetable[] } = {}
+
+    // Add days in the correct order (Monday to Sunday)
+    DAY_ORDER.forEach((day) => {
+      if (organized[day] && organized[day].length > 0) {
+        orderedTimetables[day] = organized[day]
+      }
+    })
+
+    return orderedTimetables
   }, [classTimetables.data])
 
   const detectScheduleConflicts = useCallback((timetableData: ClassTimetable[]) => {
@@ -1033,7 +1047,7 @@ const EnhancedClassTimetable = () => {
             </Button>
           </form>
 
-          <div>
+          {/* <div>
             <label className="mr-2">Rows per page:</label>
             <select value={rowsPerPage} onChange={handlePerPageChange} className="border rounded p-2">
               {[5, 10, 15, 20].map((size) => (
@@ -1042,7 +1056,7 @@ const EnhancedClassTimetable = () => {
                 </option>
               ))}
             </select>
-          </div>
+          </div> */}
         </div>
 
         {/* Constraints Summary */}
@@ -1111,6 +1125,17 @@ const EnhancedClassTimetable = () => {
 
         {classTimetables?.data?.length > 0 ? (
           <>
+            {/* ✅ NEW: Day Order Indicator */}
+            {classTimetables?.data?.length > 0 && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded">
+                <div className="flex items-center text-green-700">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  <span className="font-medium">Days displayed in chronological order:</span>
+                  <span className="ml-2 text-sm">{Object.keys(organizedTimetables).join(" → ")}</span>
+                </div>
+              </div>
+            )}
+
             {/* Enhanced Timetable Display */}
             <div className="space-y-6">
               {Object.entries(organizedTimetables).map(([day, dayTimetables]) => {
@@ -1273,7 +1298,7 @@ const EnhancedClassTimetable = () => {
               })}
             </div>
 
-            <Pagination links={classTimetables?.links || []} />
+            {/* <Pagination links={classTimetables?.links || []} /> */}
           </>
         ) : (
           <div className="text-center py-12">
@@ -1422,8 +1447,6 @@ const EnhancedClassTimetable = () => {
                         </select>
                       </div>
                     )}
-
-                    
 
                     {/* Enhanced Time Slot Selection */}
                     <div className="mb-4">
@@ -1579,34 +1602,31 @@ const EnhancedClassTimetable = () => {
                     {/* Number of Students */}
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Number of Students *
-                      <span className="text-blue-600 text-xs ml-2">(Auto-populated from group selection)</span>
+                        Number of Students *
+                        <span className="text-blue-600 text-xs ml-2">(Auto-populated from group selection)</span>
                       </label>
                       <input
-                      type="number"
-                      value={formState.no}
-                      onChange={(e) =>
-                        setFormState((prev) =>
-                        prev ? { ...prev, no: Number(e.target.value) } : null
-                        )
-                      }
-                      className="w-full border rounded p-2"
-                      min="1"
-                      required
-                      readOnly={!!formState.group_id}
+                        type="number"
+                        value={formState.no}
+                        onChange={(e) =>
+                          setFormState((prev) => (prev ? { ...prev, no: Number(e.target.value) } : null))
+                        }
+                        className="w-full border rounded p-2"
+                        min="1"
+                        required
+                        readOnly={!!formState.group_id}
                       />
                       {formState.group_id && (
-                      <div className="text-xs text-green-600 mt-1">
-                        ✅ Student count auto-populated from group selection.
-                      </div>
+                        <div className="text-xs text-green-600 mt-1">
+                          ✅ Student count auto-populated from group selection.
+                        </div>
                       )}
                       {!formState.group_id && (
-                      <div className="text-xs text-orange-600 mt-1">
-                        ⚠️ Select a group to auto-populate student count, or enter manually.
-                      </div>
+                        <div className="text-xs text-orange-600 mt-1">
+                          ⚠️ Select a group to auto-populate student count, or enter manually.
+                        </div>
                       )}
                     </div>
-                    
 
                     {/* Conflict Warning */}
                     {conflictWarning && (
@@ -1736,6 +1756,78 @@ const EnhancedClassTimetable = () => {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+        {/* ✅ CONFLICTS MODAL - FIXED VERSION */}
+        {modalType === "conflicts" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={handleCloseModal} />
+
+            {/* Modal Content */}
+            <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
+                  Conflict Analysis
+                </h2>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        Found {detectedConflicts?.length || 0} conflicts in the current timetable
+                      </p>
+                    </div>
+                  </div>
+
+                  {detectedConflicts && detectedConflicts.length > 0 ? (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {detectedConflicts.map((conflict, index) => (
+                        <div key={index} className="border border-red-200 rounded-lg p-4 bg-red-50">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-medium text-red-800">
+                                {conflict.type?.replace("_", " ").toUpperCase()}
+                              </h4>
+                              <p className="text-sm text-red-700">{conflict.description}</p>
+                            </div>
+                            <Badge variant="destructive" className="text-xs">
+                              {conflict.severity}
+                            </Badge>
+                          </div>
+
+                          {conflict.affectedSessions && conflict.affectedSessions.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-xs font-medium text-red-800">Affected Sessions:</p>
+                              {conflict.affectedSessions.map((session, sessionIndex) => (
+                                <div key={sessionIndex} className="text-xs bg-white p-2 rounded border">
+                                  <span className="font-medium">{session.unit_code}</span> - {session.day}{" "}
+                                  {formatTimeToHi(session.start_time)}-{formatTimeToHi(session.end_time)} -{" "}
+                                  {session.lecturer} - {session.venue}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                      <p className="text-lg text-green-600 font-medium">No conflicts detected!</p>
+                      <p className="text-sm text-gray-500 mt-2">Your timetable is optimally scheduled.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end border-t pt-4">
+                  <Button onClick={handleCloseModal} className="bg-gray-400 hover:bg-gray-500 text-white">
+                    Close
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}
