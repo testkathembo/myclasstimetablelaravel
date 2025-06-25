@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo, type FormEvent } from "react
 import { Head, usePage, router } from "@inertiajs/react"
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -97,7 +98,7 @@ interface SchedulingConstraints {
 }
 
 // ✅ ADDED: Day ordering constant
-const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
 // Helper functions
 const formatTimeToHi = (time: string) => {
@@ -222,8 +223,8 @@ const EnhancedClassTimetable = () => {
   }
 
   const {
-    classTimetables = { data: [], links: [], total: 0, per_page: 10, current_page: 1 },
-    perPage = 10,
+    classTimetables = { data: [], links: [], total: 0, per_page: 100, current_page: 1 },
+    perPage = 100,
     search = "",
     semesters = [],
     can = { create: false, edit: false, delete: false, download: false, solve_conflicts: false },
@@ -293,7 +294,7 @@ const EnhancedClassTimetable = () => {
     // ✅ NEW: Create ordered object with days in correct chronological sequence
     const orderedTimetables: { [day: string]: ClassTimetable[] } = {}
 
-    // Add days in the correct order (Monday to Sunday)
+    // Add days in the correct order (Monday to Friday)
     DAY_ORDER.forEach((day) => {
       if (organized[day] && organized[day].length > 0) {
         orderedTimetables[day] = organized[day]
@@ -1137,6 +1138,7 @@ const EnhancedClassTimetable = () => {
             )}
 
             {/* Enhanced Timetable Display */}
+            <ScrollArea className="h-[800px] w-full">
             <div className="space-y-6">
               {Object.entries(organizedTimetables).map(([day, dayTimetables]) => {
                 const dayConflicts = detectedConflicts.filter((c) => c.day === day)
@@ -1297,6 +1299,7 @@ const EnhancedClassTimetable = () => {
                 )
               })}
             </div>
+            </ScrollArea>
 
             {/* <Pagination links={classTimetables?.links || []} /> */}
           </>

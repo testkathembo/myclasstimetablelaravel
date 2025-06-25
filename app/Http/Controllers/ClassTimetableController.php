@@ -48,7 +48,7 @@ class ClassTimetableController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $perPage = $request->input('per_page', 10);
+        $perPage = $request->input('per_page', 100);
         $search = $request->input('search', '');
 
         // Fetch class timetables with all DB columns and related display fields
@@ -1942,7 +1942,7 @@ class ClassTimetableController extends Controller
                         'code' => $user->code,
                     ],
                     'filters' => [
-                        'per_page' => $request->get('per_page', 10),
+                        'per_page' => $request->get('per_page', 100),
                         'search' => $request->get('search', ''),
                     ],
                     'error' => 'No semester data available.'
@@ -1963,7 +1963,7 @@ class ClassTimetableController extends Controller
                         'code' => $user->code,
                     ],
                     'filters' => [
-                        'per_page' => $request->get('per_page', 10),
+                        'per_page' => $request->get('per_page', 100),
                         'search' => $request->get('search', ''),
                     ],
                     'error' => 'Student code not found. Please contact administration.'
@@ -2003,7 +2003,7 @@ class ClassTimetableController extends Controller
             ]);
 
             // Get pagination parameters
-            $perPage = $request->get('per_page', 10);
+            $perPage = $request->get('per_page', 100);
             $search = $request->get('search', '');
 
             // ✅ REAL DATA: Fetch actual class timetable entries for the student's units AND groups with pagination
@@ -2145,7 +2145,7 @@ class ClassTimetableController extends Controller
                 'classTimetables' => new \Illuminate\Pagination\LengthAwarePaginator(
                     collect([]), // Empty collection
                     0, // Total items
-                    $request->get('per_page', 10), // Items per page
+                    $request->get('per_page', 100), // Items per page
                     1, // Current page
                     [
                         'path' => request()->url(),
@@ -2162,7 +2162,7 @@ class ClassTimetableController extends Controller
                     'groups' => []
                 ],
                 'filters' => [
-                    'per_page' => $request->get('per_page', 10),
+                    'per_page' => $request->get('per_page', 100),
                     'search' => $request->get('search', ''),
                 ],
                 'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
