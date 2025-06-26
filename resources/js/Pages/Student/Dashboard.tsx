@@ -395,10 +395,10 @@ export default function Dashboard({ enrolledUnits, upcomingExams, currentSemeste
                   )}
                   
                   <a 
-                    href="/my-enrollments" 
+                    href="/enroll" 
                     className="block w-full bg-gradient-to-r from-green-500 to-teal-600 text-white text-center py-3 px-4 rounded-xl font-medium hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
                   >
-                    View All Enrollments
+                    View All Current Enrollments
                   </a>
                 </div>
               </div>

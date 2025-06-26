@@ -393,15 +393,15 @@ export default function Sidebar() {
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <UserPlus className="mr-3 h-5 w-5" />
-                Enroll in Units
+                Enrollment
               </Link>
-              <Link
-                href="/my-enrollments"
+              {/* <Link
+                href="/enrollments"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <ClipboardList className="mr-3 h-5 w-5" />
                 My Enrollments
-              </Link>
+              </Link> */}
               <Link
                 href="/my-classes"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"

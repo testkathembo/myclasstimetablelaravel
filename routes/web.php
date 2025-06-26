@@ -212,28 +212,34 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('groups', GroupController::class);
     Route::resource('schools/sces/bbit/groups', GroupController::class, ['as' => 'schools.sces.bbit']);
 
-    // ===============================================================
-    // STUDENT ROUTES (Self-enrollment)
-    // ===============================================================
+    // Student Routes - Remove duplicates and use only StudentEnrollmentController
+Route::middleware(['role:Student'])->group(function () {
+    Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
     
-    Route::middleware(['role:Student'])->group(function () {
-        Route::get('/student', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
-        Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
-        Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
-        Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
-        
-        // Student timetables
-        Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.timetable');
-        Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable'])->name('student.classes');
-        Route::get('/my-exams', [ExamTimetableController::class, 'studentExamTimetable'])->name('student.exams');
-        Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])->name('student.exam.details');
-        
-        // Student downloads
-        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])->name('student.classes.download');
-        Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.exams.download');
-        Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
-    });
+    // Student enrollment routes
+    Route::get('/enroll', [StudentEnrollmentController::class, 'showEnrollmentForm'])->name('student.enrollment-form');
+    Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
+       // CORRECT - Match the exact permission name
+Route::get('/enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])
+    ->middleware(['auth', 'permission:view-enrollments']); // ✅ Correct permission name
+    
+    
+    // Student timetables
+    Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.timetable');
+    Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable'])->name('student.classes');
+    Route::get('/my-exams', [ExamTimetableController::class, 'studentExamTimetable'])->name('student.exams');
+    Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])->name('student.exam.details');
+    
+    // Student downloads
+    Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])->name('student.classes.download');
+    Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.exams.download');
+    Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
+});
 
+// Add this route for the units API call that your frontend makes
+Route::get('/units/by-class-and-semester', [EnrollmentController::class, 'getUnitsByClassAndSemester'])
+    ->middleware('auth')
+    ->name('units.by-class-and-semester');
     // ===============================================================
     // ENROLLMENT MANAGEMENT (Admin routes - FIXED)
     // ===============================================================
