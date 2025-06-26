@@ -424,25 +424,25 @@ export default function Sidebar() {
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lecturer Portal</p>
               <Link
-                href="/my-classes"
+                href="/lecturer/my-classes"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Calendar className="mr-3 h-5 w-5" />
                 My Classes
               </Link>
-              <Link
-                href="/my-students"
+              {/* <Link
+                href="/lecturer/my-students"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Users className="mr-3 h-5 w-5" />
                 My Students
-              </Link>
+              </Link> */}
               <Link
-                href="/my-exam-schedule"
+                href="/lecturer/exam-supervision"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <ClipboardCheck className="mr-3 h-5 w-5" />
-                My Exam Schedule
+                My Exam Supervision
               </Link>
             </div>
           </RoleAwareComponent>
