@@ -226,6 +226,7 @@ const EnhancedClassTimetable = () => {
     classTimetables = { data: [], links: [], total: 0, per_page: 100, current_page: 1 },
     perPage = 100,
     search = "",
+    
     semesters = [],
     can = { create: false, edit: false, delete: false, download: false, solve_conflicts: false },
     enrollments = [],

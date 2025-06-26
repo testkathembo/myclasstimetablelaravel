@@ -222,10 +222,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/enroll', [StudentEnrollmentController::class, 'enroll'])->name('student.enroll');
         Route::get('/my-enrollments', [StudentEnrollmentController::class, 'viewEnrollments'])->name('student.my-enrollments');
         
-        // Student self-enrollment routes (separate from admin enrollment)
-        Route::get('/student/enroll', [EnrollmentController::class, 'showEnrollmentForm'])->name('student.enroll.form');
-        Route::post('/student/enroll', [EnrollmentController::class, 'store'])->name('student.enroll.store');
-        
         // Student timetables
         Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.timetable');
         Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable'])->name('student.classes');
