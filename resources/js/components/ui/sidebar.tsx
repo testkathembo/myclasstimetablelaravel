@@ -2,31 +2,80 @@
 
 import { useState } from "react"
 import { Link, usePage } from "@inertiajs/react"
-import RoleAwareComponent from "@/Components/RoleAwareComponent"
 import {
   Home,
   Users,
   Building,
-  Clock,
   Calendar,
   ClipboardList,
   Layers,
   ClipboardCheck,
-  Clipboard,
-  ChevronDown,
-  ChevronUp,
   Settings,
   BookOpen,
-  HomeIcon as House,
   GraduationCap,
-  BookMarked,
-  UserPlus,
-  FileText,
-  School,
 } from "lucide-react"
 
 export default function Sidebar() {
-  const { auth } = usePage().props
+  const { auth } = usePage().props as any
+  const user = auth.user
+
+  // Enhanced permission checking function with debugging
+  function hasPermission(user: any, permission: string): boolean {
+    if (!user) {
+      console.log("No user found for permission check:", permission)
+      return false
+    }
+
+    if (!user.permissions) {
+      console.log("No permissions array found for user:", user.first_name, "checking:", permission)
+      return false
+    }
+
+    const hasIt = Array.isArray(user.permissions) && user.permissions.includes(permission)
+    console.log(`Permission check: ${permission} = ${hasIt}`, "User permissions:", user.permissions)
+    return hasIt
+  }
+
+  // Enhanced role checking function with debugging
+  function hasRole(user: any, role: string): boolean {
+    if (!user || !user.roles) {
+      console.log("No user or roles found for role check:", role)
+      return false
+    }
+
+    if (Array.isArray(user.roles)) {
+      const hasIt = user.roles.some((r: any) => (typeof r === "string" ? r === role : r.name === role))
+      console.log(`Role check: ${role} = ${hasIt}`, "User roles:", user.roles)
+      return hasIt
+    }
+
+    return false
+  }
+
+  const hasAnyRole = (roles: string[]) => {
+    return roles.some((role) => hasRole(user, role))
+  }
+
+  // Get role names for display
+  const getRoleNames = () => {
+    if (!user || !user.roles) return "None"
+
+    if (Array.isArray(user.roles)) {
+      if (typeof user.roles[0] === "string") {
+        return user.roles.join(", ")
+      }
+      if (typeof user.roles[0] === "object") {
+        return user.roles.map((r: any) => r.name).join(", ")
+      }
+    }
+
+    if (typeof user.roles === "object" && user.roles.name) {
+      return user.roles.name
+    }
+
+    return JSON.stringify(user.roles)
+  }
+
   const [openSchool, setOpenSchool] = useState<string | null>(null)
   const [openProgram, setOpenProgram] = useState<string | null>(null)
   const [openSection, setOpenSection] = useState<string | null>(null)
@@ -43,226 +92,10 @@ export default function Sidebar() {
     setOpenSection(openSection === section ? null : section)
   }
 
-  const schools = [
-    {
-      name: "SCES",
-      programs: [
-        {
-          name: "BSICS",
-          link: "/schools/sces/bsics",
-          components: [
-            { name: "Classrooms", icon: <Building className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/classrooms" },
-            {
-              name: "Class Timetables",
-              icon: <Calendar className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/classtimetable",
-            },
-            { name: "Exam Rooms", icon: <House className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/examrooms" },
-            {
-              name: "Exam Time Slots",
-              icon: <Clock className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/examtimeslots",
-            },
-            {
-              name: "Exam Timetable",
-              icon: <ClipboardCheck className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/examtimetable",
-            },
-            {
-              name: "Enrollments",
-              icon: <ClipboardList className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/enrollments",
-            },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/units" },
-            { name: "Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/timeslots" },
-            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/classes" },
-            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/groups" },
-            {
-              name: "Semester Units",
-              icon: <BookMarked className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/semester-units",
-            },
-            {
-              name: "Manage Enrollments",
-              icon: <UserPlus className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/enrollments",
-            },
-            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/semesters" },
-            {
-              name: "Programs",
-              icon: <GraduationCap className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bsics/programs",
-            },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bsics/units" },
-          ],
-        },
-        {
-          name: "BBIT",
-          link: "/schools/sces/bbit",
-          components: [
-            { name: "Classrooms", icon: <Building className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/classrooms" },
-            {
-              name: "Class Timetables",
-              icon: <Calendar className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bbit/classtimetable",
-            },
-            { name: "Exam Rooms", icon: <House className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/examrooms" },
-            { name: "Exam Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/timeslots" },
-            {
-              name: "Exam Timetable",
-              icon: <ClipboardCheck className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bbit/examtimetable",
-            },
-            {
-              name: "Manage Enrollments",
-              icon: <UserPlus className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bbit/enrollments",
-            },
-            
-            {
-              name: "Class Time Slots",
-              icon: <Clock className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bbit/classtimeslot",
-            },
-            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/classes" },
-            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/groups" },
-            {
-              name: "Semester Units",
-              icon: <BookMarked className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bbit/semester-units",
-            },
-            
-            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/semesters" },
-            { name: "Programs", icon: <GraduationCap className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/programs" },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bbit/units" },
-          ],
-        },
-        {
-          name: "BSEEE",
-          link: "/schools/sces/bseee",
-          components: [
-            { name: "Classrooms", icon: <Building className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/classrooms" },
-            {
-              name: "Class Timetables",
-              icon: <Calendar className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/classtimetable",
-            },
-            { name: "Exam Rooms", icon: <House className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/examrooms" },
-            {
-              name: "Exam Time Slots",
-              icon: <Clock className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/examtimeslots",
-            },
-            {
-              name: "Exam Timetable",
-              icon: <ClipboardCheck className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/examtimetable",
-            },
-            {
-              name: "Enrollments",
-              icon: <ClipboardList className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/enrollments",
-            },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/units" },
-            { name: "Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/timeslots" },
-            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/classes" },
-            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/groups" },
-            {
-              name: "Semester Units",
-              icon: <BookMarked className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/semester-units",
-            },
-            {
-              name: "Manage Enrollments",
-              icon: <UserPlus className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/enrollments",
-            },
-            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/semesters" },
-            {
-              name: "Programs",
-              icon: <GraduationCap className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bseee/programs",
-            },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bseee/units" },
-          ],
-        },
-        {
-          name: "BSCNCS",
-          link: "/schools/sces/bscncs",
-          components: [
-            {
-              name: "Classrooms",
-              icon: <Building className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/classrooms",
-            },
-            {
-              name: "Class Timetables",
-              icon: <Calendar className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/classtimetable",
-            },
-            { name: "Exam Rooms", icon: <House className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/examrooms" },
-            {
-              name: "Exam Time Slots",
-              icon: <Clock className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/examtimeslots",
-            },
-            {
-              name: "Exam Timetable",
-              icon: <ClipboardCheck className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/examtimetable",
-            },
-            {
-              name: "Enrollments",
-              icon: <ClipboardList className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/enrollments",
-            },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/units" },
-            { name: "Time Slots", icon: <Clock className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/timeslots" },
-            { name: "Classes", icon: <Clipboard className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/classes" },
-            { name: "Groups", icon: <Users className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/groups" },
-            {
-              name: "Semester Units",
-              icon: <BookMarked className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/semester-units",
-            },
-            {
-              name: "Manage Enrollments",
-              icon: <UserPlus className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/enrollments",
-            },
-            { name: "Semesters", icon: <Calendar className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/semesters" },
-            {
-              name: "Programs",
-              icon: <GraduationCap className="mr-3 h-5 w-5" />,
-              link: "/schools/sces/bscncs/programs",
-            },
-            { name: "Units", icon: <BookOpen className="mr-3 h-5 w-5" />, link: "/schools/sces/bscncs/units" },
-          ],
-        },
-      ],
-    },
-    {
-      name: "BCOM",
-      programs: [],
-    },
-    {
-      name: "LAW",
-      programs: [],
-    },
-    {
-      name: "TOURISM",
-      programs: [],
-    },
-    {
-      name: "HUMANITIES",
-      programs: [],
-    },
-  ]
-
   return (
     <div className="w-64 bg-blue-800 text-white h-full flex flex-col">
       <div className="p-4 border-b border-gray-700">
-        <h1 className="text-xl font-bold">Timetabling System Management</h1>
+        <h1 className="text-xl font-bold">Timetabling System</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">
@@ -276,178 +109,282 @@ export default function Sidebar() {
             Dashboard
           </Link>
 
-          {/* Admin Section */}
-          <RoleAwareComponent requiredRoles={["Admin"]}>
+          {/* Admin Section - Check individual permissions with correct names */}
+          {hasAnyRole(["Admin"]) && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</p>
-              <Link
-                href="/users"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Users className="mr-3 h-5 w-5" />
-                Users
-              </Link>
-              <Link
-                href="/roles"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Layers className="mr-3 h-5 w-5" />
-                Roles & Permissions
-              </Link>
-              <Link
-                href="/settings"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Settings className="mr-3 h-5 w-5" />
-                Settings
-              </Link>              
-            </div>
-          </RoleAwareComponent>
 
-          {/* Academic Management Section - For Admin and Academic Staff */}
-          <RoleAwareComponent requiredRoles={["Admin", "Academic Staff"]}>
-            <div className="pt-4">
-               <button
-                onClick={() => toggleSection("academic")}
-                className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <div className="flex items-center">
-                  <GraduationCap className="mr-3 h-5 w-5" />
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    Academic Management
-                  </span>
-                </div>                
-              </button>
-              <Link
-                href="/schools"
-                className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <Building className="mr-3 h-5 w-5" />
-                Schools
-              </Link>
-
-         
-            </div>
-        
-
-    
-            <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Schools</p>
-            {schools.map((school) => (
-              <div key={school.name} className="mt-1">
-                <button
-                  onClick={() => toggleSchool(school.name)}
-                  className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+              {/* Users - Check "manage users" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage-users") && (
+                <Link
+                  href="/users"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
                 >
-                  <div className="flex items-center">
-                    <Building className="mr-3 h-5 w-5" />
-                    {school.name}
-                  </div>
-                  {openSchool === school.name ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                </button>
-                {openSchool === school.name && (
-                  <div className="ml-8 mt-1 space-y-1">
-                    {school.programs.map((program) => (
-                      <div key={program.name}>
-                        <button
-                          onClick={() => toggleProgram(program.name)}
-                          className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                        >
-                          <div className="flex items-center">
-                            <Clipboard className="mr-3 h-5 w-5" />
-                            {program.name}
-                          </div>
-                          {openProgram === program.name ? (
-                            <ChevronUp className="h-5 w-5" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5" />
-                          )}
-                        </button>
-                        {openProgram === program.name && (
-                          <div className="ml-8 mt-1 space-y-1">
-                            {program.components.map((component) => (
-                              <Link
-                                key={component.name}
-                                href={component.link}
-                                className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                              >
-                                {component.icon}
-                                {component.name}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </RoleAwareComponent>
+                  <Users className="mr-3 h-5 w-5" />
+                  Users
+                </Link>
+              )}
 
-          {/* Student Section - Accessible to Student and Admin */}
-          <RoleAwareComponent requiredRoles={["Student"]}>
+              {/* Roles - Check "manage roles" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage-roles") && (
+                <Link
+                  href="/roles"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Layers className="mr-3 h-5 w-5" />
+                  Roles & Permissions
+                </Link>
+              )}
+
+              {/* Settings - Check "manage settings" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage settings") && (
+                <Link
+                  href="/settings"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Settings className="mr-3 h-5 w-5" />
+                  Settings
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Academic Management - Check individual permissions with correct names */}
+          {hasAnyRole(["Admin"]) && (
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Academic Management</p>
+
+              {/* Schools - Check "manage schools" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage schools") && (
+                <Link
+                  href="/schools"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Building className="mr-3 h-5 w-5" />
+                  Schools
+                </Link>
+              )}
+
+              {/* Programs - Check "manage programs" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage programs") && (
+                <Link
+                  href="/programs"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <GraduationCap className="mr-3 h-5 w-5" />
+                  Programs
+                </Link>
+              )}
+
+              {/* Units - Check "manage units" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage units") && (
+                <Link
+                  href="/units"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <BookOpen className="mr-3 h-5 w-5" />
+                  Units
+                </Link>
+              )}
+
+              {/* Classes - Check "manage classes" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage classes") && (
+                <Link
+                  href="/classes"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <ClipboardList className="mr-3 h-5 w-5" />
+                  Classes
+                </Link>
+              )}
+
+              {/* Enrollments - Check "manage enrollments" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage enrollments") && (
+                <Link
+                  href="/enrollments"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <ClipboardList className="mr-3 h-5 w-5" />
+                  Enrollments
+                </Link>
+              )}
+
+              {/* Semesters - Check "manage semesters" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage semesters") && (
+                <Link
+                  href="/semesters"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Calendar className="mr-3 h-5 w-5" />
+                  Semesters
+                </Link>
+              )}
+
+              {/* Classrooms - Check "manage classrooms" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage classrooms") && (
+                <Link
+                  href="/classrooms"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Building className="mr-3 h-5 w-5" />
+                  Classrooms
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Timetable Management - Check individual permissions with correct names */}
+          {hasAnyRole(["Admin"]) && (
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Timetables</p>
+
+              {/* Manage Timetables - Check "manage timetables" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage timetables") && (
+                <Link
+                  href="/timetables"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Calendar className="mr-3 h-5 w-5" />
+                  Manage Timetables
+                </Link>
+              )}
+
+              {/* Class Timetables - Check "manage class timetables" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage class timetables") && (
+                <Link
+                  href="/classtimetables"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Calendar className="mr-3 h-5 w-5" />
+                  Class Timetables
+                </Link>
+              )}
+
+              {/* Exam Timetables - Check "manage exam timetables" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage exam timetables") && (
+                <Link
+                  href="/examtimetable"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <ClipboardCheck className="mr-3 h-5 w-5" />
+                  Exam Timetables
+                </Link>
+              )}
+
+              {/* Exam Rooms - Check "manage exam rooms" permission (with space) */}
+              {user.permissions && hasPermission(user, "manage exam rooms") && (
+                <Link
+                  href="/examrooms"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Building className="mr-3 h-5 w-5" />
+                  Exam Rooms
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Student Section */}
+          {hasRole(user, "Student") && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Student Portal</p>
               <Link
-                href="/enroll"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <UserPlus className="mr-3 h-5 w-5" />
-                Enrollment
-              </Link>
-              {/* <Link
-                href="/enrollments"
-                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-              >
-                <ClipboardList className="mr-3 h-5 w-5" />
-                My Enrollments
-              </Link> */}
-              <Link
-                href="/my-classes"
+                href="/my-timetable"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Calendar className="mr-3 h-5 w-5" />
                 My Timetable
               </Link>
               <Link
-                href="/my-exams"
+                href="/enroll"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
-                <ClipboardCheck className="mr-3 h-5 w-5" />
-                My Exams
+                <ClipboardList className="mr-3 h-5 w-5" />
+                Enrollment
               </Link>
             </div>
-          </RoleAwareComponent>
+          )}
 
-          {/* Lecturer Section - Accessible to Lecturer and Admin */}
-          <RoleAwareComponent requiredRoles={["Lecturer"]}>
+          {/* Lecturer Section */}
+          {hasRole(user, "Lecturer") && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lecturer Portal</p>
               <Link
-                href="/lecturer/my-classes"
+                href="/my-classes"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Calendar className="mr-3 h-5 w-5" />
                 My Classes
               </Link>
-              {/* <Link
-                href="/lecturer/my-students"
+            </div>
+          )}
+
+          {/* Faculty Admin Section */}
+          {hasRole(user, "Faculty Admin") && (
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Faculty Admin</p>
+              <Link
+                href="/faculty/lecturers"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <Users className="mr-3 h-5 w-5" />
-                My Students
-              </Link> */}
+                Faculty Lecturers
+              </Link>
               <Link
-                href="/lecturer/exam-supervision"
+                href="/faculty/students"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <GraduationCap className="mr-3 h-5 w-5" />
+                Faculty Students
+              </Link>
+              <Link
+                href="/faculty/enrollments"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <ClipboardList className="mr-3 h-5 w-5" />
+                Faculty Enrollments
+              </Link>
+            </div>
+          )}
+
+          {/* Exam Office Section */}
+          {hasRole(user, "Exam Office") && (
+            <div className="pt-4">
+              <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Exam Office</p>
+              <Link
+                href="/examtimetable"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
               >
                 <ClipboardCheck className="mr-3 h-5 w-5" />
-                My Exam Supervision
+                Exam Timetables
+              </Link>
+              <Link
+                href="/examrooms"
+                className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+              >
+                <Building className="mr-3 h-5 w-5" />
+                Exam Rooms
               </Link>
             </div>
-          </RoleAwareComponent>
+          )}
         </nav>
       </div>
+
+      {/* Enhanced Debug Info
+      {user && (
+        <div className="pt-4 px-4 text-xs text-gray-400 border-t border-gray-700">
+          <p className="font-semibold">Debug Info:</p>
+          <p>User: {user.first_name}</p>
+          <p>Email: {user.email}</p>
+          <p>Permissions: {user.permissions ? user.permissions.length : 0}</p>
+          <p>Raw Permissions: {JSON.stringify(user.permissions || [])}</p>
+          <p>Roles: {JSON.stringify(user.roles || [])}</p>
+          <p>Has Admin Role: {hasRole(user, "Admin") ? "Yes" : "No"}</p>
+          <p>Can Manage Users: {hasPermission(user, "manage users") ? "Yes" : "No"}</p>
+          <p>Can Manage Roles: {hasPermission(user, "manage roles") ? "Yes" : "No"}</p>
+          <p>Auth Object Keys: {Object.keys(user).join(", ")}</p>
+        </div>
+      )} */}
     </div>
   )
 }
