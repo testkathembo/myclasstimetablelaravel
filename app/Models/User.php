@@ -5,84 +5,119 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use App\Models\School;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasFactory, Notifiable, HasRoles;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'first_name',
         'last_name',
         'email',
         'password',
-        'code', // Make sure code is fillable
+        'code',
         'phone',
-        // Add other fillable attributes as needed
+        'schools',
+        'programs',
+        'school_id',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
-
-    /**
-     * Get the user's full name.
-     *
-     * @return string
-     */
-    public function getNameAttribute()
+    protected function casts(): array
     {
-        return "{$this->first_name} {$this->last_name}";
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
     }
 
     /**
-     * Get the enrollments for the user as a student.
+     * Get the school that this user is assigned to
      */
-    public function enrollments()
+    public function assignedSchool()
     {
-        return $this->hasMany(Enrollment::class, 'student_code', 'code');
+        return $this->belongsTo(School::class, 'school_id');
     }
 
     /**
-     * Get the units taught by the lecturer.
+     * Check if user can manage a specific school using Spatie permissions
      */
-    public function taughtUnits()
+    public function canManageSchool($schoolCode)
     {
-        return $this->hasMany(Enrollment::class, 'lecturer_code', 'code');
+        $schoolCode = strtolower($schoolCode);
+        
+        // Super admin can manage all schools
+        if ($this->hasRole('Admin') || $this->can('manage schools')) {
+            return true;
+        }
+        
+        // Check school-specific permission
+        return $this->can("manage {$schoolCode} school");
     }
-    // For lecturers - relationship to units they teach
-    public function units()
+
+    /**
+     * Check if user can view a specific school using Spatie permissions
+     */
+    public function canViewSchool($schoolCode)
     {
-        return $this->belongsToMany(Unit::class, 'lecturer_units')
-                    ->withPivot('semester_id')
-                    ->withTimestamps();
+        $schoolCode = strtolower($schoolCode);
+        
+        // Super admin can view all schools
+        if ($this->hasRole('Admin') || $this->can('view schools')) {
+            return true;
+        }
+        
+        // Check school-specific permission
+        return $this->can("view {$schoolCode} school");
     }
-    
-    // Alternative if using a different pivot table structure
-    public function lecturerUnits()
+
+    /**
+     * Get schools that this user can manage based on Spatie permissions
+     */
+    public function getManageableSchools()
     {
-        return $this->hasMany(LecturerUnit::class, 'lecturer_id');
+        // Super admin can see all schools
+        if ($this->hasRole('Admin') || $this->can('manage schools')) {
+            return School::all();
+        }
+
+        // Get schools based on specific permissions
+        $manageableSchools = collect();
+        $schools = School::all();
+        
+        foreach ($schools as $school) {
+            if ($this->canViewSchool($school->code)) {
+                $manageableSchools->push($school);
+            }
+        }
+        
+        return $manageableSchools;
+    }
+
+    /**
+     * Assign school-specific faculty admin role
+     */
+    public function assignToSchool($schoolCode)
+    {
+        $school = School::where('code', $schoolCode)->first();
+        if (!$school) {
+            throw new \Exception("School with code {$schoolCode} not found");
+        }
+
+        // Update school_id for reference
+        $this->school_id = $school->id;
+        $this->save();
+
+        // Assign school-specific role
+        $schoolRoleName = "Faculty Admin - {$schoolCode}";
+        $this->assignRole($schoolRoleName);
+
+        return $this;
     }
 }

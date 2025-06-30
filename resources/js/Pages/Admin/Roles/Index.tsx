@@ -1,9 +1,7 @@
-
-
 import React, { useState, useEffect } from "react";
 import { Head, usePage, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Shield, Plus, Edit, Trash2, X, Check, CheckCircle, Users, Key, Lock, Unlock, AlertTriangle, Settings } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2, X, Check, CheckCircle, Users, Key, Lock, Unlock, AlertTriangle, Settings, Search, Filter, Tag } from 'lucide-react';
 
 interface Role {
   id: number;
@@ -14,6 +12,7 @@ interface Role {
 interface Permission {
   id: number;
   name: string;
+ 
 }
 
 const RolesIndex = () => {
@@ -24,18 +23,68 @@ const RolesIndex = () => {
 
   const [roles, setRoles] = useState<Role[]>(initialRoles);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<"create" | "edit" | "delete" | "">("");
+  const [modalType, setModalType] = useState<"create" | "edit" | "delete" | "permission" | "">("");
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [formState, setFormState] = useState<{ name: string; permissions: number[] }>({
+  const [formState, setFormState] = useState<{ 
+    name: string; 
+   
+    permissions: number[] 
+  }>({
     name: "",
+   
     permissions: [],
   });
+  const [permissionForm, setPermissionForm] = useState<{
+    name: string;
+  
+  }>({
+    name: "",
+    
+  });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [permissionKey, setPermissionKey] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  // Show success message for 3 seconds and then hide it
+  // Group permissions by category
+  const groupedPermissions = React.useMemo(() => {
+    const grouped: { [key: string]: Permission[] } = {};
+    
+    allPermissions.forEach(permission => {
+      const parts = permission.name.split('-');
+      const category = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(permission);
+    });
+    
+    return grouped;
+  }, [allPermissions]);
+
+  const categories = Object.keys(groupedPermissions);
+
+  // Filter permissions based on search and category
+  const filteredPermissions = React.useMemo(() => {
+    let filtered = allPermissions;
+    
+    if (searchTerm) {
+      filtered = filtered.filter(permission => 
+        permission.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(permission => 
+        permission.name.startsWith(selectedCategory.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [allPermissions, searchTerm, selectedCategory]);
+
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => {
@@ -49,15 +98,16 @@ const RolesIndex = () => {
     if (modalType === "edit" && selectedRole) {
       setFormState({
         name: selectedRole.name || "",
+       
         permissions: selectedRole.permissions?.map((p) => p.id) || [],
       });
     } else if (modalType === "create") {
       setFormState({ name: "", permissions: [] });
-    }
+     }
     setErrors({});
   }, [modalType, selectedRole]);
 
-  const handleOpenModal = (type: "create" | "edit" | "delete", role: Role | null = null) => {
+  const handleOpenModal = (type: "create" | "edit" | "delete" | "permission", role: Role | null = null) => {
     setModalType(type);
     setSelectedRole(role);
     setIsModalOpen(true);
@@ -69,12 +119,31 @@ const RolesIndex = () => {
     setModalType("");
     setSelectedRole(null);
     setFormState({ name: "", permissions: [] });
+    setPermissionForm({ name: "",});
     setErrors({});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    if (modalType === "permission") {
+      // Handle permission creation
+      router.post("/permissions", permissionForm, {
+        onSuccess: () => {
+          handleCloseModal();
+          setSuccessMessage("Permission created successfully!");
+          setIsLoading(false);
+          // Refresh the page to get updated permissions
+          router.reload();
+        },
+        onError: (errors) => {
+          setErrors(errors);
+          setIsLoading(false);
+        },
+      });
+      return;
+    }
 
     const validationErrors: { [key: string]: string } = {};
     if (!formState.name.trim()) {
@@ -89,16 +158,17 @@ const RolesIndex = () => {
 
     const formData = {
       name: formState.name,
+      
       permissions: formState.permissions,
     };
 
     if (modalType === "create") {
       router.post("/roles", formData, {
-        onSuccess: (response: any) => {
-          setRoles((prevRoles) => [...prevRoles, response.data]);
+        onSuccess: () => {
           handleCloseModal();
           setSuccessMessage("Role created successfully!");
           setIsLoading(false);
+          router.reload();
         },
         onError: (errors) => {
           setErrors(errors);
@@ -107,13 +177,11 @@ const RolesIndex = () => {
       });
     } else if (modalType === "edit" && selectedRole) {
       router.put(`/roles/${selectedRole.id}`, formData, {
-        onSuccess: (response: any) => {
-          setRoles((prevRoles) =>
-            prevRoles.map((role) => (role.id === selectedRole.id ? response.data : role))
-          );
+        onSuccess: () => {
           handleCloseModal();
           setSuccessMessage("Role updated successfully!");
           setIsLoading(false);
+          router.reload();
         },
         onError: (errors) => {
           setErrors(errors);
@@ -123,10 +191,10 @@ const RolesIndex = () => {
     } else if (modalType === "delete" && selectedRole) {
       router.delete(`/roles/${selectedRole.id}`, {
         onSuccess: () => {
-          setRoles((prevRoles) => prevRoles.filter((role) => role.id !== selectedRole.id));
           handleCloseModal();
           setSuccessMessage("Role deleted successfully!");
           setIsLoading(false);
+          router.reload();
         },
         onError: (errors) => {
           setErrors(errors);
@@ -170,21 +238,29 @@ const RolesIndex = () => {
                   </div>
                   <div>
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                      Roles Management
+                      Roles & Permissions
                     </h1>
                     <p className="text-gray-600 text-lg">
                       Manage user roles and permissions for your system
                     </p>
                   </div>
                 </div>
-                
-                <button
-                  onClick={() => handleOpenModal("create")}
-                  className="group flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
-                >
-                  <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                  Create Role
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleOpenModal("permission")}
+                    className="group flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+                  >
+                    <Key className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                    Add Permission
+                  </button>
+                  <button
+                    onClick={() => handleOpenModal("create")}
+                    className="group flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+                  >
+                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                    Create Role
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -249,7 +325,6 @@ const RolesIndex = () => {
                           <Edit className="w-4 h-4 group-hover/btn:rotate-12 transition-transform duration-300" />
                           <span>Edit</span>
                         </button>
-                        
                         <button
                           onClick={() => handleOpenModal("delete", role)}
                           className="group/btn flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex-1 lg:flex-none"
@@ -287,22 +362,25 @@ const RolesIndex = () => {
           {/* Enhanced Modal */}
           {isModalOpen && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100">
                 <div className="p-8">
                   <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                         modalType === "create" ? "bg-gradient-to-r from-green-400 to-green-600" :
                         modalType === "edit" ? "bg-gradient-to-r from-amber-400 to-orange-500" :
+                        modalType === "permission" ? "bg-gradient-to-r from-emerald-400 to-emerald-600" :
                         "bg-gradient-to-r from-red-400 to-red-600"
                       }`}>
                         {modalType === "create" && <Plus className="w-5 h-5 text-white" />}
                         {modalType === "edit" && <Edit className="w-5 h-5 text-white" />}
+                        {modalType === "permission" && <Key className="w-5 h-5 text-white" />}
                         {modalType === "delete" && <Trash2 className="w-5 h-5 text-white" />}
                       </div>
                       <h2 className="text-2xl font-bold text-gray-800">
                         {modalType === "create" && "Create New Role"}
                         {modalType === "edit" && "Edit Role"}
+                        {modalType === "permission" && "Create New Permission"}
                         {modalType === "delete" && "Delete Role"}
                       </h2>
                     </div>
@@ -314,7 +392,57 @@ const RolesIndex = () => {
                     </button>
                   </div>
 
-                  {modalType === "delete" ? (
+                  {modalType === "permission" ? (
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      <div>
+                        <label htmlFor="permission-name" className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Key className="w-4 h-4 text-emerald-500" />
+                          Permission Name
+                        </label>
+                        <input
+                          id="permission-name"
+                          type="text"
+                          value={permissionForm.name}
+                          onChange={(e) => setPermissionForm({ ...permissionForm, name: e.target.value })}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
+                          placeholder="e.g., manage-students, view-reports"
+                          disabled={isLoading}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Use kebab-case format (e.g., manage-users, view-dashboard)</p>
+                      </div>
+
+                      
+
+                      <div className="flex justify-end gap-3 pt-4 border-t">
+                        <button
+                          type="button"
+                          onClick={handleCloseModal}
+                          className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-colors duration-200"
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Key className="w-4 h-4" />
+                              Create Permission
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  ) : modalType === "delete" ? (
                     <div className="space-y-6">
                       <div className="p-6 bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-2xl">
                         <div className="flex items-start gap-4">
@@ -328,6 +456,7 @@ const RolesIndex = () => {
                           </div>
                         </div>
                       </div>
+
                       <div className="flex justify-end gap-3">
                         <button
                           onClick={handleCloseModal}
@@ -357,61 +486,91 @@ const RolesIndex = () => {
                     </div>
                   ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
-                      <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                          <Settings className="w-4 h-4 text-indigo-500" />
-                          Role Name
-                        </label>
-                        <input
-                          id="name"
-                          type="text"
-                          value={formState.name}
-                          onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                          required
-                          className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 ${
-                            errors.name ? "border-red-500 bg-red-50" : "border-gray-300"
-                          }`}
-                          placeholder="Enter role name (e.g., Admin, Editor, Viewer)"
-                          disabled={isLoading}
-                        />
-                        {errors.name && (
-                          <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4" />
-                            {errors.name}
-                          </p>
-                        )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Settings className="w-4 h-4 text-indigo-500" />
+                            Role Name
+                          </label>
+                          <input
+                            id="name"
+                            type="text"
+                            value={formState.name}
+                            onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+                            required
+                            className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 ${
+                              errors.name ? "border-red-500 bg-red-50" : "border-gray-300"
+                            }`}
+                            placeholder="Enter role name"
+                            disabled={isLoading}
+                          />
+                          {errors.name && (
+                            <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4" />
+                              {errors.name}
+                            </p>
+                          )}
+                        </div>
+
+                        
                       </div>
 
                       <div>
                         <div className="flex justify-between items-center mb-3">
                           <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                             <Key className="w-4 h-4 text-green-500" />
-                            Permissions 
+                            Permissions
                           </label>
-                          {formState.permissions.length > 0 && 
+                          {formState.permissions.length > 0 && (
                             <span className="text-xs bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-3 py-1 rounded-full font-medium">
                               {formState.permissions.length} selected
                             </span>
-                          }
+                          )}
                         </div>
-                        
+
+                        {/* Search and Filter */}
                         <div className="flex gap-3 mb-4">
-                          <button 
+                          <div className="flex-1 relative">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Search permissions..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          >
+                            <option value="all">All Categories</option>
+                            {categories.map(category => (
+                              <option key={category} value={category.toLowerCase()}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex gap-3 mb-4">
+                          <button
                             type="button"
                             onClick={() => {
-                              const allPermIds = allPermissions.map(p => p.id);
+                              const allPermIds = filteredPermissions.map(p => p.id);
                               setFormState(prev => ({
                                 ...prev,
-                                permissions: allPermIds
+                                permissions: [...new Set([...prev.permissions, ...allPermIds])]
                               }));
                             }}
                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-100 to-green-200 hover:from-green-200 hover:to-green-300 text-green-700 text-sm rounded-xl font-medium transition-all duration-200"
                             disabled={isLoading}
                           >
                             <Check className="w-3 h-3" />
-                            Select All
+                            Select All Filtered
                           </button>
-                          <button 
+                          <button
                             type="button"
                             onClick={() => {
                               setFormState(prev => ({
@@ -426,25 +585,78 @@ const RolesIndex = () => {
                             Clear All
                           </button>
                         </div>
-                        
-                        <div className={`h-80 overflow-y-auto border rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100 ${
-                          errors.permissions ? "border-red-500" : "border-gray-300"
-                        }`}>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {allPermissions.map((permission) => (
-                              permission && (
-                                <div 
-                                  key={`perm-${permission.id}-${permissionKey}`} 
+
+                        <div className="h-80 overflow-y-auto border rounded-xl p-4 bg-gradient-to-br from-gray-50 to-gray-100">
+                          {selectedCategory === "all" ? (
+                            // Group by category
+                            Object.entries(groupedPermissions).map(([category, permissions]) => (
+                              <div key={category} className="mb-6">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Tag className="w-4 h-4 text-indigo-500" />
+                                  <h4 className="font-semibold text-gray-700">{category}</h4>
+                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                                    {permissions.length}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 ml-6">
+                                  {permissions
+                                    .filter(permission => 
+                                      !searchTerm || permission.name.toLowerCase().includes(searchTerm.toLowerCase())
+                                    )
+                                    .map((permission) => (
+                                      <div
+                                        key={permission.id}
+                                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                                          formState.permissions.includes(permission.id)
+                                            ? 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 shadow-sm'
+                                            : 'bg-white hover:bg-gray-50 border border-gray-200'
+                                        }`}
+                                        onClick={() => togglePermission(permission.id)}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={formState.permissions.includes(permission.id)}
+                                          onChange={() => togglePermission(permission.id)}
+                                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                          disabled={isLoading}
+                                        />
+                                        <div className="flex items-center gap-2">
+                                          {formState.permissions.includes(permission.id) ? (
+                                            <Unlock className="w-4 h-4 text-blue-600" />
+                                          ) : (
+                                            <Lock className="w-4 h-4 text-gray-400" />
+                                          )}
+                                          <div>
+                                            <label className={`text-sm cursor-pointer select-none ${
+                                              formState.permissions.includes(permission.id)
+                                                ? 'font-medium text-blue-700'
+                                                : 'text-gray-700'
+                                            }`}>
+                                              {permission.name}
+                                            </label>
+                                            
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            // Show filtered permissions
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {filteredPermissions.map((permission) => (
+                                <div
+                                  key={permission.id}
                                   className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${
-                                    formState.permissions.includes(permission.id) 
-                                      ? 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 shadow-sm' 
+                                    formState.permissions.includes(permission.id)
+                                      ? 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 shadow-sm'
                                       : 'bg-white hover:bg-gray-50 border border-gray-200'
                                   }`}
                                   onClick={() => togglePermission(permission.id)}
                                 >
                                   <input
                                     type="checkbox"
-                                    id={`permission-${permission.id}`}
                                     checked={formState.permissions.includes(permission.id)}
                                     onChange={() => togglePermission(permission.id)}
                                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
@@ -456,36 +668,22 @@ const RolesIndex = () => {
                                     ) : (
                                       <Lock className="w-4 h-4 text-gray-400" />
                                     )}
-                                    <label 
-                                      htmlFor={`permission-${permission.id}`} 
-                                      className={`text-sm cursor-pointer select-none ${
-                                        formState.permissions.includes(permission.id) 
-                                          ? 'font-medium text-blue-700' 
+                                    <div>
+                                      <label className={`text-sm cursor-pointer select-none ${
+                                        formState.permissions.includes(permission.id)
+                                          ? 'font-medium text-blue-700'
                                           : 'text-gray-700'
-                                      }`}
-                                    >
-                                      {permission.name || "N/A"}
-                                    </label>
+                                      }`}>
+                                        {permission.name}
+                                      </label>
+                                      
+                                    </div>
                                   </div>
                                 </div>
-                              )
-                            ))}
-                          </div>
-                          {modalType === "edit" && formState.permissions.length === 0 && (
-                            <div className="text-center py-8">
-                              <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                              <p className="text-yellow-600 text-sm italic">
-                                No permissions selected. Please select at least one permission.
-                              </p>
+                              ))}
                             </div>
                           )}
                         </div>
-                        {errors.permissions && (
-                          <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4" />
-                            {errors.permissions}
-                          </p>
-                        )}
                       </div>
 
                       <div className="flex justify-end gap-3 pt-4 border-t">

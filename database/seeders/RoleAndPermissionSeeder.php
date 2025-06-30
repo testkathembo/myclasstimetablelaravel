@@ -16,87 +16,111 @@ class RoleAndPermissionSeeder extends Seeder
         // Clear cached permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Define permissions
+        // Define permissions organized by sidebar sections
         $permissions = [
             // Dashboard
             'view-dashboard',
 
-            // User Management
+            // Administration
             'manage-users',
-
-            // Role and Permission Management
-            'manage-roles',
-            'manage-permissions',
-
-            // Faculty Management
-            'manage-faculties',
-
-            // Classroom Management
-            'manage-classrooms',
-
-            // Exam Room Management
-            'manage-examrooms',
-
-            // Unit Management
-            'manage-units',
-
-            // Semester Management
-            'manage-semesters',
-
-            // Enrollment Management
-            'manage-enrollments',
-
-            // Time Slot Management
-            'manage-time-slots',
-
-            // Class Timetable Management
-            'manage-classtimetables',
-            'process-classtimetables',
-            'solve-class-conflicts',
-            'download-classtimetables',
-            'download-own-classtimetables',
-
-            // Exam Timetable Management
-            'manage-examtimetables',
-            'process-examtimetables',
-            'solve-exam-conflicts',
-            
-            
-             // Actions
-            'create-examtimetables',
-            'create-classtimetables',
-            'update-examtimetables',
-            'update-classtimetables',
-            'delete-examtimetables',
-            'delete-classtimetables',
-            'download-examtimetables',
-            'download-classtimetables',
-            'download-own-examtimetables',
-            'view-faculty-examtimetables',
-            'view-faculty-classtimetables',
-            'download-own-classtimetables',
-            'view-examtimetables',
-            'view-classtimetables',
-            'view-own-examtimetables',
-            'view-own-classtimetables',
-            'view-examrooms',
-            'view-classrooms',
-            'view-units',
-            'view-semesters',
-            'view-enrollments',
-            'view-faculties',
             'view-users',
+            'create-users',
+            'edit-users',
+            'delete-users',
+            
+            'manage-roles',
             'view-roles',
+            'create-roles',
+            'edit-roles',
+            'delete-roles',
+            
+            'manage-permissions',
             'view-permissions',
+            
+            'manage-settings',
+            'view-settings',
+
+            // Academic Management
+            'manage-schools',
+            'view-schools',
+            'create-schools',
+            'edit-schools',
+            'delete-schools',
+            
+            'manage-programs',
+            'view-programs',
+            'create-programs',
+            'edit-programs',
+            'delete-programs',
+            
+            'manage-units',
+            'view-units',
+            'create-units',
+            'edit-units',
+            'delete-units',
+            
+            'manage-classes',
+            'view-classes',
+            'create-classes',
+            'edit-classes',
+            'delete-classes',
+            
+            'manage-enrollments',
+            'view-enrollments',
+            'create-enrollments',
+            'edit-enrollments',
+            'delete-enrollments',
+            
+            'manage-semesters',
+            'view-semesters',
+            'create-semesters',
+            'edit-semesters',
+            'delete-semesters',
+            
+            'manage-classrooms',
+            'view-classrooms',
+            'create-classrooms',
+            'edit-classrooms',
+            'delete-classrooms',
+
+            // Timetables
+            'manage-timetables',
+            'view-timetables',
+            
+            'manage-class-timetables',
+            'view-class-timetables',
+            'create-class-timetables',
+            'edit-class-timetables',
+            'delete-class-timetables',
+            'process-class-timetables',
+            'solve-class-conflicts',
+            'download-class-timetables',
+            'download-own-class-timetables',
+            'view-own-class-timetables',
+            
+            'manage-exam-timetables',
+            'view-exam-timetables',
+            'create-exam-timetables',
+            'edit-exam-timetables',
+            'delete-exam-timetables',
+            'process-exam-timetables',
+            'solve-exam-conflicts',
+            'download-exam-timetables',
+            'download-own-exam-timetables',
+            'view-own-exam-timetables',
+            
+            'manage-exam-rooms',
+            'view-exam-rooms',
+            'create-exam-rooms',
+            'edit-exam-rooms',
+            'delete-exam-rooms',
+
+            // Additional permissions
+            'manage-time-slots',
             'view-time-slots',
+            'manage-notifications',
             'view-notifications',
             'view-own-notifications',
-            
-
-            // Notification Management
-            'manage-notifications',
-
-            // Report Management
             'generate-reports',
         ];
 
@@ -108,91 +132,95 @@ class RoleAndPermissionSeeder extends Seeder
         // Define roles and assign permissions
         $roles = [
             'Admin' => [
-                'update-examtimetables', // Ensure this permission is included for the Admin role
+                // Full access to everything
                 'view-dashboard',
-                'manage-users',
-                'manage-roles',
-                'manage-permissions',
-                'manage-faculties',
-                'manage-classrooms',
-                'manage-examrooms',
-                'manage-units',
-                'manage-semesters',
-                'manage-enrollments',
-                'manage-time-slots',
-                'manage-classtimetables',
-                'process-classtimetables',
-                'solve-class-conflicts',
-                'download-classtimetables',
-                'download-own-classtimetables',
-                'manage-examtimetables',
-                'process-examtimetables',
-                'solve-exam-conflicts',
-                'create-examtimetables',
-                'create-classtimetables',
-                'update-classtimetables',
-                'delete-examtimetables',
-                'delete-classtimetables',
-                'download-examtimetables',
-                'download-classtimetables',
-                'download-own-examtimetables',
-                'view-faculty-examtimetables',
-                'view-faculty-classtimetables',
-                'view-examtimetables',
-                'view-classtimetables',
-                'view-own-examtimetables',
-                'view-own-classtimetables',
-                'view-examrooms',
-                'view-classrooms',
-                'view-units',
-                'view-semesters',
-                'view-enrollments',
-                'view-faculties',
-                'view-users',
-                'view-roles',
-                'view-permissions',
-                'view-time-slots',
-                'view-notifications',
-                'view-own-notifications',
-                'manage-notifications',
+                
+                // Administration
+                'manage-users', 'view-users', 'create-users', 'edit-users', 'delete-users',
+                'manage-roles', 'view-roles', 'create-roles', 'edit-roles', 'delete-roles',
+                'manage-permissions', 'view-permissions',
+                'manage-settings', 'view-settings',
+                
+                // Academic Management
+                'manage-schools', 'view-schools', 'create-schools', 'edit-schools', 'delete-schools',
+                'manage-programs', 'view-programs', 'create-programs', 'edit-programs', 'delete-programs',
+                'manage-units', 'view-units', 'create-units', 'edit-units', 'delete-units',
+                'manage-classes', 'view-classes', 'create-classes', 'edit-classes', 'delete-classes',
+                'manage-enrollments', 'view-enrollments', 'create-enrollments', 'edit-enrollments', 'delete-enrollments',
+                'manage-semesters', 'view-semesters', 'create-semesters', 'edit-semesters', 'delete-semesters',
+                'manage-classrooms', 'view-classrooms', 'create-classrooms', 'edit-classrooms', 'delete-classrooms',
+                
+                // Timetables
+                'manage-timetables', 'view-timetables',
+                'manage-class-timetables', 'view-class-timetables', 'create-class-timetables', 'edit-class-timetables', 'delete-class-timetables',
+                'process-class-timetables', 'solve-class-conflicts', 'download-class-timetables', 'download-own-class-timetables', 'view-own-class-timetables',
+                'manage-exam-timetables', 'view-exam-timetables', 'create-exam-timetables', 'edit-exam-timetables', 'delete-exam-timetables',
+                'process-exam-timetables', 'solve-exam-conflicts', 'download-exam-timetables', 'download-own-exam-timetables', 'view-own-exam-timetables',
+                'manage-exam-rooms', 'view-exam-rooms', 'create-exam-rooms', 'edit-exam-rooms', 'delete-exam-rooms',
+                
+                // Additional
+                'manage-time-slots', 'view-time-slots',
+                'manage-notifications', 'view-notifications', 'view-own-notifications',
                 'generate-reports',
             ],
 
-            'Exam office' => [
+            'Exam Office' => [
                 'view-dashboard',
-                'manage-examtimetables',
-                'process-examtimetables',
-                'solve-exam-conflicts',
-                'manage-time-slots',
-                'manage-examrooms', // Manages exam rooms, not classrooms
-                'download-examtimetables',
+                
+                // Exam-specific permissions
+                'manage-exam-timetables', 'view-exam-timetables', 'create-exam-timetables', 'edit-exam-timetables',
+                'process-exam-timetables', 'solve-exam-conflicts', 'download-exam-timetables',
+                'manage-exam-rooms', 'view-exam-rooms', 'create-exam-rooms', 'edit-exam-rooms', 'delete-exam-rooms',
+                'manage-time-slots', 'view-time-slots',
+                
+                // View-only access to academic data
+                'view-units', 'view-classes', 'view-enrollments', 'view-semesters',
+                'view-notifications', 'view-own-notifications',
             ],
 
             'Faculty Admin' => [
                 'view-dashboard',
-                'manage-faculties',
-                'manage-units',
-                'manage-semesters',
-                'manage-enrollments',
-                'manage-classrooms', // Manages classrooms
-                'manage-classtimetables',
-                'process-classtimetables',
-                'solve-class-conflicts',
-                'download-classtimetables',
-                'view-faculty-examtimetables', // Can view faculty-specific exam timetables
-                'download-examtimetables', // Can download faculty-specific exam timetables
+                
+                // Academic Management (limited to their faculty)
+                'view-schools', 'view-programs',
+                'manage-units', 'view-units', 'create-units', 'edit-units',
+                'manage-classes', 'view-classes', 'create-classes', 'edit-classes',
+                'manage-enrollments', 'view-enrollments', 'create-enrollments', 'edit-enrollments',
+                'view-semesters',
+                'manage-classrooms', 'view-classrooms', 'create-classrooms', 'edit-classrooms',
+                
+                // Class Timetables
+                'manage-class-timetables', 'view-class-timetables', 'create-class-timetables', 'edit-class-timetables',
+                'process-class-timetables', 'solve-class-conflicts', 'download-class-timetables',
+                
+                // Limited exam timetable access
+                'view-exam-timetables', 'download-exam-timetables',
+                
+                'view-notifications', 'view-own-notifications',
             ],
 
             'Lecturer' => [
                 'view-dashboard',
-                'download-own-classtimetables',
-                'download-own-examtimetables',
+                
+                // View own data only
+                'view-own-class-timetables', 'download-own-class-timetables',
+                'view-own-exam-timetables', 'download-own-exam-timetables',
+                'view-own-notifications',
+                
+                // Limited view access
+                'view-units', 'view-classes', 'view-classrooms',
             ],
 
             'Student' => [
                 'view-dashboard',
-                'download-own-classtimetables',
-                'download-own-examtimetables',
+                
+                // View own data only
+                'view-own-class-timetables', 'download-own-class-timetables',
+                'view-own-exam-timetables', 'download-own-exam-timetables',
+                'view-own-notifications',
+                
+                // Limited view access
+                'view-units', 'view-classes', 'view-enrollments',
             ],
         ];
 
