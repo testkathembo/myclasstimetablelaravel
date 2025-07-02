@@ -333,3 +333,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');
 })->where('any', '.*')->name('not-found');
+
+// Add this in your Admin bypass section (around line 150)
+Route::middleware(['role:Admin'])->group(function () {
+    // ... your existing routes ...
+    
+    // ✅ ADD THESE MISSING /timeslots ROUTES
+    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+    Route::get('/timeslots/create', [TimeSlotController::class, 'create'])->name('timeslots.create');
+    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+    Route::get('/timeslots/{timeSlot}', [TimeSlotController::class, 'show'])->name('timeslots.show');
+    Route::get('/timeslots/{timeSlot}/edit', [TimeSlotController::class, 'edit'])->name('timeslots.edit');
+    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
+    Route::patch('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.patch');
+    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+    Route::post('/timeslots/bulk-delete', [TimeSlotController::class, 'bulkDestroy'])->name('timeslots.bulk-delete');
+    
+
+});
+
+// Add this after the admin bypass section
+Route::middleware(['permission:manage-time-slots'])->group(function () {
+    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
+    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+
+});
