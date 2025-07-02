@@ -2,7 +2,21 @@
 
 import { useState } from "react"
 import { Link, usePage } from "@inertiajs/react"
-import { Home, Users, Building, Calendar, ClipboardList, Layers, ClipboardCheck, Settings, BookOpen, GraduationCap, Bell, BarChart3 } from 'lucide-react'
+import {
+  Home,
+  Users,
+  Building,
+  Calendar,
+  ClipboardList,
+  Layers,
+  ClipboardCheck,
+  Settings,
+  BookOpen,
+  GraduationCap,
+  Bell,
+  BarChart3,
+  Clock,
+} from "lucide-react"
 
 export default function Sidebar() {
   const { auth } = usePage().props as any
@@ -58,13 +72,13 @@ export default function Sidebar() {
   // Get school name for display
   const getSchoolName = () => {
     const school = getUserSchool()
-    if (typeof school === 'object' && school?.name) {
+    if (typeof school === "object" && school?.name) {
       return school.name
     }
-    if (typeof school === 'string') {
+    if (typeof school === "string") {
       return school
     }
-    return 'Your School'
+    return "Your School"
   }
 
   const [openSchool, setOpenSchool] = useState<string | null>(null)
@@ -103,10 +117,12 @@ export default function Sidebar() {
           )}
 
           {/* Administration Section */}
-          {(hasPermission(user, "manage-users") || hasPermission(user, "manage-roles") || hasPermission(user, "manage-permissions") || hasPermission(user, "manage-settings")) && (
+          {(hasPermission(user, "manage-users") ||
+            hasPermission(user, "manage-roles") ||
+            hasPermission(user, "manage-permissions") ||
+            hasPermission(user, "manage-settings")) && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</p>
-              
               {hasPermission(user, "manage-users") && (
                 <Link
                   href="/users"
@@ -140,10 +156,15 @@ export default function Sidebar() {
           )}
 
           {/* Academic Management Section */}
-          {(hasPermission(user, "manage-schools") || hasPermission(user, "manage-programs") || hasPermission(user, "manage-units") || hasPermission(user, "manage-classes") || hasPermission(user, "manage-enrollments") || hasPermission(user, "manage-semesters") || hasPermission(user, "manage-classrooms")) && (
+          {(hasPermission(user, "manage-schools") ||
+            hasPermission(user, "manage-programs") ||
+            hasPermission(user, "manage-units") ||
+            hasPermission(user, "manage-classes") ||
+            hasPermission(user, "manage-enrollments") ||
+            hasPermission(user, "manage-semesters") ||
+            hasPermission(user, "manage-classrooms")) && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Academic Management</p>
-              
               {hasPermission(user, "manage-schools") && (
                 <Link
                   href="/schools"
@@ -217,10 +238,13 @@ export default function Sidebar() {
           )}
 
           {/* Timetables Section */}
-          {(hasPermission(user, "manage-timetables") || hasPermission(user, "manage-class-timetables") || hasPermission(user, "manage-exam-timetables") || hasPermission(user, "manage-exam-rooms")) && (
+          {(hasPermission(user, "manage-timetables") ||
+            hasPermission(user, "manage-class-timetables") ||
+            hasPermission(user, "manage-exam-timetables") ||
+            hasPermission(user, "manage-exam-rooms") ||
+            hasPermission(user, "manage-time-slots")) && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Timetables</p>
-              
               {hasPermission(user, "manage-timetables") && (
                 <Link
                   href="/timetables"
@@ -260,6 +284,17 @@ export default function Sidebar() {
                   Exam Rooms
                 </Link>
               )}
+
+              {/* Time Slots - Added here */}
+              {hasPermission(user, "manage-time-slots") && (
+                <Link
+                  href="/timeslots"
+                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
+                >
+                  <Clock className="mr-3 h-5 w-5" />
+                  Time Slots
+                </Link>
+              )}
             </div>
           )}
 
@@ -267,7 +302,6 @@ export default function Sidebar() {
           {hasRole(user, "Student") && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Student Portal</p>
-              
               {hasPermission(user, "view-own-class-timetables") && (
                 <Link
                   href="/my-timetable"
@@ -294,7 +328,6 @@ export default function Sidebar() {
           {hasRole(user, "Lecturer") && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lecturer Portal</p>
-              
               {hasPermission(user, "view-own-class-timetables") && (
                 <Link
                   href="/my-classes"
@@ -333,7 +366,6 @@ export default function Sidebar() {
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 {getSchoolName()} Management
               </p>
-
               {hasPermission(user, "view-programs") && (
                 <Link
                   href={`/faculty/programs?school=${getUserSchool()?.id || getUserSchool()}`}
@@ -420,7 +452,6 @@ export default function Sidebar() {
           {hasRole(user, "Exam office") && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Exam Office</p>
-              
               {hasPermission(user, "manage-exam-timetables") && (
                 <Link
                   href="/examtimetables"
@@ -443,10 +474,10 @@ export default function Sidebar() {
 
               {hasPermission(user, "manage-time-slots") && (
                 <Link
-                  href="/time-slots"
+                  href="/timeslots"
                   className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
                 >
-                  <Calendar className="mr-3 h-5 w-5" />
+                  <Clock className="mr-3 h-5 w-5" />
                   Time Slots
                 </Link>
               )}
@@ -474,10 +505,11 @@ export default function Sidebar() {
           )}
 
           {/* Notifications Section */}
-          {(hasPermission(user, "manage-notifications") || hasPermission(user, "view-notifications") || hasPermission(user, "view-own-notifications")) && (
+          {(hasPermission(user, "manage-notifications") ||
+            hasPermission(user, "view-notifications") ||
+            hasPermission(user, "view-own-notifications")) && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Notifications</p>
-              
               {hasPermission(user, "manage-notifications") && (
                 <Link
                   href="/notifications/manage"
@@ -514,7 +546,6 @@ export default function Sidebar() {
           {hasPermission(user, "generate-reports") && (
             <div className="pt-4">
               <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Reports</p>
-              
               <Link
                 href="/reports"
                 className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"

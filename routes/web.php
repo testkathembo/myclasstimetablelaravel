@@ -16,6 +16,7 @@ use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ClassTimetableController;
 use App\Http\Controllers\ExamTimetableController;
 use App\Http\Controllers\ExamroomController;
+use App\Http\Controllers\TimeSlotController; // Add this import
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,27 +29,29 @@ require __DIR__.'/auth.php';
 // ===================================================================
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+
     // ===============================================================
     // CORE AUTHENTICATION & USER ROUTES
     // ===============================================================
+
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     // ===============================================================
     // DASHBOARD ROUTES - Available to all authenticated users
     // ===============================================================
+
     Route::get('/dashboard', [DashboardController::class, 'index'])
-        ->middleware('permission:view-dashboard')
-        ->name('dashboard');
-    
+            ->middleware('permission:view-dashboard')
+            ->name('dashboard');
+
     Route::get('/admin/dashboard', [DashboardController::class, 'adminDashboard'])
-        ->middleware('permission:view-dashboard')
-        ->name('admin.dashboard');
+            ->middleware('permission:view-dashboard')
+            ->name('admin.dashboard');
 
     // ===============================================================
     // ADMINISTRATION ROUTES - Permission-based access
     // ===============================================================
-    
+
     // User Management
     Route::middleware(['permission:manage-users'])->group(function () {
         Route::resource('users', UserController::class);
@@ -250,9 +253,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/examrooms/{examroom}', [ExamroomController::class, 'show'])->name('examrooms.show');
     });
 
+    // TIME SLOTS MANAGEMENT - MOVED INSIDE THE AUTHENTICATED GROUP
+    Route::middleware(['permission:manage-time-slots'])->group(function () {
+        Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+        Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
+        Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
+        Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
+    });
+
     // ===============================================================
     // STUDENT-SPECIFIC ROUTES
     // ===============================================================
+
     Route::middleware(['permission:view-own-class-timetables'])->group(function () {
         Route::get('/my-timetable', [TimetableController::class, 'studentTimetable'])->name('student.timetable');
     });
@@ -264,6 +276,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ===============================================================
     // LECTURER-SPECIFIC ROUTES
     // ===============================================================
+
     Route::middleware(['permission:view-own-class-timetables'])->group(function () {
         Route::get('/my-classes', [TimetableController::class, 'lecturerClasses'])->name('lecturer.classes');
     });
@@ -271,6 +284,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ===============================================================
     // FACULTY ADMIN-SPECIFIC ROUTES
     // ===============================================================
+
     Route::middleware(['permission:view-users'])->group(function () {
         Route::get('/faculty/lecturers', fn() => Inertia::render('FacultyAdmin/Lecturers'))->name('faculty.lecturers');
         Route::get('/faculty/students', fn() => Inertia::render('FacultyAdmin/Students'))->name('faculty.students');
@@ -283,6 +297,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ===============================================================
     // SETTINGS ROUTES
     // ===============================================================
+
     Route::middleware(['permission:manage-settings'])->group(function () {
         Route::get('/settings', fn() => Inertia::render('Admin/Settings'))->name('settings.index');
     });
@@ -290,6 +305,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ===============================================================
     // API ROUTES FOR FILTERING BY SCHOOL
     // ===============================================================
+
     Route::get('/api/faculty/students', function(Request $request) {
         $schoolId = $request->get('school');
         // Add your Student model logic here
@@ -307,9 +323,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ===============================================================
     // DEBUG ROUTE (Remove in production)
     // ===============================================================
+
     Route::get('/debug-user', function() {
         $user = auth()->user();
-        
         if (!$user) {
             return response()->json(['error' => 'No authenticated user']);
         }
@@ -325,38 +341,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'can_manage_users' => $user->can('manage-users'),
         ]);
     });
-});
+
+}); // END OF AUTHENTICATED MIDDLEWARE GROUP
 
 // ===================================================================
 // CATCH-ALL ROUTE (Must be last)
 // ===================================================================
+
 Route::get('/{any}', function () {
     return Inertia::render('NotFound');
 })->where('any', '.*')->name('not-found');
-
-// Add this in your Admin bypass section (around line 150)
-Route::middleware(['role:Admin'])->group(function () {
-    // ... your existing routes ...
-    
-    // ✅ ADD THESE MISSING /timeslots ROUTES
-    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
-    Route::get('/timeslots/create', [TimeSlotController::class, 'create'])->name('timeslots.create');
-    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
-    Route::get('/timeslots/{timeSlot}', [TimeSlotController::class, 'show'])->name('timeslots.show');
-    Route::get('/timeslots/{timeSlot}/edit', [TimeSlotController::class, 'edit'])->name('timeslots.edit');
-    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
-    Route::patch('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.patch');
-    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
-    Route::post('/timeslots/bulk-delete', [TimeSlotController::class, 'bulkDestroy'])->name('timeslots.bulk-delete');
-    
-
-});
-
-// Add this after the admin bypass section
-Route::middleware(['permission:manage-time-slots'])->group(function () {
-    Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
-    Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
-    Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
-    Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
-
-});
