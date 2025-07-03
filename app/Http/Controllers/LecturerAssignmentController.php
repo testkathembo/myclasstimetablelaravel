@@ -14,18 +14,17 @@ class LecturerAssignmentController extends Controller
      * @param  string  $lecturerCode
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function destroy($unitId, $lecturerCode)
+    public function destroyByUnit($unitId)
     {
         try {
-            // Remove the lecturer assignment from the enrollments table
+            // Remove all lecturer assignments for this unit
             Enrollment::where('unit_id', $unitId)
-                ->where('lecturer_code', $lecturerCode)
                 ->update(['lecturer_code' => null]);
 
-            return redirect()->back()->with('success', 'Lecturer assignment deleted successfully.');
+            return redirect()->back()->with('success', 'All lecturer assignments for this unit deleted successfully.');
         } catch (\Exception $e) {
-            Log::error('Error deleting lecturer assignment: ' . $e->getMessage());
-            return redirect()->back()->withErrors(['error' => 'Failed to delete lecturer assignment.']);
+            Log::error('Error deleting lecturer assignments by unit: ' . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => 'Failed to delete lecturer assignments by unit.']);
         }
     }
 }

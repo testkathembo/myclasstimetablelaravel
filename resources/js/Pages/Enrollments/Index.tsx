@@ -771,12 +771,12 @@ return (
             >
               Edit
             </button>
-            {/* <button
+             <button
               onClick={() => handleDeleteAssignment(assignment)}
               className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs"
             >
               Delete
-            </button> */}
+            </button> 
           </div>
         </td>
                       </tr>
