@@ -217,9 +217,9 @@ export default function Dashboard({ enrolledUnits, upcomingExams, currentSemeste
                           <h3 className="font-semibold text-gray-900">
                             {currentSemester?.name || 'N/A'}
                           </h3>
-                          <p className="text-gray-600 text-sm">
+                          {/* <p className="text-gray-600 text-sm">
                             Academic Year {currentSemester?.year || 'N/A'}
-                          </p>
+                          </p> */}
                         </div>
                       </div>
                     </div>

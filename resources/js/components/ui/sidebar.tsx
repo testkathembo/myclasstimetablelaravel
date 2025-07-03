@@ -340,17 +340,17 @@ export default function Sidebar() {
 
               {hasPermission(user, "download-own-class-timetables") && (
                 <Link
-                  href="/my-timetables/download"
+                  href="/my-timetables"
                   className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
                 >
                   <Calendar className="mr-3 h-5 w-5" />
-                  Download My Timetables
+                  My Timetables
                 </Link>
               )}
 
               {hasPermission(user, "view-own-exam-timetables") && (
                 <Link
-                  href="/my-exam-timetables"
+                  href="/examsupervision"
                   className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
                 >
                   <ClipboardCheck className="mr-3 h-5 w-5" />

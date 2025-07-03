@@ -238,11 +238,12 @@ Route::middleware(['auth'])->group(function () {
         
         // Student timetables
         Route::get('/student/timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.timetable');
-        Route::get('/my-classes', [ClassTimetableController::class, 'studentTimetable'])->name('student.classes');
+        Route::get('/my-timetable', [ClassTimetableController::class, 'studentTimetable'])->name('student.my-timetable');
         Route::get('/my-exams', [ExamTimetableController::class, 'studentExamTimetable'])->name('student.exams');
         Route::get('/my-exams/{examtimetable}', [ExamTimetableController::class, 'viewStudentExamDetails'])->name('student.exam.details');
         
         // Student downloads
+        Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])->name('student.classes.download');
         Route::get('/my-timetable/download', [ClassTimetableController::class, 'downloadStudentClassTimetable'])->name('student.classes.download');
         Route::get('/my-exams/download', [ExamTimetableController::class, 'downloadStudentTimetable'])->name('student.exams.download');
         Route::get('/student/timetable/download', [ClassTimetableController::class, 'downloadPDF'])->name('student.timetable.download');
@@ -376,7 +377,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware(['permission:manage-timeslots'])->group(function () {
-        Route::get('/schools/sces/bbit/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
+        Route::get('/timeslots', [TimeSlotController::class, 'index'])->name('timeslots.index');
         Route::post('/timeslots', [TimeSlotController::class, 'store'])->name('timeslots.store');
         Route::put('/timeslots/{timeSlot}', [TimeSlotController::class, 'update'])->name('timeslots.update');
         Route::delete('/timeslots/{timeSlot}', [TimeSlotController::class, 'destroy'])->name('timeslots.destroy');
@@ -437,10 +438,11 @@ Route::middleware(['auth'])->group(function () {
     
     Route::middleware(['role:Lecturer'])->group(function () {
         Route::get('/lecturer/dashboard', [DashboardController::class, 'lecturerDashboard'])->name('lecturer.dashboard');
-        Route::get('/lecturer/my-classes', [LecturerController::class, 'myClasses'])->name('lecturer.my-classes');
+        Route::get('/my-classes', [LecturerController::class, 'myClasses'])->name('lecturer.my-classes');
+        Route::get('/my-timetables', [LecturerController::class, 'viewClassTimetable'])->name('lecturer.my-timetables');
         Route::get('/lecturer/my-classes/{unitId}/students', [LecturerController::class, 'classStudents'])->name('lecturer.class-students');
         Route::get('/lecturer/class-timetable', [LecturerController::class, 'viewClassTimetable'])->name('lecturer.class-timetable');
-        Route::get('/lecturer/exam-supervision', [LecturerController::class, 'examSupervision'])->name('lecturer.exam-supervision');
+        Route::get('/examsupervision', [LecturerController::class, 'examSupervision'])->name('lecturer.examsupervision');
         Route::get('/lecturer/profile', [LecturerController::class, 'profile'])->name('lecturer.profile');
         Route::get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('lecturer.timetable.download');
     });

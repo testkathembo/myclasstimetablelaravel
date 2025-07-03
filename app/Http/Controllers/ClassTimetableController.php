@@ -1907,269 +1907,288 @@ class ClassTimetableController extends Controller
      * ✅ REAL DATA: Display student's timetable page with real group filtering
      */
     public function studentTimetable(Request $request)
-    {
-        try {
-            // Fetch the authenticated student
-            $user = auth()->user();
+{
+    try {
+        // Fetch the authenticated student
+        $user = auth()->user();
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Please log in to view your timetable.');
+        }
 
-            if (!$user) {
-                return redirect()->route('login')->with('error', 'Please log in to view your timetable.');
-            }
+        \Log::info('Student accessing timetable', [
+            'user_id' => $user->id,
+            'user_code' => $user->code ?? 'No code'
+        ]);
 
-            \Log::info('Student accessing timetable', [
-                'user_id' => $user->id,
-                'user_code' => $user->code ?? 'No code'
-            ]);
-
-            // Fetch the current semester with error handling
-            $currentSemester = Semester::where('is_active', true)->first();
-            
-            // If no active semester, get the latest one
-            if (!$currentSemester) {
-                $currentSemester = Semester::orderByDesc('id')->first();
-            }
-
-            if (!$currentSemester) {
-                \Log::warning('No semester found for student timetable');
-                return Inertia::render('Student/Timetable', [
-                    'classTimetables' => [],
-                    'currentSemester' => null,
-                    'downloadUrl' => route('student.timetable.download'),
-                    'student' => [
-                        'id' => $user->id,
-                        'first_name' => $user->first_name,
-                        'last_name' => $user->last_name,
-                        'code' => $user->code,
-                    ],
-                    'filters' => [
-                        'per_page' => $request->get('per_page', 100),
-                        'search' => $request->get('search', ''),
-                    ],
-                    'error' => 'No semester data available.'
-                ]);
-            }
-
-            // Check if user has a code (required for enrollments)
-            if (!$user->code) {
-                \Log::error('User has no code for enrollment lookup', ['user_id' => $user->id]);
-                return Inertia::render('Student/Timetable', [
-                    'classTimetables' => [],
-                    'currentSemester' => $currentSemester,
-                    'downloadUrl' => route('student.timetable.download'),
-                    'student' => [
-                        'id' => $user->id,
-                        'first_name' => $user->first_name,
-                        'last_name' => $user->last_name,
-                        'code' => $user->code,
-                    ],
-                    'filters' => [
-                        'per_page' => $request->get('per_page', 100),
-                        'search' => $request->get('search', ''),
-                    ],
-                    'error' => 'Student code not found. Please contact administration.'
-                ]);
-            }
-
-            // ✅ REAL DATA: Fetch enrollments for this student with proper error handling
-            $enrollments = collect();
-            try {
-                $enrollments = Enrollment::where('student_code', $user->code)
-                    ->where('semester_id', $currentSemester->id)
-                    ->with(['unit', 'semester', 'group'])
-                    ->get();
-
-                \Log::info('Real enrollments found', [
-                    'student_code' => $user->code,
-                    'semester_id' => $currentSemester->id,
-                    'count' => $enrollments->count()
-                ]);
-            } catch (\Exception $e) {
-                \Log::error('Error fetching enrollments: ' . $e->getMessage());
-                $enrollments = collect();
-            }
-
-            // ✅ REAL DATA: Get the student's enrolled unit IDs AND group IDs
-            $enrolledUnitIds = [];
-            $studentGroupIds = [];
-            
-            if ($enrollments->isNotEmpty()) {
-                $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
-                $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
-            }
-
-            \Log::info('Student group filtering for web view', [
-                'unit_ids' => $enrolledUnitIds,
-                'group_ids' => $studentGroupIds
-            ]);
-
-            // Get pagination parameters
-            $perPage = $request->get('per_page', 100);
-            $search = $request->get('search', '');
-
-            // ✅ REAL DATA: Fetch actual class timetable entries for the student's units AND groups with pagination
-            $classTimetables = collect();
-            
-            if (!empty($enrolledUnitIds)) {
-                try {
-                    $query = DB::table('class_timetable')
-                        ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
-                        ->where('class_timetable.semester_id', $currentSemester->id);
-
-                    // ✅ CRITICAL FIX: Filter by student's group(s) using REAL data
-                    if (!empty($studentGroupIds)) {
-                        $query->whereIn('class_timetable.group_id', $studentGroupIds);
-                    } else {
-                        // If no specific group assigned, check if there are enrollments with null group_id
-                        $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
-                        if ($hasNullGroup) {
-                            $query->whereNull('class_timetable.group_id');
-                        }
-                    }
-
-                    // Add search functionality
-                    if (!empty($search)) {
-                        $query->where(function ($q) use ($search) {
-                            $q->where('units.code', 'like', "%{$search}%")
-                              ->orWhere('units.name', 'like', "%{$search}%")
-                              ->orWhere('class_timetable.venue', 'like', "%{$search}%")
-                              ->orWhere('class_timetable.day', 'like', "%{$search}%")
-                              ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
-                              ->orWhere('class_timetable.lecturer', 'like', "%{$search}%");
-                        });
-                    }
-
-                    $classTimetables = $query
-                        ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
-                        ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
-                        ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
-                        ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
-                        ->select(
-                            'class_timetable.id',
-                            'class_timetable.day',
-                            'class_timetable.start_time',
-                            'class_timetable.end_time',
-                            'class_timetable.venue',
-                            'class_timetable.location',
-                            'class_timetable.teaching_mode',
-                            'class_timetable.lecturer',
-                            'units.code as unit_code',
-                            'units.name as unit_name',
-                            DB::raw("CASE 
-                                WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
-                                ELSE class_timetable.lecturer 
-                                END as lecturer"),
-                            'groups.name as group_name',
-                            'semesters.name as semester_name'
-                        )
-                        ->orderBy('class_timetable.day')
-                        ->orderBy('class_timetable.start_time')
-                        ->paginate($perPage)
-                        ->withQueryString(); // This preserves search and other query parameters
-
-                    \Log::info('Paginated class timetables found with REAL data', [
-                        'total' => $classTimetables->total(),
-                        'per_page' => $classTimetables->perPage(),
-                        'current_page' => $classTimetables->currentPage(),
-                        'student_code' => $user->code,
-                        'groups_filtered' => $studentGroupIds,
-                        'search_term' => $search
-                    ]);
-
-                } catch (\Exception $e) {
-                    \Log::error('Error fetching class timetables: ' . $e->getMessage(), [
-                        'student_code' => $user->code,
-                        'semester_id' => $currentSemester->id,
-                        'unit_ids' => $enrolledUnitIds,
-                        'group_ids' => $studentGroupIds
-                    ]);
-                    
-                    // Return empty paginated result in case of error
-                    $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
-                        collect([]), // Empty collection
-                        0, // Total items
-                        $perPage, // Items per page
-                        1, // Current page
-                        [
-                            'path' => request()->url(),
-                            'pageName' => 'page',
-                        ]
-                    );
-                }
-            } else {
-                \Log::info('No enrolled units found for student', [
-                    'student_code' => $user->code,
-                    'semester_id' => $currentSemester->id
-                ]);
-                
-                // Return empty paginated result when no enrolled units
-                $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
-                    collect([]), // Empty collection
-                    0, // Total items
-                    $perPage, // Items per page
-                    1, // Current page
-                    [
-                        'path' => request()->url(),
-                        'pageName' => 'page',
-                    ]
-                );
-            }
-
+        // Check if user has a code (required for enrollments)
+        if (!$user->code) {
+            \Log::error('User has no code for enrollment lookup', ['user_id' => $user->id]);
             return Inertia::render('Student/Timetable', [
-                'classTimetables' => $classTimetables, // This is now a paginated result with REAL data
-                'currentSemester' => $currentSemester ? [
-                    'id' => $currentSemester->id,
-                    'name' => $currentSemester->name
-                ] : null,
+                'classTimetables' => [],
+                'currentSemester' => null,
+                'availableSemesters' => [],
                 'downloadUrl' => route('student.timetable.download'),
                 'student' => [
                     'id' => $user->id,
                     'first_name' => $user->first_name,
                     'last_name' => $user->last_name,
                     'code' => $user->code,
-                    'groups' => $studentGroupIds // Pass student groups for debugging
-                ],
-                'filters' => [
-                    'per_page' => (int) $perPage,
-                    'search' => $search,
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Critical error in studentTimetable method: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'user_id' => auth()->id()
-            ]);
-
-            return Inertia::render('Student/Timetable', [
-                'classTimetables' => new \Illuminate\Pagination\LengthAwarePaginator(
-                    collect([]), // Empty collection
-                    0, // Total items
-                    $request->get('per_page', 100), // Items per page
-                    1, // Current page
-                    [
-                        'path' => request()->url(),
-                        'pageName' => 'page',
-                    ]
-                ),
-                'currentSemester' => null,
-                'downloadUrl' => route('student.timetable.download'),
-                'student' => [
-                    'id' => auth()->id(),
-                    'first_name' => auth()->user()->first_name ?? '',
-                    'last_name' => auth()->user()->last_name ?? '',
-                    'code' => auth()->user()->code ?? '',
-                    'groups' => []
                 ],
                 'filters' => [
                     'per_page' => $request->get('per_page', 100),
                     'search' => $request->get('search', ''),
+                    'semester_id' => $request->get('semester_id'),
                 ],
-                'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
+                'error' => 'Student code not found. Please contact administration.'
             ]);
         }
-    }
 
+        // ✅ NEW: Get all semesters where the student has enrollments
+        $availableSemesters = Semester::whereIn('id', function($query) use ($user) {
+            $query->select('semester_id')
+                  ->from('enrollments')
+                  ->where('student_code', $user->code)
+                  ->distinct();
+        })
+        ->orderByDesc('is_active')
+        ->orderByDesc('id')
+        ->get();
+
+        \Log::info('Available semesters for student', [
+            'student_code' => $user->code,
+            'available_semesters' => $availableSemesters->pluck('name', 'id')->toArray()
+        ]);
+
+        // Determine which semester to show
+        $selectedSemesterId = $request->get('semester_id');
+        $currentSemester = null;
+
+        if ($selectedSemesterId) {
+            // Use the selected semester
+            $currentSemester = $availableSemesters->where('id', $selectedSemesterId)->first();
+        } else {
+            // Default to active semester if student is enrolled, otherwise first available
+            $currentSemester = $availableSemesters->where('is_active', true)->first() 
+                            ?? $availableSemesters->first();
+        }
+
+        // If no semester is available or selected, show empty state
+        if (!$currentSemester) {
+            return Inertia::render('Student/Timetable', [
+                'classTimetables' => [],
+                'currentSemester' => null,
+                'availableSemesters' => $availableSemesters,
+                'downloadUrl' => route('student.timetable.download'),
+                'student' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'code' => $user->code,
+                ],
+                'filters' => [
+                    'per_page' => $request->get('per_page', 100),
+                    'search' => $request->get('search', ''),
+                    'semester_id' => $selectedSemesterId,
+                ],
+                'error' => 'You are not enrolled in any semester yet.'
+            ]);
+        }
+
+        // ✅ REAL DATA: Fetch enrollments for this student in the selected semester
+        $enrollments = Enrollment::where('student_code', $user->code)
+            ->where('semester_id', $currentSemester->id)
+            ->with(['unit', 'semester', 'group'])
+            ->get();
+
+        \Log::info('Real enrollments found for selected semester', [
+            'student_code' => $user->code,
+            'semester_id' => $currentSemester->id,
+            'semester_name' => $currentSemester->name,
+            'count' => $enrollments->count()
+        ]);
+
+        // Get the student's enrolled unit IDs and group IDs for this semester
+        $enrolledUnitIds = $enrollments->pluck('unit_id')->filter()->toArray();
+        $studentGroupIds = $enrollments->pluck('group_id')->filter()->unique()->toArray();
+
+        // Get pagination parameters
+        $perPage = $request->get('per_page', 100);
+        $search = $request->get('search', '');
+
+        // ✅ REAL DATA: Fetch actual class timetable entries for the student's units AND groups with pagination
+        $classTimetables = collect();
+        
+        if (!empty($enrolledUnitIds)) {
+            try {
+                $query = DB::table('class_timetable')
+                    ->whereIn('class_timetable.unit_id', $enrolledUnitIds)
+                    ->where('class_timetable.semester_id', $currentSemester->id);
+
+                // ✅ CRITICAL FIX: Filter by student's group(s) using REAL data
+                if (!empty($studentGroupIds)) {
+                    $query->whereIn('class_timetable.group_id', $studentGroupIds);
+                } else {
+                    // If no specific group assigned, check if there are enrollments with null group_id
+                    $hasNullGroup = $enrollments->whereNull('group_id')->isNotEmpty();
+                    if ($hasNullGroup) {
+                        $query->whereNull('class_timetable.group_id');
+                    }
+                }
+
+                // Add search functionality
+                if (!empty($search)) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('units.code', 'like', "%{$search}%")
+                          ->orWhere('units.name', 'like', "%{$search}%")
+                          ->orWhere('class_timetable.venue', 'like', "%{$search}%")
+                          ->orWhere('class_timetable.day', 'like', "%{$search}%")
+                          ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'like', "%{$search}%")
+                          ->orWhere('class_timetable.lecturer', 'like', "%{$search}%");
+                    });
+                }
+
+                $classTimetables = $query
+                    ->leftJoin('units', 'class_timetable.unit_id', '=', 'units.id')
+                    ->leftJoin('users', 'users.code', '=', 'class_timetable.lecturer')
+                    ->leftJoin('groups', 'class_timetable.group_id', '=', 'groups.id')
+                    ->leftJoin('semesters', 'class_timetable.semester_id', '=', 'semesters.id')
+                    ->select(
+                        'class_timetable.id',
+                        'class_timetable.day',
+                        'class_timetable.start_time',
+                        'class_timetable.end_time',
+                        'class_timetable.venue',
+                        'class_timetable.location',
+                        'class_timetable.teaching_mode',
+                        'class_timetable.lecturer',
+                        'units.code as unit_code',
+                        'units.name as unit_name',
+                        DB::raw("CASE 
+                            WHEN users.id IS NOT NULL THEN CONCAT(users.first_name, ' ', users.last_name) 
+                            ELSE class_timetable.lecturer 
+                            END as lecturer"),
+                        'groups.name as group_name',
+                        'semesters.name as semester_name'
+                    )
+                    ->orderBy('class_timetable.day')
+                    ->orderBy('class_timetable.start_time')
+                    ->paginate($perPage)
+                    ->withQueryString();
+
+                \Log::info('Paginated class timetables found with REAL data', [
+                    'total' => $classTimetables->total(),
+                    'per_page' => $classTimetables->perPage(),
+                    'current_page' => $classTimetables->currentPage(),
+                    'student_code' => $user->code,
+                    'semester_name' => $currentSemester->name,
+                    'groups_filtered' => $studentGroupIds,
+                    'search_term' => $search
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('Error fetching class timetables: ' . $e->getMessage(), [
+                    'student_code' => $user->code,
+                    'semester_id' => $currentSemester->id,
+                    'unit_ids' => $enrolledUnitIds,
+                    'group_ids' => $studentGroupIds
+                ]);
+                
+                // Return empty paginated result in case of error
+                $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
+                    collect([]),
+                    0,
+                    $perPage,
+                    1,
+                    [
+                        'path' => request()->url(),
+                        'pageName' => 'page',
+                    ]
+                );
+            }
+        } else {
+            \Log::info('No enrolled units found for student in selected semester', [
+                'student_code' => $user->code,
+                'semester_id' => $currentSemester->id,
+                'semester_name' => $currentSemester->name
+            ]);
+            
+            // Return empty paginated result when no enrolled units
+            $classTimetables = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect([]),
+                0,
+                $perPage,
+                1,
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            );
+        }
+
+        return Inertia::render('Student/Timetable', [
+            'classTimetables' => $classTimetables,
+            'currentSemester' => [
+                'id' => $currentSemester->id,
+                'name' => $currentSemester->name
+            ],
+            'availableSemesters' => $availableSemesters->map(function($semester) {
+                return [
+                    'id' => $semester->id,
+                    'name' => $semester->name
+                ];
+            }),
+            'downloadUrl' => route('student.timetable.download'),
+            'student' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'code' => $user->code,
+                'groups' => $studentGroupIds
+            ],
+            'filters' => [
+                'per_page' => (int) $perPage,
+                'search' => $search,
+                'semester_id' => (int) $currentSemester->id,
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Critical error in studentTimetable method: ' . $e->getMessage(), [
+            'exception' => $e,
+            'trace' => $e->getTraceAsString(),
+            'user_id' => auth()->id()
+        ]);
+
+        return Inertia::render('Student/Timetable', [
+            'classTimetables' => new \Illuminate\Pagination\LengthAwarePaginator(
+                collect([]),
+                0,
+                $request->get('per_page', 100),
+                1,
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            ),
+            'currentSemester' => null,
+            'availableSemesters' => [],
+            'downloadUrl' => route('student.timetable.download'),
+            'student' => [
+                'id' => auth()->id(),
+                'first_name' => auth()->user()->first_name ?? '',
+                'last_name' => auth()->user()->last_name ?? '',
+                'code' => auth()->user()->code ?? '',
+                'groups' => []
+            ],
+            'filters' => [
+                'per_page' => $request->get('per_page', 100),
+                'search' => $request->get('search', ''),
+                'semester_id' => $request->get('semester_id'),
+            ],
+            'error' => 'An error occurred while loading your timetable. Please try again or contact support.'
+        ]);
+    }
+}
     /**
      * Download the class timetable as a PDF.
      */
