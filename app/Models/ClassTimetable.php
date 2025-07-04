@@ -28,13 +28,35 @@ class ClassTimetable extends Model
         'lecturer',
         'program_id',
         'school_id',
-        'teaching_mode', // ✅ ADDED: for teaching mode functionality
+        'room_name',     // ✅ ADDED: Missing field
+        'lecturer_code', // ✅ ADDED: Missing field for lecturer code matching
     ];
 
     protected $casts = [
         'start_time' => 'datetime:H:i',
         'end_time' => 'datetime:H:i',
     ];
+
+    // ✅ ADDED: Scope methods for easier filtering
+    public function scopeByLecturer($query, $lecturerName)
+    {
+        return $query->where('lecturer', $lecturerName);
+    }
+
+    public function scopeByLecturerCode($query, $lecturerCode)
+    {
+        return $query->where('lecturer_code', $lecturerCode);
+    }
+
+    public function scopeBySemester($query, $semesterId)
+    {
+        return $query->where('semester_id', $semesterId);
+    }
+
+    public function scopeByUnit($query, $unitId)
+    {
+        return $query->where('unit_id', $unitId);
+    }
 
     /**
      * Get the unit that owns the class timetable.
@@ -90,6 +112,14 @@ class ClassTimetable extends Model
      */
     public function lecturerRelation()
     {
-        return $this->belongsTo(User::class, 'lecturer', 'code');
+        return $this->belongsTo(User::class, 'lecturer', 'name'); // ✅ FIXED: Match by name instead of code
+    }
+
+    /**
+     * ✅ ADDED: Alternative lecturer relationship by code
+     */
+    public function lecturerByCode()
+    {
+        return $this->belongsTo(User::class, 'lecturer_code', 'code');
     }
 }

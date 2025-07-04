@@ -89,4 +89,30 @@ class Unit extends Model
     {
         return $this->hasMany(ClassTimetable::class);
     }
+
+    // ✅ ADDED: Get lecturers assigned to this unit through enrollments
+    public function lecturers()
+    {
+        return $this->hasManyThrough(
+            User::class,
+            Enrollment::class,
+            'unit_id',       // Foreign key on enrollments table
+            'code',          // Foreign key on users table
+            'id',            // Local key on units table
+            'lecturer_code'  // Local key on enrollments table
+        )->whereNotNull('enrollments.lecturer_code');
+    }
+
+    // ✅ ADDED: Get students enrolled in this unit through enrollments
+    public function students()
+    {
+        return $this->hasManyThrough(
+            User::class,
+            Enrollment::class,
+            'unit_id',      // Foreign key on enrollments table
+            'code',         // Foreign key on users table
+            'id',           // Local key on units table
+            'student_code'  // Local key on enrollments table
+        )->whereNotNull('enrollments.student_code');
+    }
 }

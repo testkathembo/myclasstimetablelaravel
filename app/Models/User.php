@@ -22,6 +22,7 @@ class User extends Authenticatable
         'schools',
         'programs',
         'school_id',
+        'name', // ✅ ADDED: Missing name field that's used in timetable
     ];
 
     protected $hidden = [
@@ -35,6 +36,55 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // ✅ ADDED: Accessor to get full name if 'name' field doesn't exist
+    public function getNameAttribute($value)
+    {
+        // If name field exists, return it
+        if ($value) {
+            return $value;
+        }
+        
+        // Otherwise, construct from first_name and last_name
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    // ✅ ADDED: Relationship with ClassTimetables as lecturer (by name)
+    public function classTimetables()
+    {
+        return $this->hasMany(ClassTimetable::class, 'lecturer', 'name');
+    }
+
+    // ✅ ADDED: Relationship with ClassTimetables as lecturer (by code)
+    public function classTimetablesByCode()
+    {
+        return $this->hasMany(ClassTimetable::class, 'lecturer_code', 'code');
+    }
+
+    // ✅ ADDED: Relationship to get units through enrollments (as lecturer)
+    public function lecturerUnits()
+    {
+        return $this->hasManyThrough(
+            Unit::class,
+            Enrollment::class,
+            'lecturer_code', // Foreign key on enrollments table
+            'id',            // Foreign key on units table
+            'code',          // Local key on users table
+            'unit_id'        // Local key on enrollments table
+        );
+    }
+
+    // ✅ ADDED: Relationship to get enrollments as lecturer
+    public function lecturerEnrollments()
+    {
+        return $this->hasMany(Enrollment::class, 'lecturer_code', 'code');
+    }
+
+    // ✅ ADDED: Relationship to get enrollments as student
+    public function studentEnrollments()
+    {
+        return $this->hasMany(Enrollment::class, 'student_code', 'code');
     }
 
     /**
@@ -51,12 +101,12 @@ class User extends Authenticatable
     public function canManageSchool($schoolCode)
     {
         $schoolCode = strtolower($schoolCode);
-        
+
         // Super admin can manage all schools
         if ($this->hasRole('Admin') || $this->can('manage schools')) {
             return true;
         }
-        
+
         // Check school-specific permission
         return $this->can("manage {$schoolCode} school");
     }
@@ -67,12 +117,12 @@ class User extends Authenticatable
     public function canViewSchool($schoolCode)
     {
         $schoolCode = strtolower($schoolCode);
-        
+
         // Super admin can view all schools
         if ($this->hasRole('Admin') || $this->can('view schools')) {
             return true;
         }
-        
+
         // Check school-specific permission
         return $this->can("view {$schoolCode} school");
     }
@@ -90,13 +140,13 @@ class User extends Authenticatable
         // Get schools based on specific permissions
         $manageableSchools = collect();
         $schools = School::all();
-        
+
         foreach ($schools as $school) {
             if ($this->canViewSchool($school->code)) {
                 $manageableSchools->push($school);
             }
         }
-        
+
         return $manageableSchools;
     }
 

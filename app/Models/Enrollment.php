@@ -22,6 +22,7 @@ class Enrollment extends Model
         'semester_id',
         'program_id',
         'school_id',
+        'class_id', // ✅ ADDED: Missing class_id field
     ];
 
     /**
@@ -82,11 +83,7 @@ class Enrollment extends Model
     }
 
     public function class()
-{
-    return $this->belongsTo(ClassModel::class, 'class_id');
-}
-
- 
-
-    
+    {
+        return $this->belongsTo(ClassModel::class, 'class_id');
+    }
 }
