@@ -15,12 +15,12 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ schoolCode, schoolName, auth }: DashboardProps) {
-    // Mock statistics
+    // SLS-specific statistics (smaller numbers for law school)
     const statistics = {
-        totalStudents: { count: 1850, growthRate: 8.5 },
-        totalLecturers: { count: 45, growthRate: 12.3 },
-        totalUnits: { count: 120, growthRate: 5.2 },
-        activeEnrollments: { count: 3200, growthRate: 15.7 },
+        totalStudents: { count: 950, growthRate: 7.3 },
+        totalLecturers: { count: 28, growthRate: 5.2 },
+        totalUnits: { count: 65, growthRate: 4.8 },
+        activeEnrollments: { count: 1420, growthRate: 9.1 },
     };
 
     return (
@@ -33,7 +33,7 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                             {schoolName} Dashboard
                         </h2>
                         <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                 {schoolCode}
                             </span>
                         </div>
@@ -47,7 +47,7 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     {/* Quick Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        {/* Total Students Card */}
+                        {/* Total Students Card - Purple theme for SLS */}
                         <div className="bg-white shadow-sm rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-300">
                             <div className="px-6 py-4">
                                 <div className="flex items-center justify-between">
@@ -57,18 +57,18 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                             {statistics.totalStudents.count.toLocaleString()}
                                         </p>
                                     </div>
-                                    <div className="bg-blue-100 p-3 rounded-full">
-                                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="bg-purple-100 p-3 rounded-full">
+                                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                                         </svg>
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-center gap-1">
-                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                     </svg>
-                                    <span className="text-green-600 text-sm font-medium">
+                                    <span className="text-purple-600 text-sm font-medium">
                                         +{statistics.totalStudents.growthRate}%
                                     </span>
                                     <span className="text-slate-500 text-sm">vs last semester</span>
@@ -86,17 +86,17 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                             {statistics.totalLecturers.count.toLocaleString()}
                                         </p>
                                     </div>
-                                    <div className="bg-emerald-100 p-3 rounded-full">
-                                        <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="bg-violet-100 p-3 rounded-full">
+                                        <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                                         </svg>
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-center gap-1">
-                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                     </svg>
-                                    <span className="text-green-600 text-sm font-medium">
+                                    <span className="text-purple-600 text-sm font-medium">
                                         +{statistics.totalLecturers.growthRate}%
                                     </span>
                                     <span className="text-slate-500 text-sm">vs last year</span>
@@ -114,17 +114,17 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                             {statistics.totalUnits.count.toLocaleString()}
                                         </p>
                                     </div>
-                                    <div className="bg-purple-100 p-3 rounded-full">
-                                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="bg-indigo-100 p-3 rounded-full">
+                                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                         </svg>
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-center gap-1">
-                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                     </svg>
-                                    <span className="text-green-600 text-sm font-medium">
+                                    <span className="text-purple-600 text-sm font-medium">
                                         +{statistics.totalUnits.growthRate}%
                                     </span>
                                     <span className="text-slate-500 text-sm">vs last semester</span>
@@ -149,10 +149,10 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-center gap-1">
-                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                     </svg>
-                                    <span className="text-green-600 text-sm font-medium">
+                                    <span className="text-purple-600 text-sm font-medium">
                                         +{statistics.activeEnrollments.growthRate}%
                                     </span>
                                     <span className="text-slate-500 text-sm">vs last semester</span>
@@ -170,12 +170,13 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                         </div>
                         <div className="px-6 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Students - Purple theme for SLS */}
                                 <Link
-                                    href={route('faculty.students.sces')}
-                                    className="block p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all duration-300 border border-blue-200"
+                                    href={route('faculty.students.sls')}
+                                    className="block p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl hover:from-purple-100 hover:to-purple-200 transition-all duration-300 border border-purple-200"
                                 >
                                     <div className="flex items-center space-x-3">
-                                        <div className="bg-blue-500 p-2 rounded-lg">
+                                        <div className="bg-purple-500 p-2 rounded-lg">
                                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                                             </svg>
@@ -187,12 +188,13 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Lecturers */}
                                 <Link
-                                    href={route('faculty.lecturers.sces')}
-                                    className="block p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl hover:from-emerald-100 hover:to-emerald-200 transition-all duration-300 border border-emerald-200"
+                                    href={route('faculty.lecturers.sls')}
+                                    className="block p-4 bg-gradient-to-br from-violet-50 to-violet-100 rounded-xl hover:from-violet-100 hover:to-violet-200 transition-all duration-300 border border-violet-200"
                                 >
                                     <div className="flex items-center space-x-3">
-                                        <div className="bg-emerald-500 p-2 rounded-lg">
+                                        <div className="bg-violet-500 p-2 rounded-lg">
                                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                                             </svg>
@@ -204,12 +206,13 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Units */}
                                 <Link
-                                    href={route('faculty.units.sces')}
-                                    className="block p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl hover:from-purple-100 hover:to-purple-200 transition-all duration-300 border border-purple-200"
+                                    href={route('faculty.units.sls')}
+                                    className="block p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-300 border border-indigo-200"
                                 >
                                     <div className="flex items-center space-x-3">
-                                        <div className="bg-purple-500 p-2 rounded-lg">
+                                        <div className="bg-indigo-500 p-2 rounded-lg">
                                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                             </svg>
@@ -221,8 +224,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Enrollments */}
                                 <Link
-                                    href={route('faculty.enrollments.sces')}
+                                    href={route('faculty.enrollments.sls')}
                                     className="block p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl hover:from-amber-100 hover:to-amber-200 transition-all duration-300 border border-amber-200"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -238,12 +242,13 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Timetables */}
                                 <Link
-                                    href={route('faculty.timetables.sces')}
-                                    className="block p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-300 border border-indigo-200"
+                                    href={route('faculty.timetables.sls')}
+                                    className="block p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl hover:from-slate-100 hover:to-slate-200 transition-all duration-300 border border-slate-200"
                                 >
                                     <div className="flex items-center space-x-3">
-                                        <div className="bg-indigo-500 p-2 rounded-lg">
+                                        <div className="bg-slate-500 p-2 rounded-lg">
                                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                             </svg>
@@ -255,8 +260,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Reports */}
                                 <Link
-                                    href={route('faculty.reports.sces')}
+                                    href={route('faculty.reports.sls')}
                                     className="block p-4 bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl hover:from-rose-100 hover:to-rose-200 transition-all duration-300 border border-rose-200"
                                 >
                                     <div className="flex items-center space-x-3">

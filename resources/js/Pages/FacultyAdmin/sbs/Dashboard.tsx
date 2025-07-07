@@ -15,12 +15,12 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ schoolCode, schoolName, auth }: DashboardProps) {
-    // Mock statistics
+    // SBS-specific statistics (higher numbers for business school)
     const statistics = {
-        totalStudents: { count: 1850, growthRate: 8.5 },
-        totalLecturers: { count: 45, growthRate: 12.3 },
-        totalUnits: { count: 120, growthRate: 5.2 },
-        activeEnrollments: { count: 3200, growthRate: 15.7 },
+        totalStudents: { count: 2100, growthRate: 10.2 },
+        totalLecturers: { count: 52, growthRate: 8.7 },
+        totalUnits: { count: 95, growthRate: 6.1 },
+        activeEnrollments: { count: 2850, growthRate: 12.4 },
     };
 
     return (
@@ -33,7 +33,7 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                             {schoolName} Dashboard
                         </h2>
                         <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 {schoolCode}
                             </span>
                         </div>
@@ -47,7 +47,7 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     {/* Quick Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        {/* Total Students Card */}
+                        {/* Total Students Card - Green theme for SBS */}
                         <div className="bg-white shadow-sm rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-300">
                             <div className="px-6 py-4">
                                 <div className="flex items-center justify-between">
@@ -57,8 +57,8 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                             {statistics.totalStudents.count.toLocaleString()}
                                         </p>
                                     </div>
-                                    <div className="bg-blue-100 p-3 rounded-full">
-                                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="bg-green-100 p-3 rounded-full">
+                                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                                         </svg>
@@ -170,12 +170,13 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                         </div>
                         <div className="px-6 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Students - Green theme for SBS */}
                                 <Link
-                                    href={route('faculty.students.sces')}
-                                    className="block p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all duration-300 border border-blue-200"
+                                    href={route('faculty.students.sbs')}
+                                    className="block p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl hover:from-green-100 hover:to-green-200 transition-all duration-300 border border-green-200"
                                 >
                                     <div className="flex items-center space-x-3">
-                                        <div className="bg-blue-500 p-2 rounded-lg">
+                                        <div className="bg-green-500 p-2 rounded-lg">
                                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                                             </svg>
@@ -187,8 +188,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Lecturers */}
                                 <Link
-                                    href={route('faculty.lecturers.sces')}
+                                    href={route('faculty.lecturers.sbs')}
                                     className="block p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl hover:from-emerald-100 hover:to-emerald-200 transition-all duration-300 border border-emerald-200"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -204,8 +206,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Units */}
                                 <Link
-                                    href={route('faculty.units.sces')}
+                                    href={route('faculty.units.sbs')}
                                     className="block p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl hover:from-purple-100 hover:to-purple-200 transition-all duration-300 border border-purple-200"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -221,8 +224,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Enrollments */}
                                 <Link
-                                    href={route('faculty.enrollments.sces')}
+                                    href={route('faculty.enrollments.sbs')}
                                     className="block p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl hover:from-amber-100 hover:to-amber-200 transition-all duration-300 border border-amber-200"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -238,8 +242,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Timetables */}
                                 <Link
-                                    href={route('faculty.timetables.sces')}
+                                    href={route('faculty.timetables.sbs')}
                                     className="block p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-300 border border-indigo-200"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -255,8 +260,9 @@ export default function Dashboard({ schoolCode, schoolName, auth }: DashboardPro
                                     </div>
                                 </Link>
 
+                                {/* Reports */}
                                 <Link
-                                    href={route('faculty.reports.sces')}
+                                    href={route('faculty.reports.sbs')}
                                     className="block p-4 bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl hover:from-rose-100 hover:to-rose-200 transition-all duration-300 border border-rose-200"
                                 >
                                     <div className="flex items-center space-x-3">

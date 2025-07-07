@@ -447,26 +447,502 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/lecturer/timetable/download', [ExamTimetableController::class, 'downloadLecturerTimetable'])->name('lecturer.timetable.download');
     });
 
-    // ===============================================================
-    // FACULTY ADMIN ROUTES
-    // ===============================================================
+// ===============================================================
+// FACULTY ADMIN ROUTES - SCHOOL SPECIFIC
+// ===============================================================
+
+Route::middleware(['auth', 'ensure_user_can_access_school'])->group(function () {
     
-    Route::middleware(['role:Faculty Admin'])->group(function () {
-        Route::get('/faculty-admin', fn() => Inertia::render('FacultyAdmin/Dashboard'))->name('faculty-admin.dashboard');
+    // SCES Routes
+    // SCES Routes
+    Route::prefix('sces')->middleware(['role:Faculty Admin - SCES'])->group(function () {
+        Route::get('/dashboard', function () {
+            return Inertia::render('FacultyAdmin/sces/Dashboard', [
+                'schoolCode' => 'SCES',
+                'schoolName' => 'School of Computing and Engineering Sciences'
+            ]);
+        })->name('faculty.dashboard.sces')->middleware('permission:view-faculty-dashboard-sces');
+
+        // Students Management
+        Route::get('/students', [StudentController::class, 'index'])
+            ->name('faculty.students.sces')
+            ->middleware('permission:manage-faculty-students-sces');
         
-        Route::middleware(['permission:manage-faculty-users'])->group(function () {
-            Route::get('/faculty/lecturers', [LecturerController::class, 'index'])->name('faculty.lecturers');
-            Route::get('/faculty/students', [StudentController::class, 'index'])->name('faculty.students');
-        });
+        Route::get('/students/create', [StudentController::class, 'create'])
+            ->name('faculty.students.create.sces')
+            ->middleware('permission:create-faculty-students-sces');
         
-        Route::middleware(['permission:manage-faculty-enrollments'])->group(function () {
-            Route::get('/faculty/enrollments', [EnrollmentController::class, 'facultyEnrollments'])->name('faculty.enrollments');
-        });
+        Route::post('/students', [StudentController::class, 'store'])
+            ->name('faculty.students.store.sces')
+            ->middleware('permission:create-faculty-students-sces');
         
-        Route::middleware(['permission:download-faculty-timetable'])->group(function () {
-            Route::get('/faculty/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])->name('faculty.timetable.download');
-        });
+        Route::get('/students/{student}/edit', [StudentController::class, 'edit'])
+            ->name('faculty.students.edit.sces')
+            ->middleware('permission:manage-faculty-students-sces');
+        
+        Route::put('/students/{student}', [StudentController::class, 'update'])
+            ->name('faculty.students.update.sces')
+            ->middleware('permission:manage-faculty-students-sces');
+
+        // Lecturers Management
+        Route::get('/lecturers', [LecturerController::class, 'index'])
+            ->name('faculty.lecturers.sces')
+            ->middleware('permission:manage-faculty-lecturers-sces');
+        
+        Route::get('/lecturers/create', [LecturerController::class, 'create'])
+            ->name('faculty.lecturers.create.sces')
+            ->middleware('permission:create-faculty-lecturers-sces');
+        
+        Route::post('/lecturers', [LecturerController::class, 'store'])
+            ->name('faculty.lecturers.store.sces')
+            ->middleware('permission:create-faculty-lecturers-sces');
+        
+        Route::get('/lecturers/{lecturer}/edit', [LecturerController::class, 'edit'])
+            ->name('faculty.lecturers.edit.sces')
+            ->middleware('permission:manage-faculty-lecturers-sces');
+
+        // Units Management
+        Route::get('/units', [UnitController::class, 'facultyUnits'])
+            ->name('faculty.units.sces')
+            ->middleware('permission:manage-faculty-units-sces');
+        
+        Route::get('/units/create', [UnitController::class, 'create'])
+            ->name('faculty.units.create.sces')
+            ->middleware('permission:create-faculty-units-sces');
+        
+        Route::post('/units', [UnitController::class, 'store'])
+            ->name('faculty.units.store.sces')
+            ->middleware('permission:create-faculty-units-sces');
+
+        // Enrollments Management
+        Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
+            ->name('faculty.enrollments.sces')
+            ->middleware('permission:manage-faculty-enrollments-sces');
+        
+        Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
+            ->name('faculty.enrollments.bulk.sces')
+            ->middleware('permission:bulk-faculty-enrollments-sces');
+        
+        Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
+            ->name('faculty.enrollments.bulk.store.sces')
+            ->middleware('permission:bulk-faculty-enrollments-sces');
+
+        // Timetables Management
+        Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+            ->name('faculty.timetables.sces')
+            ->middleware('permission:manage-faculty-timetables-sces');
+        
+        Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+            ->name('faculty.timetable.download.sces')
+            ->middleware('permission:manage-faculty-timetables-sces');
+
+        // Reports
+        Route::get('/reports', [ReportController::class, 'facultyReports'])
+            ->name('faculty.reports.sces')
+            ->middleware('permission:view-faculty-reports-sces');
     });
+
+    // SBS Routes
+    Route::prefix('sbs')->middleware(['role:Faculty Admin - SBS'])->group(function () {
+        Route::get('/dashboard', function () {
+            return Inertia::render('FacultyAdmin/sbs/Dashboard', [
+                'schoolCode' => 'SBS',
+                'schoolName' => 'School of Business Studies'
+            ]);
+        })->name('faculty.dashboard.sbs')->middleware('permission:view-faculty-dashboard-sbs');
+
+        // SBS Students Management
+        Route::get('/students', [StudentController::class, 'index'])
+            ->name('faculty.students.sbs')
+            ->middleware('permission:manage-faculty-students-sbs');
+        
+        Route::get('/students/create', [StudentController::class, 'create'])
+            ->name('faculty.students.create.sbs')
+            ->middleware('permission:create-faculty-students-sbs');
+        
+        Route::post('/students', [StudentController::class, 'store'])
+            ->name('faculty.students.store.sbs')
+            ->middleware('permission:create-faculty-students-sbs');
+        
+        Route::get('/students/{student}/edit', [StudentController::class, 'edit'])
+            ->name('faculty.students.edit.sbs')
+            ->middleware('permission:manage-faculty-students-sbs');
+        
+        Route::put('/students/{student}', [StudentController::class, 'update'])
+            ->name('faculty.students.update.sbs')
+            ->middleware('permission:manage-faculty-students-sbs');
+
+        // Lecturers Management
+        Route::get('/lecturers', [LecturerController::class, 'index'])
+            ->name('faculty.lecturers.sbs')
+            ->middleware('permission:manage-faculty-lecturers-sbs');
+        
+        Route::get('/lecturers/create', [LecturerController::class, 'create'])
+            ->name('faculty.lecturers.create.sbs')
+            ->middleware('permission:create-faculty-lecturers-sbs');
+        
+        Route::post('/lecturers', [LecturerController::class, 'store'])
+            ->name('faculty.lecturers.store.sbs')
+            ->middleware('permission:create-faculty-lecturers-sbs');
+        
+        Route::get('/lecturers/{lecturer}/edit', [LecturerController::class, 'edit'])
+            ->name('faculty.lecturers.edit.sbs')
+            ->middleware('permission:manage-faculty-lecturers-sbs');
+
+        // Units Management
+        Route::get('/units', [UnitController::class, 'facultyUnits'])
+            ->name('faculty.units.sbs')
+            ->middleware('permission:manage-faculty-units-sbs');
+        
+        Route::get('/units/create', [UnitController::class, 'create'])
+            ->name('faculty.units.create.sbs')
+            ->middleware('permission:create-faculty-units-sbs');
+        
+        Route::post('/units', [UnitController::class, 'store'])
+            ->name('faculty.units.store.sbs')
+            ->middleware('permission:create-faculty-units-sbs');
+
+        // Enrollments Management
+        Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
+            ->name('faculty.enrollments.sbs')
+            ->middleware('permission:manage-faculty-enrollments-sbs');
+        
+        Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
+            ->name('faculty.enrollments.bulk.sbs')
+            ->middleware('permission:bulk-faculty-enrollments-sbs');
+        
+        Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
+            ->name('faculty.enrollments.bulk.store.sbs')
+            ->middleware('permission:bulk-faculty-enrollments-sbs');
+
+        // Timetables Management
+        Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+            ->name('faculty.timetables.sbs')
+            ->middleware('permission:manage-faculty-timetables-sbs');
+        
+        Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+            ->name('faculty.timetable.download.sbs')
+            ->middleware('permission:manage-faculty-timetables-sbs');
+
+        // Reports
+        Route::get('/reports', [ReportController::class, 'facultyReports'])
+            ->name('faculty.reports.sbs')
+            ->middleware('permission:view-faculty-reports-sbs');
+    });
+
+    // SLS Routes
+    Route::prefix('sls')->middleware(['role:Faculty Admin - SLS'])->group(function () {
+        Route::get('/dashboard', function () {
+            return Inertia::render('FacultyAdmin/sls/Dashboard', [
+                'schoolCode' => 'SLS',
+                'schoolName' => 'School of Legal Studies'
+            ]);
+        })->name('faculty.dashboard.sls')->middleware('permission:view-faculty-dashboard-sls');
+
+        // Students Management
+        Route::get('/students', [StudentController::class, 'index'])
+            ->name('faculty.students.sls')
+            ->middleware('permission:manage-faculty-students-sls');
+        
+        Route::get('/students/create', [StudentController::class, 'create'])
+            ->name('faculty.students.create.sls')
+            ->middleware('permission:create-faculty-students-sls');
+        
+        Route::post('/students', [StudentController::class, 'store'])
+            ->name('faculty.students.store.sls')
+            ->middleware('permission:create-faculty-students-sls');
+        
+        Route::get('/students/{student}/edit', [StudentController::class, 'edit'])
+            ->name('faculty.students.edit.sls')
+            ->middleware('permission:manage-faculty-students-sls');
+        
+        Route::put('/students/{student}', [StudentController::class, 'update'])
+            ->name('faculty.students.update.sls')
+            ->middleware('permission:manage-faculty-students-sls');
+
+        // Lecturers Management
+        Route::get('/lecturers', [LecturerController::class, 'index'])
+            ->name('faculty.lecturers.sls')
+            ->middleware('permission:manage-faculty-lecturers-sls');
+        
+        Route::get('/lecturers/create', [LecturerController::class, 'create'])
+            ->name('faculty.lecturers.create.sls')
+            ->middleware('permission:create-faculty-lecturers-sls');
+        
+        Route::post('/lecturers', [LecturerController::class, 'store'])
+            ->name('faculty.lecturers.store.sls')
+            ->middleware('permission:create-faculty-lecturers-sls');
+        
+        Route::get('/lecturers/{lecturer}/edit', [LecturerController::class, 'edit'])
+            ->name('faculty.lecturers.edit.sls')
+            ->middleware('permission:manage-faculty-lecturers-sls');
+
+        // Units Management
+        Route::get('/units', [UnitController::class, 'facultyUnits'])
+            ->name('faculty.units.sls')
+            ->middleware('permission:manage-faculty-units-sls');
+        
+        Route::get('/units/create', [UnitController::class, 'create'])
+            ->name('faculty.units.create.sls')
+            ->middleware('permission:create-faculty-units-sls');
+        
+        Route::post('/units', [UnitController::class, 'store'])
+            ->name('faculty.units.store.sls')
+            ->middleware('permission:create-faculty-units-sls');
+
+        // Enrollments Management
+        Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
+            ->name('faculty.enrollments.sls')
+            ->middleware('permission:manage-faculty-enrollments-sls');
+        
+        Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
+            ->name('faculty.enrollments.bulk.sls')
+            ->middleware('permission:bulk-faculty-enrollments-sls');
+        
+        Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
+            ->name('faculty.enrollments.bulk.store.sls')
+            ->middleware('permission:bulk-faculty-enrollments-sls');
+
+        // Timetables Management
+        Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+            ->name('faculty.timetables.sls')
+            ->middleware('permission:manage-faculty-timetables-sls');
+        
+        Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+            ->name('faculty.timetable.download.sls')
+            ->middleware('permission:manage-faculty-timetables-sls');
+
+        // Reports
+        Route::get('/reports', [ReportController::class, 'facultyReports'])
+            ->name('faculty.reports.sls')
+            ->middleware('permission:view-faculty-reports-sls');
+    });
+
+    // TOURISM Routes
+    Route::prefix('tourism')->middleware(['role:Faculty Admin - TOURISM'])->group(function () {
+        Route::get('/dashboard', function () {
+            return Inertia::render('FacultyAdmin/Dashboard', [
+                'schoolCode' => 'TOURISM',
+                'schoolName' => 'School of Tourism and Hospitality'
+            ]);
+        })->name('faculty.dashboard.tourism')->middleware('permission:view-faculty-dashboard-tourism');
+
+        // Students Management
+        Route::get('/students', [StudentController::class, 'index'])
+            ->name('faculty.students.tourism')
+            ->middleware('permission:manage-faculty-students-tourism');
+        
+        Route::get('/students/create', [StudentController::class, 'create'])
+            ->name('faculty.students.create.tourism')
+            ->middleware('permission:create-faculty-students-tourism');
+        
+        Route::post('/students', [StudentController::class, 'store'])
+            ->name('faculty.students.store.tourism')
+            ->middleware('permission:create-faculty-students-tourism');
+        
+        Route::get('/students/{student}/edit', [StudentController::class, 'edit'])
+            ->name('faculty.students.edit.tourism')
+            ->middleware('permission:manage-faculty-students-tourism');
+        
+        Route::put('/students/{student}', [StudentController::class, 'update'])
+            ->name('faculty.students.update.tourism')
+            ->middleware('permission:manage-faculty-students-tourism');
+
+        // Lecturers Management
+        Route::get('/lecturers', [LecturerController::class, 'index'])
+            ->name('faculty.lecturers.tourism')
+            ->middleware('permission:manage-faculty-lecturers-tourism');
+        
+        Route::get('/lecturers/create', [LecturerController::class, 'create'])
+            ->name('faculty.lecturers.create.tourism')
+            ->middleware('permission:create-faculty-lecturers-tourism');
+        
+        Route::post('/lecturers', [LecturerController::class, 'store'])
+            ->name('faculty.lecturers.store.tourism')
+            ->middleware('permission:create-faculty-lecturers-tourism');
+        
+        Route::get('/lecturers/{lecturer}/edit', [LecturerController::class, 'edit'])
+            ->name('faculty.lecturers.edit.tourism')
+            ->middleware('permission:manage-faculty-lecturers-tourism');
+
+        // Units Management
+        Route::get('/units', [UnitController::class, 'facultyUnits'])
+            ->name('faculty.units.tourism')
+            ->middleware('permission:manage-faculty-units-tourism');
+        
+        Route::get('/units/create', [UnitController::class, 'create'])
+            ->name('faculty.units.create.tourism')
+            ->middleware('permission:create-faculty-units-tourism');
+        
+        Route::post('/units', [UnitController::class, 'store'])
+            ->name('faculty.units.store.tourism')
+            ->middleware('permission:create-faculty-units-tourism');
+
+        // Enrollments Management
+        Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
+            ->name('faculty.enrollments.tourism')
+            ->middleware('permission:manage-faculty-enrollments-tourism');
+        
+        Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
+            ->name('faculty.enrollments.bulk.tourism')
+            ->middleware('permission:bulk-faculty-enrollments-tourism');
+        
+        Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
+            ->name('faculty.enrollments.bulk.store.tourism')
+            ->middleware('permission:bulk-faculty-enrollments-tourism');
+
+        // Timetables Management
+        Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+            ->name('faculty.timetables.tourism')
+            ->middleware('permission:manage-faculty-timetables-tourism');
+        
+        Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+            ->name('faculty.timetable.download.tourism')
+            ->middleware('permission:manage-faculty-timetables-tourism');
+
+        // Reports
+        Route::get('/reports', [ReportController::class, 'facultyReports'])
+            ->name('faculty.reports.tourism')
+            ->middleware('permission:view-faculty-reports-tourism');
+    });
+
+    // SHM Routes
+    Route::prefix('shm')->middleware(['role:Faculty Admin - SHM'])->group(function () {
+        Route::get('/dashboard', function () {
+            return Inertia::render('FacultyAdmin/Dashboard', [
+                'schoolCode' => 'SHM',
+                'schoolName' => 'School of Humanities'
+            ]);
+        })->name('faculty.dashboard.shm')->middleware('permission:view-faculty-dashboard-shm');
+
+        // Students Management
+        Route::get('/students', [StudentController::class, 'index'])
+            ->name('faculty.students.shm')
+            ->middleware('permission:manage-faculty-students-shm');
+        
+        Route::get('/students/create', [StudentController::class, 'create'])
+            ->name('faculty.students.create.shm')
+            ->middleware('permission:create-faculty-students-shm');
+        
+        Route::post('/students', [StudentController::class, 'store'])
+            ->name('faculty.students.store.shm')
+            ->middleware('permission:create-faculty-students-shm');
+        
+        Route::get('/students/{student}/edit', [StudentController::class, 'edit'])
+            ->name('faculty.students.edit.shm')
+            ->middleware('permission:manage-faculty-students-shm');
+        
+        Route::put('/students/{student}', [StudentController::class, 'update'])
+            ->name('faculty.students.update.shm')
+            ->middleware('permission:manage-faculty-students-shm');
+
+        // Lecturers Management
+        Route::get('/lecturers', [LecturerController::class, 'index'])
+            ->name('faculty.lecturers.shm')
+            ->middleware('permission:manage-faculty-lecturers-shm');
+        
+        Route::get('/lecturers/create', [LecturerController::class, 'create'])
+            ->name('faculty.lecturers.create.shm')
+            ->middleware('permission:create-faculty-lecturers-shm');
+        
+        Route::post('/lecturers', [LecturerController::class, 'store'])
+            ->name('faculty.lecturers.store.shm')
+            ->middleware('permission:create-faculty-lecturers-shm');
+        
+        Route::get('/lecturers/{lecturer}/edit', [LecturerController::class, 'edit'])
+            ->name('faculty.lecturers.edit.shm')
+            ->middleware('permission:manage-faculty-lecturers-shm');
+
+        // Units Management
+        Route::get('/units', [UnitController::class, 'facultyUnits'])
+            ->name('faculty.units.shm')
+            ->middleware('permission:manage-faculty-units-shm');
+        
+        Route::get('/units/create', [UnitController::class, 'create'])
+            ->name('faculty.units.create.shm')
+            ->middleware('permission:create-faculty-units-shm');
+        
+        Route::post('/units', [UnitController::class, 'store'])
+            ->name('faculty.units.store.shm')
+            ->middleware('permission:create-faculty-units-shm');
+
+        // Enrollments Management
+        Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
+            ->name('faculty.enrollments.shm')
+            ->middleware('permission:manage-faculty-enrollments-shm');
+        
+        Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
+            ->name('faculty.enrollments.bulk.shm')
+            ->middleware('permission:bulk-faculty-enrollments-shm');
+        
+        Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
+            ->name('faculty.enrollments.bulk.store.shm')
+            ->middleware('permission:bulk-faculty-enrollments-shm');
+
+        // Timetables Management
+        Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+            ->name('faculty.timetables.shm')
+            ->middleware('permission:manage-faculty-timetables-shm');
+        
+        Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+            ->name('faculty.timetable.download.shm')
+            ->middleware('permission:manage-faculty-timetables-shm');
+
+        // Reports
+        Route::get('/reports', [ReportController::class, 'facultyReports'])
+            ->name('faculty.reports.shm')
+            ->middleware('permission:view-faculty-reports-shm');
+    });
+});
+
+// ===============================================================
+// FALLBACK AND REDIRECT ROUTES
+// ===============================================================
+
+// Redirect old faculty-admin route to user's school dashboard
+Route::get('/faculty-admin', function () {
+    $user = Auth::user();
+    if (!$user) {
+        return redirect()->route('login');
+    }
+
+    // Get user's school code from role
+    $userSchoolCode = null;
+    $roles = $user->getRoleNames();
+    foreach ($roles as $role) {
+        if (str_starts_with($role, 'Faculty Admin - ')) {
+            $userSchoolCode = str_replace('Faculty Admin - ', '', $role);
+            break;
+        }
+    }
+
+    // Fallback to schools column if exists
+    if (!$userSchoolCode && isset($user->schools) && $user->schools) {
+        $userSchoolCode = strtoupper($user->schools);
+    }
+
+    if ($userSchoolCode) {
+        $schoolRoute = match($userSchoolCode) {
+            'SCES' => 'faculty.dashboard.sces',
+            'SBS' => 'faculty.dashboard.sbs',
+            'SLS' => 'faculty.dashboard.sls',
+            'TOURISM' => 'faculty.dashboard.tourism',
+            'SHM' => 'faculty.dashboard.shm',
+            default => null
+        };
+
+        if ($schoolRoute) {
+            return redirect()->route($schoolRoute);
+        }
+    }
+
+    return redirect()->route('dashboard')->with('error', 'No faculty assignment found.');
+})->middleware('auth')->name('faculty-admin.dashboard');
+
+// Generic faculty dashboard redirect
+Route::get('/faculty', function () {
+    return redirect()->route('faculty-admin.dashboard');
+})->middleware('auth');
 
     // ===============================================================
     // EXAM OFFICE ROUTES
