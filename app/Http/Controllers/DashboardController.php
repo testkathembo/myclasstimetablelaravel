@@ -745,7 +745,7 @@ class DashboardController extends Controller
             'stats' => $stats
         ]);
 
-        return Inertia::render('FacultyAdmin/SCES/Dashboard', [
+        return Inertia::render('FacultyAdmin/sces/Dashboard', [
             'schoolCode' => $schoolCode,
             'schoolName' => $schoolName,
             'currentSemester' => $currentSemester,

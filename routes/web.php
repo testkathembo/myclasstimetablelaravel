@@ -220,7 +220,7 @@ Route::middleware(['auth'])->group(function () {
     // Programs management
     Route::middleware(['permission:manage-programs'])->group(function () {
         Route::resource('programs', ProgramController::class);
-        Route::get('/schools/sces/bbit/programs', [ProgramController::class, 'index'])->name('programs.index.alt');
+        Route::get('/schools/sces/bbit/programs', [ProgramController::class, 'index'])->name('programs.index');
     });
 
     // Programs View
@@ -530,12 +530,23 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
                 ->name('faculty.enrollments.sces')
                 ->middleware('permission:manage-faculty-enrollments-sces');
+    
             Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
                 ->name('faculty.enrollments.bulk.sces')
                 ->middleware('permission:manage-faculty-enrollments-sces');
+    
             Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
                 ->name('faculty.enrollments.bulk.store.sces')
                 ->middleware('permission:manage-faculty-enrollments-sces');
+
+            // ADD THESE MISSING DELETE ROUTES:
+            Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])
+                ->name('faculty.enrollments.destroy.sces')
+                ->middleware('permission:delete-faculty-enrollments-sces');
+
+            Route::post('/enrollments/bulk-delete', [EnrollmentController::class, 'bulkDestroy'])
+                ->name('faculty.enrollments.bulk.destroy.sces')
+                ->middleware('permission:delete-faculty-enrollments-sces');
 
             // Timetables Management
             Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
@@ -549,6 +560,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/reports', [ReportController::class, 'facultyReports'])
                 ->name('faculty.reports.sces')
                 ->middleware('permission:view-faculty-reports-sces');
+
+   
         });
 
         // SBS Routes

@@ -710,7 +710,7 @@ class EnrollmentController extends Controller
             // Get students for this school (you might need to adjust this based on your student-school relationship)
             $students = User::role('Student')->get(); // You may want to filter by school
 
-            return Inertia::render('FacultyAdmin/SCES/Enrollments', [
+            return Inertia::render('FacultyAdmin/sces/Enrollments', [
                 'enrollments' => $enrollments,
                 'lecturerAssignments' => [
                     'data' => $lecturerAssignments->items(),
