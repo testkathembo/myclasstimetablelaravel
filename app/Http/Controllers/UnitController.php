@@ -32,8 +32,8 @@ class UnitController extends Controller
      */
     public function index(Request $request)
     {
-        $this->authorize('viewAny', Unit::class); // Ensure the user has permission to view units
-
+        $this->authorize('viewAny', Unit::class);
+        
         $query = Unit::query()->with(['school', 'program', 'semester']);
 
         // Filter by school
@@ -85,8 +85,8 @@ class UnitController extends Controller
             'programs' => $programs,
             'semesters' => $semesters,
             'filters' => $request->only([
-                'search', 'school_id', 'program_id', 'semester_id', 
-                'is_active', 'sort_field', 'sort_direction', 'per_page'
+                'search', 'school_id', 'program_id', 'semester_id', 'is_active', 
+                'sort_field', 'sort_direction', 'per_page'
             ]),
             'can' => [
                 'create' => Gate::allows('create', Unit::class),
@@ -101,8 +101,8 @@ class UnitController extends Controller
      */
     public function create()
     {
-        $this->authorize('create', Unit::class); // Ensure the user has permission to create units
-
+        $this->authorize('create', Unit::class);
+        
         $schools = School::select('id', 'name')->orderBy('name')->get();
         $programs = Program::select('id', 'name', 'school_id')->orderBy('name')->get();
         $semesters = Semester::select('id', 'name')->orderBy('name')->get();
@@ -123,7 +123,7 @@ class UnitController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'code' => 'required|string|max:255|unique:units,code',
+            'code' => 'required|string|max:255|unique:sces_units,code',
             'name' => 'required|string|max:255',
             'credit_hours' => 'required|integer|min:1|max:6',
             'program_id' => 'nullable|exists:programs,id',
@@ -209,13 +209,12 @@ class UnitController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('units')->ignore($unit->id),
+                Rule::unique('sces_units', 'code')->ignore($unit->id),
             ],
             'name' => 'required|string|max:255',
             'program_id' => 'nullable|exists:programs,id',
             'school_id' => 'nullable|exists:schools,id',
-            // Removed 'semester_id' validation
-            'credit_hours' => 'required|integer|min:1|max:6', // Ensure credit_hours is between 1 and 6
+            'credit_hours' => 'required|integer|min:1|max:6',
             'is_active' => 'boolean',
         ]);
 
@@ -234,9 +233,8 @@ class UnitController extends Controller
     public function destroy(Unit $unit)
     {
         // Check if the unit has any associated data
-        if (
-            $unit->enrollments()->exists() ||
-            $unit->classTimetables()->exists() // Ensure this method exists in the Unit model
+        if ($unit->enrollments()->exists() ||
+            $unit->classTimetables()->exists()
         ) {
             return redirect()->route('units.index')
                 ->with('error', 'Cannot delete unit because it has associated data.');
@@ -275,14 +273,85 @@ class UnitController extends Controller
     public function assignToSemester(Request $request)
     {
         $validated = $request->validate([
-            'unit_id' => 'required|exists:units,id',
+            'unit_id' => 'required|exists:sces_units,id',
             'semester_id' => 'required|exists:semesters,id',
         ]);
 
         $unit = Unit::findOrFail($validated['unit_id']);
-        $unit->semesters()->attach($validated['semester_id']); // Assign the unit to the semester
+        $unit->semesters()->attach($validated['semester_id']);
 
         return redirect()->route('units.index')
             ->with('success', 'Unit assigned to semester successfully.');
+    }
+
+    /**
+     * Display faculty-specific units for SCES.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Inertia\Response
+     */
+    public function facultyUnits(Request $request)
+    {
+        $this->authorize('viewAny', Unit::class);
+        
+        // Filter units for SCES school only
+        $scesSchool = School::where('code', 'SCES')->first();
+        
+        $query = Unit::query()
+            ->with(['school', 'program', 'semester'])
+            ->where('school_id', $scesSchool->id ?? null);
+
+        // Apply filters similar to index method
+        if ($request->has('program_id') && $request->input('program_id')) {
+            $query->where('program_id', $request->input('program_id'));
+        }
+
+        if ($request->has('semester_id') && $request->input('semester_id')) {
+            $query->where('semester_id', $request->input('semester_id'));
+        }
+
+        if ($request->has('is_active')) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        if ($request->has('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
+        }
+
+        $sortField = $request->input('sort_field', 'code');
+        $sortDirection = $request->input('sort_direction', 'asc');
+        $query->orderBy($sortField, $sortDirection);
+
+        $perPage = $request->input('per_page', 10);
+        $units = $query->paginate($perPage)->withQueryString();
+
+        // Get SCES-specific data for dropdowns
+        $programs = Program::where('school_id', $scesSchool->id ?? null)
+            ->select('id', 'name', 'school_id')
+            ->orderBy('name')
+            ->get();
+        
+        $semesters = Semester::select('id', 'name')->orderBy('name')->get();
+
+        return Inertia::render('facultyadmin/sces/units/Index', [
+            'units' => $units,
+            'programs' => $programs,
+            'semesters' => $semesters,
+            'schoolName' => $scesSchool->name ?? 'SCES',
+            'schoolCode' => 'SCES',
+            'filters' => $request->only([
+                'search', 'program_id', 'semester_id', 'is_active', 
+                'sort_field', 'sort_direction', 'per_page'
+            ]),
+            'can' => [
+                'create' => Gate::allows('create', Unit::class),
+                'update' => Gate::allows('update', Unit::class),
+                'delete' => Gate::allows('delete', Unit::class),
+            ],
+        ]);
     }
 }

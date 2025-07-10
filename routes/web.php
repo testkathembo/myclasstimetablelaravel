@@ -476,11 +476,11 @@ Route::middleware(['auth'])->group(function () {
     // FACULTY ADMIN ROUTES - SCHOOL SPECIFIC
     // ===============================================================
     
-    Route::middleware(['auth', 'ensure_user_can_access_school'])->group(function () {
+   
         
         // SCES Routes
-        Route::prefix('sces')->middleware(['role:Faculty Admin - SCES'])->group(function () {
-            Route::get('/dashboard', [DashboardController::class, 'scesDashboard'])
+        Route::prefix('facultyadmin/sces')->middleware(['role:Faculty Admin - SCES'])->group(function () {
+            Route::get('/', [DashboardController::class, 'scesDashboard'])
                 ->name('faculty.dashboard.sces')
                 ->middleware('permission:view-faculty-dashboard-sces');
 
@@ -515,17 +515,44 @@ Route::middleware(['auth'])->group(function () {
                 ->name('faculty.lecturers.edit.sces')
                 ->middleware('permission:manage-faculty-lecturers-sces');
 
-            // Units Management
-            Route::get('/units', [UnitController::class, 'facultyUnits'])
-                ->name('faculty.units.sces')
-                ->middleware('permission:manage-faculty-units-sces');
-            Route::get('/units/create', [UnitController::class, 'create'])
-                ->name('faculty.units.create.sces')
-                ->middleware('permission:create-faculty-units-sces');
-            Route::post('/units', [UnitController::class, 'store'])
-                ->name('faculty.units.store.sces')
-                ->middleware('permission:create-faculty-units-sces');
 
+// Units Management - Complete CRUD
+Route::get('/facultyadmin/sces/units', [UnitController::class, 'facultyUnits'])
+    ->name('faculty.units.index')
+    ->middleware('permission:manage-faculty-units-sces');
+
+// Add missing route name for Ziggy compatibility
+Route::get('/units', [UnitController::class, 'facultyUnits'])
+    ->name('faculty.units.sces')
+    ->middleware('permission:manage-faculty-units-sces');
+
+Route::get('/units/create', [UnitController::class, 'create'])
+    ->name('faculty.units.create.sces')
+    ->middleware('permission:create-faculty-units-sces');
+
+Route::post('/units', [UnitController::class, 'store'])
+    ->name('faculty.units.store.sces')
+    ->middleware('permission:create-faculty-units-sces');
+
+Route::get('/units/{unit}', [UnitController::class, 'show'])
+    ->name('faculty.units.show.sces')
+    ->middleware('permission:view-faculty-units-sces');
+
+Route::get('/units/{unit}/edit', [UnitController::class, 'edit'])
+    ->name('faculty.units.edit.sces')
+    ->middleware('permission:manage-faculty-units-sces');
+
+Route::put('/units/{unit}', [UnitController::class, 'update'])
+    ->name('faculty.units.update.sces')
+    ->middleware('permission:manage-faculty-units-sces');
+
+Route::delete('/units/{unit}', [UnitController::class, 'destroy'])
+    ->name('faculty.units.destroy.sces')
+    ->middleware('permission:delete-faculty-units-sces');
+
+Route::post('/units/{unit}/toggle-active', [UnitController::class, 'toggleActive'])
+    ->name('faculty.units.toggle.sces')
+    ->middleware('permission:manage-faculty-units-sces');
             // Enrollments Management
             Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
                 ->name('faculty.enrollments.sces')
@@ -1040,7 +1067,7 @@ Route::middleware(['auth'])->group(function () {
         ]);
     });
 
-}); // END OF AUTHENTICATED MIDDLEWARE GROUP
+
 
 // ===================================================================
 // ADMIN ROUTES (Admin role bypasses permission checks)

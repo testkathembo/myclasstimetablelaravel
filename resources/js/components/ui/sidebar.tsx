@@ -202,7 +202,56 @@ export default function Sidebar() {
                               )}
                               {hasPermission(user, "manage-units") && (
                                 <Link
-                                  href="/units"
+                                  href="/FacultyAdmin/sces/units"
+                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                >
+                                  <BookOpen className="mr-3 h-5 w-5" />
+                                  Units
+                                </Link>
+                              )}
+                              {hasPermission(user, "manage-enrollments") && (
+                                <Link
+                                  href="/enrollments"
+                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                >
+                                  <ClipboardList className="mr-3 h-5 w-5" />
+                                  Enrollments
+                                </Link>
+                              )}
+                              {hasPermission(user, "manage-classes") && (
+                                <Link
+                                  href="/classes"
+                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                >
+                                  <ClipboardList className="mr-3 h-5 w-5" />
+                                  Classes
+                                </Link>
+                              )}
+                            </div>
+                          )}
+                           <button
+                            type="button"
+                            className="flex items-center w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700 focus:outline-none"
+                            onClick={() => toggleProgram("sbs")}
+                          >
+                            <GraduationCap className="mr-3 h-5 w-5" />
+                            SBS
+                            <span className="ml-auto">{openProgram === "sbs" ? "▲" : "▼"}</span>
+                          </button>
+                          {openProgram === "sbs" && (
+                            <div className="ml-6 mt-1 space-y-1">
+                              {hasPermission(user, "manage-programs") && (
+                                <Link
+                                  href="/programs"
+                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                >
+                                  <BookOpen className="mr-3 h-5 w-5" />
+                                  Programs
+                                </Link>
+                              )}
+                              {hasPermission(user, "manage-units") && (
+                                <Link
+                                  href="/FacultyAdmin/sbs/units"
                                   className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
                                 >
                                   <BookOpen className="mr-3 h-5 w-5" />
@@ -235,38 +284,7 @@ export default function Sidebar() {
                   )}
                 </div>
               )}
-                
-
-              {hasPermission(user, "manage-units") && (
-                <Link
-                  href="/units"
-                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-                >
-                  <BookOpen className="mr-3 h-5 w-5" />
-                  Units
-                </Link>
-              )}
-
-              {hasPermission(user, "manage-classes") && (
-                <Link
-                  href="/classes"
-                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-                >
-                  <ClipboardList className="mr-3 h-5 w-5" />
-                  Classes
-                </Link>
-              )}
-
-              {hasPermission(user, "manage-enrollments") && (
-                <Link
-                  href="/enrollments"
-                  className="flex items-center px-4 py-2 mt-1 text-sm font-medium rounded-md hover:bg-gray-700"
-                >
-                  <ClipboardList className="mr-3 h-5 w-5" />
-                  Enrollments
-                </Link>
-              )}
-
+             
               {hasPermission(user, "manage-semesters") && (
                 <Link
                   href="/semesters"

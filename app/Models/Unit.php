@@ -14,6 +14,7 @@ class Unit extends Model
      *
      * @var array
      */
+     protected $table = 'sces_units';
     protected $fillable = [
         'code',
         'name',
