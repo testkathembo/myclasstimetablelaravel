@@ -735,7 +735,7 @@ class EnrollmentController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return Inertia::render('FacultyAdmin/Enrollments', [
+            return Inertia::render('FacultyAdmin/sces/Enrollments', [
                 'enrollments' => null,
                 'lecturerAssignments' => ['data' => [], 'links' => []],
                 'semesters' => [],
@@ -794,7 +794,7 @@ class EnrollmentController extends Controller
             ->orderBy('name')
             ->get();
 
-        return Inertia::render('FacultyAdmin/BulkEnrollment', [
+        return Inertia::render('FacultyAdmin/sces/BulkEnrollment', [
             'students' => $students,
             'semesters' => $semesters,
             'classes' => $classes,

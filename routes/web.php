@@ -220,7 +220,7 @@ Route::middleware(['auth'])->group(function () {
     // Programs management
     Route::middleware(['permission:manage-programs'])->group(function () {
         Route::resource('programs', ProgramController::class);
-        Route::get('/schools/sces/bbit/programs', [ProgramController::class, 'index'])->name('programs.index');
+        Route::get('/schools/sces/programs', [ProgramController::class, 'index'])->name('programs.index');
     });
 
     // Programs View

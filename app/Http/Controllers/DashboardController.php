@@ -601,7 +601,10 @@ class DashboardController extends Controller
             ];
         }
 
-        return Inertia::render('FacultyAdmin/Dashboard', [
+        // Use a dynamic path based on the faculty code if needed, e.g.:
+        // return Inertia::render("FacultyAdmin/{$facultyCode}/Dashboard", [...]);
+        // For now, ensure the path matches your frontend structure:
+        return Inertia::render('FacultyAdmin/sces/Dashboard', [
             'currentSemester' => $currentSemester,
             'facultyStats' => $facultyStats,
             'userPermissions' => $user->getAllPermissions()->pluck('name'),
