@@ -478,11 +478,87 @@ Route::middleware(['auth'])->group(function () {
     
    
         
-        // SCES Routes
+        // SCES - BBIT Routes
         Route::prefix('facultyadmin/sces')->middleware(['role:Faculty Admin - SCES'])->group(function () {
             Route::get('/', [DashboardController::class, 'scesDashboard'])
                 ->name('faculty.dashboard.sces')
                 ->middleware('permission:view-faculty-dashboard-sces');
+
+            // SCES Enrollments Management
+            Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
+                ->name('faculty.enrollments.sces')
+                ->middleware('permission:manage-faculty-enrollments-sces');
+
+            Route::get('/enrollments/create', [EnrollmentController::class, 'create'])
+                ->name('faculty.enrollments.create.sces')
+                ->middleware('permission:manage-faculty-enrollments-sces');
+
+            Route::post('/enrollments', [EnrollmentController::class, 'store'])
+                ->name('faculty.enrollments.store.sces')
+                ->middleware('permission:manage-faculty-enrollments-sces');
+
+            Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
+                ->name('faculty.enrollments.bulk.sces')
+                ->middleware('permission:manage-faculty-enrollments-sces');
+
+            Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
+                ->name('faculty.enrollments.bulk.store.sces')
+                ->middleware('permission:manage-faculty-enrollments-sces');
+
+            Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])
+                ->name('faculty.enrollments.destroy.sces')
+                ->middleware('permission:delete-faculty-enrollments-sces');
+
+            Route::post('/enrollments/bulk-delete', [EnrollmentController::class, 'bulkDestroy'])
+                ->name('faculty.enrollments.bulk.destroy.sces')
+                ->middleware('permission:delete-faculty-enrollments-sces');
+
+            // SCES Class Management
+            Route::get('/classes', [ClassController::class, 'facultyclasses'])
+                ->name('faculty.classes.sces')
+                ->middleware('permission:manage-faculty-classes-sces');
+
+            Route::get('/classes/create', [ClassController::class, 'create'])
+                ->name('faculty.classes.create.sces')
+                ->middleware('permission:manage-faculty-classes-sces');
+
+            Route::post('/classes', [ClassController::class, 'store'])
+                ->name('faculty.classes.store.sces')
+                ->middleware('permission:manage-faculty-classes-sces');
+
+            Route::get('/classes/bulk', [ClassController::class, 'bulkEnrollment'])
+                ->name('faculty.classes.bulk.sces')
+                ->middleware('permission:manage-faculty-classes-sces');
+
+            Route::post('/classes/bulk', [ClassController::class, 'storeBulkEnrollment'])
+                ->name('faculty.classes.bulk.store.sces')
+                ->middleware('permission:manage-faculty-classes-sces');
+
+            Route::delete('/classes/{enrollment}', [ClassController::class, 'destroy'])
+                ->name('faculty.classes.destroy.sces')
+                ->middleware('permission:delete-faculty-classes-sces');
+
+            Route::post('/classes/bulk-delete', [ClassController::class, 'bulkDestroy'])
+                ->name('faculty.classes.bulk.destroy.sces')
+                ->middleware('permission:delete-faculty-classes-sces');
+
+            // Timetables Management
+            Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+                ->name('faculty.timetables.sces')
+                ->middleware('permission:manage-faculty-timetables-sces');
+            Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+                ->name('faculty.timetable.download.sces')
+                ->middleware('permission:manage-faculty-timetables-sces');
+
+
+            // Timetables Management
+            Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
+                ->name('faculty.timetables.sces')
+                ->middleware('permission:manage-faculty-timetables-sces');
+            Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
+                ->name('faculty.timetable.download.sces')
+                ->middleware('permission:manage-faculty-timetables-sces');
+
 
             // Students Management
             Route::get('/students', [StudentController::class, 'index'])
@@ -516,73 +592,45 @@ Route::middleware(['auth'])->group(function () {
                 ->middleware('permission:manage-faculty-lecturers-sces');
 
 
-// Units Management - Complete CRUD
-Route::get('/facultyadmin/sces/units', [UnitController::class, 'facultyUnits'])
-    ->name('faculty.units.index')
-    ->middleware('permission:manage-faculty-units-sces');
+            // Units Management - Complete CRUD
+            Route::get('/facultyadmin/sces/units', [UnitController::class, 'facultyUnits'])
+                 ->name('faculty.units.index')
+                ->middleware('permission:manage-faculty-units-sces');
 
-// Add missing route name for Ziggy compatibility
-Route::get('/units', [UnitController::class, 'facultyUnits'])
-    ->name('faculty.units.sces')
-    ->middleware('permission:manage-faculty-units-sces');
+            // Add missing route name for Ziggy compatibility
+            Route::get('/units', [UnitController::class, 'facultyUnits'])
+                ->name('faculty.units.sces')
+                ->middleware('permission:manage-faculty-units-sces');
 
-Route::get('/units/create', [UnitController::class, 'create'])
-    ->name('faculty.units.create.sces')
-    ->middleware('permission:create-faculty-units-sces');
+            Route::get('/units/create', [UnitController::class, 'create'])
+                ->name('faculty.units.create.sces')
+                ->middleware('permission:create-faculty-units-sces');
 
-Route::post('/units', [UnitController::class, 'store'])
-    ->name('faculty.units.store.sces')
-    ->middleware('permission:create-faculty-units-sces');
+            Route::post('/units', [UnitController::class, 'store'])
+                ->name('faculty.units.store.sces')
+                ->middleware('permission:create-faculty-units-sces');
 
-Route::get('/units/{unit}', [UnitController::class, 'show'])
-    ->name('faculty.units.show.sces')
-    ->middleware('permission:view-faculty-units-sces');
+            Route::get('/units/{unit}', [UnitController::class, 'show'])
+                ->name('faculty.units.show.sces')
+                ->middleware('permission:view-faculty-units-sces');
 
-Route::get('/units/{unit}/edit', [UnitController::class, 'edit'])
-    ->name('faculty.units.edit.sces')
-    ->middleware('permission:manage-faculty-units-sces');
+            Route::get('/units/{unit}/edit', [UnitController::class, 'edit'])
+                ->name('faculty.units.edit.sces')
+                ->middleware('permission:manage-faculty-units-sces');
 
-Route::put('/units/{unit}', [UnitController::class, 'update'])
-    ->name('faculty.units.update.sces')
-    ->middleware('permission:manage-faculty-units-sces');
+            Route::put('/units/{unit}', [UnitController::class, 'update'])
+                ->name('faculty.units.update.sces')
+                ->middleware('permission:manage-faculty-units-sces');
 
-Route::delete('/units/{unit}', [UnitController::class, 'destroy'])
-    ->name('faculty.units.destroy.sces')
-    ->middleware('permission:delete-faculty-units-sces');
+            Route::delete('/units/{unit}', [UnitController::class, 'destroy'])
+                ->name('faculty.units.destroy.sces')
+                ->middleware('permission:delete-faculty-units-sces');
 
-Route::post('/units/{unit}/toggle-active', [UnitController::class, 'toggleActive'])
-    ->name('faculty.units.toggle.sces')
-    ->middleware('permission:manage-faculty-units-sces');
-            // Enrollments Management
-            Route::get('/enrollments', [EnrollmentController::class, 'facultyEnrollments'])
-                ->name('faculty.enrollments.sces')
-                ->middleware('permission:manage-faculty-enrollments-sces');
-    
-            Route::get('/enrollments/bulk', [EnrollmentController::class, 'bulkEnrollment'])
-                ->name('faculty.enrollments.bulk.sces')
-                ->middleware('permission:manage-faculty-enrollments-sces');
-    
-            Route::post('/enrollments/bulk', [EnrollmentController::class, 'storeBulkEnrollment'])
-                ->name('faculty.enrollments.bulk.store.sces')
-                ->middleware('permission:manage-faculty-enrollments-sces');
+            Route::post('/units/{unit}/toggle-active', [UnitController::class, 'toggleActive'])
+                ->name('faculty.units.toggle.sces')
+                ->middleware('permission:manage-faculty-units-sces');
 
-            // ADD THESE MISSING DELETE ROUTES:
-            Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'destroy'])
-                ->name('faculty.enrollments.destroy.sces')
-                ->middleware('permission:delete-faculty-enrollments-sces');
-
-            Route::post('/enrollments/bulk-delete', [EnrollmentController::class, 'bulkDestroy'])
-                ->name('faculty.enrollments.bulk.destroy.sces')
-                ->middleware('permission:delete-faculty-enrollments-sces');
-
-            // Timetables Management
-            Route::get('/timetables', [ExamTimetableController::class, 'facultyTimetables'])
-                ->name('faculty.timetables.sces')
-                ->middleware('permission:manage-faculty-timetables-sces');
-            Route::get('/timetable/download', [ExamTimetableController::class, 'downloadFacultyTimetable'])
-                ->name('faculty.timetable.download.sces')
-                ->middleware('permission:manage-faculty-timetables-sces');
-
+           
             // Reports
             Route::get('/reports', [ReportController::class, 'facultyReports'])
                 ->name('faculty.reports.sces')

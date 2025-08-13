@@ -13,7 +13,7 @@ use App\Models\ClassTimetable;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\Lecturer;
-use App\Models\Program; // Add this as well since it's used in the queries
+use App\Models\Program;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -110,12 +110,6 @@ class DashboardController extends Controller
             'can_view_admin_dashboard' => $user->can('view admin dashboard'),
         ]);
 
-        Log::info('Admin dashboard method called', [
-            'user_id' => $user->id,
-            'has_admin_role' => $user->hasRole('Admin'),
-            'can_view_admin_dashboard' => $user->can('view admin dashboard'),
-        ]);
-
         // Check if user has permission to view admin dashboard
         if (!$user->can('view admin dashboard') && !$user->hasRole('Admin')) {
             Log::warning('Unauthorized access to admin dashboard', [
@@ -150,31 +144,36 @@ class DashboardController extends Controller
                          ? round((($usersLastMonth - $usersPreviousMonth) / $usersPreviousMonth) * 100, 1)
                         : ($usersLastMonth > 0 ? 100 : 0);
 
-            // Active Enrollments Statistics - FIXED to count all real enrollments
-            $activeEnrollments = Enrollment::whereNotNull('student_code')->count();
-            $enrollmentsLastWeek = Enrollment::where('created_at', '>=', $previousWeek)
+            // Active Enrollments Statistics - FIXED to use DB::table
+            $activeEnrollments = DB::table('sces_enrollments')->whereNotNull('student_code')->count();
+            $enrollmentsLastWeek = DB::table('sces_enrollments')
+                                        ->where('created_at', '>=', $previousWeek)
                                         ->where('created_at', '<', $currentMonth)
                                         ->whereNotNull('student_code')
                                         ->count();
-            $enrollmentsPreviousWeek = Enrollment::where('created_at', '>=', $previousWeek->copy()->subWeek())
+            $enrollmentsPreviousWeek = DB::table('sces_enrollments')
+                                           ->where('created_at', '>=', $previousWeek->copy()->subWeek())
                                            ->where('created_at', '<', $previousWeek)
                                            ->whereNotNull('student_code')
                                            ->count();
 
             if ($currentSemester) {
-                $activeEnrollments = Enrollment::where('semester_id', $currentSemester->id)
-                                                      ->whereNotNull('student_code')
-                                                      ->count();
-                $enrollmentsLastWeek = Enrollment::where('semester_id', $currentSemester->id)
-                                                        ->where('created_at', '>=', $previousWeek)
-                                                        ->where('created_at', '<', $currentMonth)
-                                                        ->whereNotNull('student_code')
-                                                        ->count();
-                $enrollmentsPreviousWeek = Enrollment::where('semester_id', $currentSemester->id)
-                                                           ->where('created_at', '>=', $previousWeek->copy()->subWeek())
-                                                           ->where('created_at', '<', $previousWeek)
-                                                           ->whereNotNull('student_code')
-                                                           ->count();
+                $activeEnrollments = DB::table('sces_enrollments')
+                                          ->where('semester_id', $currentSemester->id)
+                                          ->whereNotNull('student_code')
+                                          ->count();
+                $enrollmentsLastWeek = DB::table('sces_enrollments')
+                                            ->where('semester_id', $currentSemester->id)
+                                            ->where('created_at', '>=', $previousWeek)
+                                            ->where('created_at', '<', $currentMonth)
+                                            ->whereNotNull('student_code')
+                                            ->count();
+                $enrollmentsPreviousWeek = DB::table('sces_enrollments')
+                                               ->where('semester_id', $currentSemester->id)
+                                               ->where('created_at', '>=', $previousWeek->copy()->subWeek())
+                                               ->where('created_at', '<', $previousWeek)
+                                               ->whereNotNull('student_code')
+                                               ->count();
             }
 
             $enrollmentsGrowthRate = $enrollmentsPreviousWeek > 0
@@ -188,7 +187,7 @@ class DashboardController extends Controller
 
             if ($currentSemester) {
                 // Count distinct units that have enrollments in current semester
-                $activeClasses = Unit::whereHas('enrollments', function($query) use ($currentSemester) {
+                $activeClasses = Unit::whereHas('sces_enrollments', function($query) use ($currentSemester) {
                     $query->where('semester_id', $currentSemester->id);
                 })->count();
 
@@ -225,14 +224,22 @@ class DashboardController extends Controller
 
             $examsGrowthRate = $examsPreviousWeek > 0
                          ? round((($examsLastWeek - $examsPreviousWeek) / $examsPreviousWeek) * 100, 1)
-                        : 0; // For exams, we might expect no growth or even decline
+                        : 0;
 
-            // Recent Activities (optional - for future enhancement)
-            $recentEnrollments = Enrollment::with(['unit', 'student'])
-                                                  ->whereNotNull('student_code')
-                                                  ->latest()
-                                                  ->limit(5)
-                                                  ->get();
+            // Recent Activities using DB::table
+            $recentEnrollments = DB::table('sces_enrollments')
+                                  ->join('sces_units', 'sces_enrollments.unit_id', '=', 'sces_units.id')
+                                  ->leftJoin('users', 'sces_enrollments.student_code', '=', 'users.code')
+                                  ->select(
+                                      'sces_enrollments.*',
+                                      'sces_units.unit_name',
+                                      'sces_units.unit_code',
+                                      'users.name as student_name'
+                                  )
+                                  ->whereNotNull('sces_enrollments.student_code')
+                                  ->orderBy('sces_enrollments.created_at', 'desc')
+                                  ->limit(5)
+                                  ->get();
 
             // System Statistics
             $totalSchools = School::count();
@@ -279,7 +286,7 @@ class DashboardController extends Controller
                 'recentEnrollments' => $recentEnrollments,
                 'userPermissions' => $allPermissions,
                 'userRoles' => $roles,
-                'isAdmin' => true // Add this flag to help frontend identify admin dashboard
+                'isAdmin' => true
             ];
 
             Log::info('Admin dashboard data generated successfully', [
@@ -361,10 +368,11 @@ class DashboardController extends Controller
         $upcomingExams = collect([]);
 
         try {
-            // Find semesters where the student has enrollments
-            $studentSemesters = Enrollment::where('student_code', $user->code)
-                        ->distinct('semester_id')
-                        ->join('semesters', 'enrollments.semester_id', '=', 'semesters.id')
+            // Find semesters where the student has enrollments - FIXED to use DB::table
+            $studentSemesters = DB::table('sces_enrollments')
+                        ->where('student_code', $user->code)
+                        ->distinct()
+                        ->join('semesters', 'sces_enrollments.semester_id', '=', 'semesters.id')
                         ->select('semesters.*')
                         ->get();
 
@@ -379,23 +387,22 @@ class DashboardController extends Controller
                 throw new \Exception('No valid semester found for student');
             }
 
-            // Get enrolled units for the student in the selected semester
-            $enrolledUnits = Enrollment::where('student_code', $user->code)
+            // Get enrolled units for the student in the selected semester - FIXED to use DB::table
+            $enrolledUnits = DB::table('sces_enrollments')
+                        ->where('student_code', $user->code)
                         ->where('semester_id', $selectedSemester->id)
-                        ->with(['unit.school'])
-                        ->get()
-                        ->map(function ($enrollment) {
-                            return $enrollment->unit;
-                        })
-                        ->filter()
-                        ->unique('id');
+                        ->join('sces_units', 'sces_enrollments.unit_id', '=', 'sces_units.id')
+                        ->leftJoin('schools', 'sces_units.school_id', '=', 'schools.id')
+                        ->select('sces_units.*', 'schools.name as school_name')
+                        ->distinct('sces_units.id')
+                        ->get();
 
             // Get upcoming exams for the student in the selected semester
             $upcomingExams = ExamTimetable::where('semester_id', $selectedSemester->id)
-                        ->whereHas('unit', function($query) use ($user) {
-                            $query->whereHas('enrollments', function($q) use ($user) {
-                                $q->where('student_code', $user->code);
-                            });
+                        ->whereIn('unit_id', function($query) use ($user) {
+                            $query->select('unit_id')
+                                  ->from('sces_enrollments')
+                                  ->where('student_code', $user->code);
                         })
                         ->where('date', '>=', now()->format('Y-m-d'))
                         ->orderBy('date')
@@ -464,22 +471,28 @@ class DashboardController extends Controller
         $studentCounts = [];
 
         try {
-            // DIRECT APPROACH: Query the enrollments table using lecturer_code
-            // This matches what we see in the Enrollments page
+            // FIXED: Use DB::table for lecturer enrollments
             $lecturerCode = $user->code;
 
             // Get all semesters where this lecturer has assignments
-            $lecturerSemesters = Semester::whereHas('enrollments', function($query) use ($lecturerCode) {
-                $query->where('lecturer_code', $lecturerCode);
+            $lecturerSemesters = Semester::whereExists(function($query) use ($lecturerCode) {
+                $query->select(DB::raw(1))
+                      ->from('sces_enrollments')
+                      ->whereColumn('sces_enrollments.semester_id', 'semesters.id')
+                      ->where('sces_enrollments.lecturer_code', $lecturerCode);
             })->get();
 
             // For each semester, get the units assigned to this lecturer
             foreach ($lecturerSemesters as $semester) {
-                // Get units for this lecturer in this semester
-                $units = Unit::whereHas('enrollments', function($query) use ($lecturerCode, $semester) {
-                    $query->where('lecturer_code', $lecturerCode)
-                              ->where('semester_id', $semester->id);
-                })->with('faculty')->get();
+                // Get units for this lecturer in this semester - FIXED to use DB::table
+                $units = DB::table('sces_enrollments')
+                          ->where('lecturer_code', $lecturerCode)
+                          ->where('semester_id', $semester->id)
+                          ->join('sces_units', 'sces_enrollments.unit_id', '=', 'sces_units.id')
+                          ->leftJoin('schools', 'sces_units.school_id', '=', 'schools.id')
+                          ->select('sces_units.*', 'schools.name as school_name')
+                          ->distinct('sces_units.id')
+                          ->get();
 
                 if ($units->count() > 0) {
                     $unitsBySemester[$semester->id] = [
@@ -490,7 +503,8 @@ class DashboardController extends Controller
                     // Count students for each unit
                     $studentCounts[$semester->id] = [];
                     foreach ($units as $unit) {
-                        $studentCounts[$semester->id][$unit->id] = Enrollment::where('unit_id', $unit->id)
+                        $studentCounts[$semester->id][$unit->id] = DB::table('sces_enrollments')
+                                    ->where('unit_id', $unit->id)
                                     ->where('semester_id', $semester->id)
                                     ->whereNotNull('student_code')
                                     ->distinct('student_code')
@@ -505,8 +519,9 @@ class DashboardController extends Controller
                     'lecturer_code' => $lecturerCode,
                     'lecturer_name' => $user->name,
                     'semesters_checked' => $lecturerSemesters->pluck('id')->toArray(),
-                    'enrollment_check' => Enrollment::where('lecturer_code', $lecturerCode)->count(),
-                    'all_lecturer_codes' => Enrollment::whereNotNull('lecturer_code')
+                    'enrollment_check' => DB::table('sces_enrollments')->where('lecturer_code', $lecturerCode)->count(),
+                    'all_lecturer_codes' => DB::table('sces_enrollments')
+                                ->whereNotNull('lecturer_code')
                                 ->distinct('lecturer_code')
                                 ->pluck('lecturer_code')
                                 ->toArray()
@@ -595,15 +610,13 @@ class DashboardController extends Controller
             $facultyStats = [
                 'total_lecturers' => User::role('Lecturer')->count(),
                 'total_students' => User::role('Student')->count(),
-                'active_enrollments' => Enrollment::where('semester_id', $currentSemester->id)
+                'active_enrollments' => DB::table('sces_enrollments')
+                        ->where('semester_id', $currentSemester->id)
                         ->whereNotNull('student_code')
                         ->count(),
             ];
         }
 
-        // Use a dynamic path based on the faculty code if needed, e.g.:
-        // return Inertia::render("FacultyAdmin/{$facultyCode}/Dashboard", [...]);
-        // For now, ensure the path matches your frontend structure:
         return Inertia::render('FacultyAdmin/sces/Dashboard', [
             'currentSemester' => $currentSemester,
             'facultyStats' => $facultyStats,
@@ -682,40 +695,40 @@ class DashboardController extends Controller
         // Get current semester
         $currentSemester = Semester::where('is_active', true)->first();
         
-        // Get faculty-specific statistics
+        // Get faculty-specific statistics - FIXED to use DB::table for sces_enrollments
         $stats = [
-            'totalStudents' => Enrollment::whereHas('unit.program', function($query) use ($schoolCode) {
-                $query->whereHas('school', function($q) use ($schoolCode) {
-                    $q->where('code', $schoolCode);
-                });
-            })
-            ->whereNotNull('student_code')
-            ->distinct('student_code')
-            ->count(),
+            'totalStudents' => DB::table('sces_enrollments')
+                ->join('sces_units', 'sces_enrollments.unit_id', '=', 'sces_units.id')
+                ->join('programs', 'sces_units.program_id', '=', 'programs.id')
+                ->join('schools', 'programs.school_id', '=', 'schools.id')
+                ->where('schools.code', $schoolCode)
+                ->whereNotNull('sces_enrollments.student_code')
+                ->distinct('sces_enrollments.student_code')
+                ->count(),
             
-            'totalLecturers' => Enrollment::whereHas('unit.program', function($query) use ($schoolCode) {
-                $query->whereHas('school', function($q) use ($schoolCode) {
-                    $q->where('code', $schoolCode);
-                });
-            })
-            ->whereNotNull('lecturer_code')
-            ->distinct('lecturer_code')
-            ->count(),
+            'totalLecturers' => DB::table('sces_enrollments')
+                ->join('sces_units', 'sces_enrollments.unit_id', '=', 'sces_units.id')
+                ->join('programs', 'sces_units.program_id', '=', 'programs.id')
+                ->join('schools', 'programs.school_id', '=', 'schools.id')
+                ->where('schools.code', $schoolCode)
+                ->whereNotNull('sces_enrollments.lecturer_code')
+                ->distinct('sces_enrollments.lecturer_code')
+                ->count(),
             
-            'totalUnits' => Unit::whereHas('program', function($query) use ($schoolCode) {
-                $query->whereHas('school', function($q) use ($schoolCode) {
-                    $q->where('code', $schoolCode);
-                });
-            })->count(),
+            'totalUnits' => DB::table('sces_units')
+                ->join('programs', 'sces_units.program_id', '=', 'programs.id')
+                ->join('schools', 'programs.school_id', '=', 'schools.id')
+                ->where('schools.code', $schoolCode)
+                ->count(),
             
-            'activeEnrollments' => Enrollment::whereHas('unit.program', function($query) use ($schoolCode) {
-                $query->whereHas('school', function($q) use ($schoolCode) {
-                    $q->where('code', $schoolCode);
-                });
-            })
-            ->where('semester_id', $currentSemester?->id)
-            ->whereNotNull('student_code')
-            ->count(),
+            'activeEnrollments' => DB::table('sces_enrollments')
+                ->join('sces_units', 'sces_enrollments.unit_id', '=', 'sces_units.id')
+                ->join('programs', 'sces_units.program_id', '=', 'programs.id')
+                ->join('schools', 'programs.school_id', '=', 'schools.id')
+                ->where('schools.code', $schoolCode)
+                ->where('sces_enrollments.semester_id', $currentSemester?->id)
+                ->whereNotNull('sces_enrollments.student_code')
+                ->count(),
         ];
 
         // Get recent activities (you can customize this based on your needs)
@@ -736,7 +749,7 @@ class DashboardController extends Controller
 
         // Get pending approvals (customize based on your approval system)
         $pendingApprovals = [
-            'enrollments' => 12,
+            'sces_enrollments' => 12,
             'lecturerRequests' => 3,
             'unitChanges' => 5,
         ];

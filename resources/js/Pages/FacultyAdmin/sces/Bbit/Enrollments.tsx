@@ -90,7 +90,7 @@ interface PageProps {
   semesters: Semester[] | null
   groups: Group[] | null
   classes: Class[] | null
-  units: Unit[] | null
+  sces_units: Unit[] | null
   lecturerAssignments: PaginatedLecturerAssignments | null
   errors: Record<string, string>
 }
@@ -103,7 +103,7 @@ const Enrollments: React.FC = () => {
     semesters = [],
     groups = [],
     classes = [],
-    units = [],
+    sces_units = [],
     lecturerAssignments,
     errors: pageErrors,
   } = pageProps
@@ -225,7 +225,10 @@ const Enrollments: React.FC = () => {
     setFilteredUnits([])
   }
 
+  // UPDATED: Enhanced handleClassChange to work with SCES tables
   const handleClassChange = async (classId: number) => {
+    console.log('Class changed to:', classId)
+    
     setCurrentEnrollment((prev) => ({
       ...prev!,
       class_id: classId,
@@ -243,10 +246,17 @@ const Enrollments: React.FC = () => {
       try {
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
 
+        console.log('Fetching units with params:', {
+          semester_id: currentEnrollment.semester_id,
+          class_id: classId,
+          student_code: currentEnrollment.student_code || 'admin_request'
+        })
+
         const response = await axios.get("/units/by-class-and-semester", {
           params: {
             semester_id: currentEnrollment.semester_id,
             class_id: classId,
+            student_code: currentEnrollment.student_code || undefined, // Include student code for admin requests
           },
           headers: {
             "X-CSRF-TOKEN": token,
@@ -255,17 +265,32 @@ const Enrollments: React.FC = () => {
           },
         })
 
-        if (response.data.units && Array.isArray(response.data.units)) {
-          setFilteredUnits(response.data.units)
+        console.log('Units API response:', response.data)
+
+        if (response.data.success && response.data.sces_units && Array.isArray(response.data.sces_units)) {
+          setFilteredUnits(response.data.sces_units)
+          if (response.data.sces_units.length === 0) {
+            setError("No units found for this class and semester.")
+          }
         } else if (Array.isArray(response.data)) {
+          // Fallback for direct array response
           setFilteredUnits(response.data)
         } else {
           setFilteredUnits([])
-          setError("No units found for this class and semester.")
+          setError(response.data.error || "No units found for this class and semester.")
         }
       } catch (error: any) {
         console.error("Error fetching units:", error)
-        setError("Failed to fetch units. Please try again.")
+        console.error("Error response:", error.response?.data)
+        
+        // More detailed error handling
+        if (error.response?.data?.error) {
+          setError(error.response.data.error)
+        } else if (error.response?.data?.message) {
+          setError(error.response.data.message)
+        } else {
+          setError("Failed to fetch units. Please try again.")
+        }
         setFilteredUnits([])
       } finally {
         setIsLoading(false)
@@ -276,6 +301,7 @@ const Enrollments: React.FC = () => {
     }
   }
 
+  // UPDATED: Enhanced handleSubmit to work with SCES faculty routes
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -312,7 +338,16 @@ const Enrollments: React.FC = () => {
         unit_ids: currentEnrollment.unit_ids.map((id) => Number(id)),
       }
 
-      router.post("/enrollments", formattedEnrollment, {
+      console.log('Submitting enrollment:', formattedEnrollment)
+
+      // Check if we're on the faculty admin route
+      const currentPath = window.location.pathname
+      const isScesRoute = currentPath.includes('/facultyadmin/sces')
+      
+      // Use the appropriate route based on context
+      const submitUrl = isScesRoute ? "/facultyadmin/sces/enrollments" : "/enrollments"
+
+      router.post(submitUrl, formattedEnrollment, {
         onSuccess: () => {
           toast.success("Student enrolled successfully!")
           handleCloseModal()
@@ -358,6 +393,7 @@ const Enrollments: React.FC = () => {
     }
   }
 
+  // UPDATED: Enhanced handleBulkDelete to work with SCES routes
   const handleBulkDelete = () => {
     if (selectedEnrollments.length === 0) {
       toast.error("Please select enrollments to delete")
@@ -369,8 +405,15 @@ const Enrollments: React.FC = () => {
         `Are you sure you want to delete ${selectedEnrollments.length} enrollment(s)? This action cannot be undone.`,
       )
     ) {
+      // Check if we're on the faculty admin route
+      const currentPath = window.location.pathname
+      const isScesRoute = currentPath.includes('/facultyadmin/sces')
+      
+      // Use the appropriate route based on context
+      const deleteUrl = isScesRoute ? "/facultyadmin/sces/enrollments/bulk-delete" : "/enrollments/bulk-delete"
+
       router.post(
-        "/enrollments/bulk-delete",
+        deleteUrl,
         { enrollment_ids: selectedEnrollments },
         {
           onSuccess: () => {
@@ -418,6 +461,28 @@ const handleDeleteAssignment = (assignment: LecturerAssignment) => {
       },
       onError: () => {
         toast.error("Failed to delete lecturer assignment.")
+      },
+    })
+  }
+}
+
+// UPDATED: Enhanced delete handler for individual enrollments
+const handleDeleteEnrollment = (enrollmentId: number) => {
+  if (confirm("Are you sure you want to delete this enrollment?")) {
+    // Check if we're on the faculty admin route
+    const currentPath = window.location.pathname
+    const isScesRoute = currentPath.includes('/facultyadmin/sces')
+    
+    // Use the appropriate route based on context
+    const deleteUrl = isScesRoute ? `/facultyadmin/sces/enrollments/${enrollmentId}` : `/enrollments/${enrollmentId}`
+
+    router.delete(deleteUrl, {
+      onSuccess: () => {
+        toast.success("Enrollment deleted successfully!")
+      },
+      onError: (errors) => {
+        console.error("Delete error:", errors)
+        toast.error("Failed to delete enrollment.")
       },
     })
   }
@@ -622,7 +687,7 @@ return (
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
-                            onClick={() => router.delete(`/enrollments/${enrollment.id}`)}
+                            onClick={() => handleDeleteEnrollment(enrollment.id)}
                             className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-medium rounded-lg hover:from-red-600 hover:to-red-700 transform hover:scale-105 transition-all duration-200 shadow-md"
                           >
                             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -758,32 +823,32 @@ return (
                           <div className="text-sm text-slate-900">{assignment.lecturer_name || "Unknown"}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleShowAssignment(assignment)}
-              className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
-            >
-              Show
-            </button>
-            <button
-              onClick={() => handleEditAssignment(assignment)}
-              className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs"
-            >
-              Edit
-            </button>
-             <button
-              onClick={() => handleDeleteAssignment(assignment)}
-              className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs"
-            >
-              Delete
-            </button> 
-          </div>
-        </td>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleShowAssignment(assignment)}
+                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+                            >
+                              Show
+                            </button>
+                            <button
+                              onClick={() => handleEditAssignment(assignment)}
+                              className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAssignment(assignment)}
+                              className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs"
+                            >
+                              Delete
+                            </button> 
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center">
+                      <td colSpan={5} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center">
                           <svg
                             className="w-16 h-16 text-slate-300 mb-4"
@@ -805,26 +870,27 @@ return (
                     </tr>
                   )}
                 </tbody>
-                {/* Modal for showing assignment details */}
-{modalType === "show" && selectedAssignment && (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
-    <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full">
-      <h2 className="text-lg font-bold mb-4">Lecturer Assignment Details</h2>
-      <div className="mb-2"><b>Unit:</b> {selectedAssignment.unit_name}</div>
-      <div className="mb-2"><b>Unit Code:</b> {selectedAssignment.unit_code}</div>
-      <div className="mb-2"><b>Lecturer Code:</b> {selectedAssignment.lecturer_code}</div>
-      <div className="mb-2"><b>Lecturer Name:</b> {selectedAssignment.lecturer_name}</div>
-      <button
-        onClick={() => { setModalType(""); setSelectedAssignment(null); }}
-        className="mt-4 px-4 py-2 bg-gray-200 rounded"
-      >
-        Close
-      </button>
-    </div>
-  </div>
-)}
               </table>
             </div>
+
+            {/* Modal for showing assignment details */}
+            {modalType === "show" && selectedAssignment && (
+              <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+                <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full">
+                  <h2 className="text-lg font-bold mb-4">Lecturer Assignment Details</h2>
+                  <div className="mb-2"><b>Unit:</b> {selectedAssignment.unit_name}</div>
+                  <div className="mb-2"><b>Unit Code:</b> {selectedAssignment.unit_code}</div>
+                  <div className="mb-2"><b>Lecturer Code:</b> {selectedAssignment.lecturer_code}</div>
+                  <div className="mb-2"><b>Lecturer Name:</b> {selectedAssignment.lecturer_name}</div>
+                  <button
+                    onClick={() => { setModalType(""); setSelectedAssignment(null); }}
+                    className="mt-4 px-4 py-2 bg-gray-200 rounded"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
 
             {lecturerAssignments?.links && lecturerAssignments.links.length > 3 && (
               <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-t border-slate-200/50">
@@ -937,74 +1003,75 @@ return (
                   ))}
                 </select>
               </div>
-                  <div className="mb-6">
-  <label className="block text-sm font-medium text-gray-700 mb-2">Units</label>
-  {/* Select All Units Checkbox */}
-  {filteredUnits.length > 0 && (
-    <div className="flex items-center mb-2">
-      <input
-        type="checkbox"
-        id="select-all-units"
-        checked={
-          currentEnrollment?.unit_ids.length === filteredUnits.length &&
-          filteredUnits.length > 0
-        }
-        onChange={() => {
-          if (
-            currentEnrollment?.unit_ids.length === filteredUnits.length &&
-            filteredUnits.length > 0
-          ) {
-            setCurrentEnrollment((prev) => ({
-              ...prev!,
-              unit_ids: [],
-            }))
-          } else {
-            setCurrentEnrollment((prev) => ({
-              ...prev!,
-              unit_ids: filteredUnits.map((unit) => unit.id),
-            }))
-          }
-        }}
-        className="mr-2 accent-blue-600"
-      />
-      <label htmlFor="select-all-units" className="text-sm font-medium text-blue-700">
-        Select All Units
-      </label>
-    </div>
-  )}
-  <div className="max-h-32 overflow-y-auto border rounded-lg p-2">
-    {isLoading ? (
-      <div className="text-center py-4">Loading units...</div>
-    ) : filteredUnits.length > 0 ? (
-      filteredUnits.map((unit) => (
-        <div key={unit.id} className="flex items-center mb-2">
-          <input
-            type="checkbox"
-            id={`unit-${unit.id}`}
-            checked={currentEnrollment?.unit_ids.includes(unit.id) || false}
-            onChange={(e) => {
-              const isChecked = e.target.checked
-              setCurrentEnrollment((prev) => ({
-                ...prev!,
-                unit_ids: isChecked
-                  ? [...prev!.unit_ids, unit.id]
-                  : prev!.unit_ids.filter((id) => id !== unit.id),
-              }))
-            }}
-            className="mr-2"
-          />
-          <label htmlFor={`unit-${unit.id}`} className="text-sm">
-            {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
-          </label>
-        </div>
-      ))
-    ) : (
-      <div className="text-center py-4 text-gray-500">
-        {currentEnrollment?.class_id ? "No units available for this class" : "Select a class first"}
-      </div>
-    )}
-  </div>
-</div>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Units</label>
+                {/* Select All Units Checkbox */}
+                {filteredUnits.length > 0 && (
+                  <div className="flex items-center mb-2">
+                    <input
+                      type="checkbox"
+                      id="select-all-units"
+                      checked={
+                        currentEnrollment?.unit_ids.length === filteredUnits.length &&
+                        filteredUnits.length > 0
+                      }
+                      onChange={() => {
+                        if (
+                          currentEnrollment?.unit_ids.length === filteredUnits.length &&
+                          filteredUnits.length > 0
+                        ) {
+                          setCurrentEnrollment((prev) => ({
+                            ...prev!,
+                            unit_ids: [],
+                          }))
+                        } else {
+                          setCurrentEnrollment((prev) => ({
+                            ...prev!,
+                            unit_ids: filteredUnits.map((unit) => unit.id),
+                          }))
+                        }
+                      }}
+                      className="mr-2 accent-blue-600"
+                    />
+                    <label htmlFor="select-all-units" className="text-sm font-medium text-blue-700">
+                      Select All Units
+                    </label>
+                  </div>
+                )}
+                <div className="max-h-32 overflow-y-auto border rounded-lg p-2">
+                  {isLoading ? (
+                    <div className="text-center py-4">Loading units...</div>
+                  ) : filteredUnits.length > 0 ? (
+                    filteredUnits.map((unit) => (
+                      <div key={unit.id} className="flex items-center mb-2">
+                        <input
+                          type="checkbox"
+                          id={`unit-${unit.id}`}
+                          checked={currentEnrollment?.unit_ids.includes(unit.id) || false}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked
+                            setCurrentEnrollment((prev) => ({
+                              ...prev!,
+                              unit_ids: isChecked
+                                ? [...prev!.unit_ids, unit.id]
+                                : prev!.unit_ids.filter((id) => id !== unit.id),
+                            }))
+                          }}
+                          className="mr-2"
+                        />
+                        <label htmlFor={`unit-${unit.id}`} className="text-sm">
+                          {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
+                        </label>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      {currentEnrollment?.class_id ? "No units available for this class" : "Select a class first"}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="flex justify-end space-x-3">
                 <button
@@ -1037,7 +1104,14 @@ return (
               onSubmit={(e) => {
                 e.preventDefault()
                 if (assignData) {
-                  router.post("/assign-unit", assignData, {
+                  // Check if we're on the faculty admin route
+                  const currentPath = window.location.pathname
+                  const isScesRoute = currentPath.includes('/facultyadmin/sces')
+                  
+                  // Use the appropriate route based on context
+                  const assignUrl = isScesRoute ? "/facultyadmin/sces/assign-unit" : "/assign-unit"
+
+                  router.post(assignUrl, assignData, {
                     onSuccess: () => {
                       toast.success("Unit assigned to lecturer successfully!")
                       handleCloseAssignModal()
@@ -1064,8 +1138,8 @@ return (
                   required
                 >
                   <option value="">Select a unit</option>
-                  {units &&
-                    units.map((unit) => (
+                  {sces_units &&
+                    sces_units.map((unit) => (
                       <option key={unit.id} value={unit.id}>
                         {unit.code ? `${unit.code} - ${unit.name}` : unit.name}
                       </option>
@@ -1114,4 +1188,3 @@ return (
 }
 
 export default Enrollments
-

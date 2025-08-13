@@ -107,12 +107,15 @@ export default function Sidebar() {
     setOpenSection(openSection === section ? null : section)
   }
 
+  const toggleFile = (files: string) => {
+    setOpenSection(openSection === files? null : files)
+  }
+
   return (
     <div className="w-64 bg-blue-800 text-white h-full flex flex-col">
-      <div className="p-4 border-b border-gray-700">
-        <h1 className="text-xl font-bold">Timetabling System</h1>
-      </div>
-
+        <div className="p-4 border-b border-gray-700">
+          <h1 className="text-xl font-bold">Timetabling System</h1>
+        </div>
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="px-2 space-y-1">
           {/* Dashboard - Available to all with permission */}
@@ -204,72 +207,93 @@ export default function Sidebar() {
                             <span className="ml-auto">{openProgram === "sces" ? "▲" : "▼"}</span>
                           </button>
                           {openProgram === "sces" && (
-                            <div className="ml-6 mt-1 space-y-1">
-                              {/* {hasPermission(user, "view-faculty-dashboard-sces") && (
-                                <Link
-                                  href="/facultyadmin/sces"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <Home className="mr-3 h-5 w-5" />
-                                  SCES Dashboard
-                                </Link>
-                              )} */}
-                              {(hasPermission(user, "manage-programs") || hasPermission(user, "view-faculty-programs-sces")) && (
-                                <Link
-                                  href="/programs"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <BookOpen className="mr-3 h-5 w-5" />
-                                  Programs
-                                </Link>
-                              )}
-                              {(hasPermission(user, "manage-units") || hasPermission(user, "manage-faculty-units-sces")) && (
-                                <Link
-                                  href="/facultyadmin/sces/units"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <BookOpen className="mr-3 h-5 w-5" />
-                                  Units
-                                </Link>
-                              )}
-                              {(hasPermission(user, "view-faculty-enrollments-sces")) && (
-                                <Link
-                                  href="/facultyadmin/sces/enrollments"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <ClipboardList className="mr-3 h-5 w-5" />
-                                  Enrollments
-                                </Link>
-                              )}
-                              {(hasPermission(user, "manage-classes") || hasPermission(user, "view-faculty-classes-sces")) && (
-                                <Link
-                                  href="/classes"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <ClipboardList className="mr-3 h-5 w-5" />
-                                  Classes
-                                </Link>
-                              )}
-                              {(hasPermission(user, "manage-faculty-students-sces")) && (
-                                <Link
-                                  href="/facultyadmin/sces/students"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <Users className="mr-3 h-5 w-5" />
-                                  Students
-                                </Link>
-                              )}
-                              {(hasPermission(user, "manage-faculty-lecturers-sces")) && (
-                                <Link
-                                  href="/facultyadmin/sces/lecturers"
-                                  className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
-                                >
-                                  <Users className="mr-3 h-5 w-5" />
-                                  Lecturers
-                                </Link>
-                              )}
+                            <div className="ml-6 mt-1 space-y-1">                             
+                              {/* SCES Section - Show if user has SCES faculty admin role */}
+                              {isFacultyAdminSCES() && (
+                                <div>
+                                  <button
+                                    type="button"
+                                      className="flex items-center w-full px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700 focus:outline-none"
+                                      onClick={() => toggleFile("files")}
+                                  >  
+                                    <GraduationCap className="mr-3 h-5 w-5" />
+                                      BBIT
+                                      <span className="ml-auto">{openSection === "files" ? "▲" : "▼"}</span>
+                                  </button>
+                                  {openSection === "files" && (
+                                    <div className="ml-6 mt-1 space-y-1">                              
+                                      {(hasPermission(user, "view-faculty-enrollments-sces")) && (
+                                      <Link
+                                        href="/facultyadmin/sces/enrollments"
+                                        className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                       >
+                                        <ClipboardList className="mr-3 h-5 w-5" />
+                                          Enrollments
+                                      </Link>
+                                      )}
+
+                                      {(hasPermission(user, "manage-classes") || hasPermission(user, "view-faculty-classes-sces")) && (
+                                      <Link
+                                        href="/facultyadmin/sces/classes"
+                                        className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                      >
+                                        <ClipboardList className="mr-3 h-5 w-5" />
+                                          Classes
+                                      </Link>
+                                      )}
+                                      {(hasPermission(user, "manage-units") || hasPermission(user, "view-faculty-units-sces")) && (
+                                        <Link
+                                          href="/facultyadmin/sces/units"
+                                          className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                        >
+                                          <BookOpen className="mr-3 h-5 w-5" />
+                                          Units
+                                        </Link>
+                                      )}
+                                      {(hasPermission(user, "manage-students") || hasPermission(user, "view-faculty-students-sces")) && (
+                                        <Link
+                                          href="/facultyadmin/sces/students"
+                                          className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                        >
+                                          <BookOpen className="mr-3 h-5 w-5" />
+                                          Students
+                                        </Link>
+                                      )}
+                                      {(hasPermission(user, "manage-lecturers") || hasPermission(user, "view-faculty-lecturers-sces")) && (
+                                        <Link
+                                          href="/facultyadmin/sces/lecturers"
+                                          className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                        >
+                                          <BookOpen className="mr-3 h-5 w-5" />
+                                          Lecturers
+                                        </Link>
+                                      )}
+                                      {(hasPermission(user, "manage-timetables") || hasPermission(user, "view-faculty-class-timetables-sces")) && (
+                                        <Link
+                                          href="/facultyadmin/sces/timetables"
+                                          className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                        >
+                                          <BookOpen className="mr-3 h-5 w-5" />
+                                          C-Timetables
+                                        </Link>
+                                      )}
+                                      {(hasPermission(user, "manage-exam-timetables") || hasPermission(user, "view-faculty-exam-timetables-sces")) && (
+                                        <Link
+                                          href="/facultyadmin/sces/examtimetables"
+                                          className="flex items-center px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-700"
+                                        >
+                                          <BookOpen className="mr-3 h-5 w-5" />
+                                          E-Timetables
+                                        </Link>
+                                      )}
+                                      
+                                                                            
+                                    </div>
+                                  )}
+                                </div>
+                              )}                              
                             </div>
-                          )}
+                          )}              
                         </div>
                       )}
                       

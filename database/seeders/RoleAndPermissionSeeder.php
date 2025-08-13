@@ -51,7 +51,7 @@ class RoleAndPermissionSeeder extends Seeder
             'manage-exam-timetables', 'view-exam-timetables', 'create-exam-timetables', 'edit-exam-timetables', 'delete-exam-timetables',
             'process-exam-timetables', 'solve-exam-conflicts', 'download-exam-timetables',
             'view-own-exam-timetables', 'download-own-exam-timetables',
-            'manage-exam-rooms', 'view-exam-rooms', 'create-exam-rooms', 'edit-exam-rooms', 'delete-exam-rooms',
+            'manage-exam-rooms', 'view-exam-rooms', 'create-exam-rooms', 'edit-exam-rooms', 'delete-exam-rooms', 'view-faculty-class-timetables-sces', 'view-faculty-exam-timetables-sces',
 
             // Time Slots
             'manage-time-slots', 'view-time-slots',
@@ -162,7 +162,7 @@ class RoleAndPermissionSeeder extends Seeder
                 'process-class-timetables', 'solve-class-conflicts', 'download-class-timetables',
                 
                 // Limited exam access
-                'view-exam-timetables', 'download-exam-timetables',
+                'view-exam-timetables', 'download-exam-timetables', 'view-faculty-class-timetables-sces', 'view-faculty-exam-timetables-sces',
                 
                 // User management (school-specific)
                 'view-users',
